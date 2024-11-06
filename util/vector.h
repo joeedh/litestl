@@ -476,7 +476,29 @@ public:
     return *this;
   }
 
-  DEFAULT_MOVE_ASSIGNMENT(Vector)
+  Vector(T *items, int itemCount)
+  {
+    if (itemCount <= static_size) {
+      capacity_ = static_size;
+      size_ = 0;
+      data_ = reinterpret_cast<T *>(static_storage_);
+      for (int i = 0; i < itemCount; i++) {
+        this->append(std::move(items[i]));
+      }
+    } else {
+      data_ = static_cast<T *>(alloc::alloc("Vector data", sizeof(T) * itemCount));
+      capacity_ = size_ = itemCount;
+      if constexpr (!is_simple<T>()) {
+        for (int i = 0; i < itemCount; i++) {
+          new (static_cast<void *>(data_ + i)) T(std::move(items[i]));
+        }
+      } else {
+        memcpy(static_cast<void *>(data_),
+               static_cast<void *>(items),
+               sizeof(T) * itemCount);
+      }
+    }
+  }
 
   Vector(Vector &&b)
   {
@@ -493,7 +515,6 @@ public:
           data_[i] = std::move(b.data_[i]);
         }
       }
-
       if (b.data_ && b.data_ != b.static_storage()) {
         alloc::release(static_cast<void *>(b.data_));
       }

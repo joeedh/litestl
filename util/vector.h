@@ -82,7 +82,9 @@ public:
 
   ~Vector()
   {
-    release_data(data_, size_);
+    if (data_ != nullptr) {
+      release_data(data_, size_);
+    }
   }
 
   Vector(const Vector &b)
@@ -179,6 +181,30 @@ public:
     return *this;
   }
 
+  Vector(T *items, int itemCount)
+  {
+    if (itemCount <= static_size) {
+      capacity_ = static_size;
+      size_ = 0;
+      data_ = reinterpret_cast<T *>(static_storage_);
+      for (int i = 0; i < itemCount; i++) {
+        this->append(std::move(items[i]));
+      }
+    } else {
+      data_ = static_cast<T *>(alloc::alloc("Vector data", sizeof(T) * itemCount));
+      capacity_ = size_ = itemCount;
+      if constexpr (!is_simple<T>()) {
+        for (int i = 0; i < itemCount; i++) {
+          new (static_cast<void *>(data_ + i)) T(std::move(items[i]));
+        }
+      } else {
+        memcpy(static_cast<void *>(data_),
+               static_cast<void *>(items),
+               sizeof(T) * itemCount);
+      }
+    }
+  }
+
   Vector(Vector &&b)
   {
     size_ = b.size_;
@@ -194,14 +220,15 @@ public:
           data_[i] = std::move(b.data_[i]);
         }
       }
-
-      b.data_ = nullptr;
-      b.size_ = 0;
+      if (b.data_ && b.data_ != b.static_storage()) {
+        alloc::release(static_cast<void *>(b.data_));
+      }
     } else {
       data_ = b.data_;
-      b.data_ = nullptr;
-      b.size_ = 0;
     }
+
+    b.data_ = nullptr;
+    b.size_ = 0;
   }
 
   DEFAULT_MOVE_ASSIGNMENT(Vector)
@@ -320,7 +347,7 @@ public:
 
   void append(const T &value)
   {
-    append_intern() = value;
+    new (static_cast<void *>(&append_intern())) T(value);
   }
 
   void append(T &&value)
@@ -379,6 +406,15 @@ public:
   T *data()
   {
     return data_;
+  }
+
+  Vector<T, static_size> &reverse()
+  {
+    int size = size_ >> 1;
+    for (int i = 0; i < size; i++) {
+      std::swap(data_[i], data_[size_ - i - 1]);
+    }
+    return *this;
   }
 
 private:

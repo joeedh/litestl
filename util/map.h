@@ -406,6 +406,7 @@ public:
     }
 
     if (!used_[i]) {
+      new (static_cast<void *>(&table_[i].key)) Key(key);
       used_.set(i, true);
       used_count_++;
       return true;

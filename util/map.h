@@ -350,6 +350,7 @@ public:
         new (static_cast<void *>(&table_[i].value)) Value();
       }
 
+      table_[i].key = key;
       used_.set(i, true);
     }
 
@@ -571,6 +572,9 @@ private:
     for (int i = 0; i < old.size(); i++) {
       if (old_used[i]) {
         insert(std::move(old[i].key), std::move(old[i].value));
+        if constexpr(!Pair::is_simple()) {
+          old[i].~Pair();
+        }
       }
     }
 

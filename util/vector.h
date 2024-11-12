@@ -11,7 +11,8 @@
 #include <utility>
 
 namespace litestl::util {
-template <typename T, int static_size = 4> class Vector {
+template <typename T, int static_size = 4> 
+class CONTAINER_ALIGN(T) Vector {
 public:
   using value_type = T;
 

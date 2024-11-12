@@ -384,6 +384,7 @@ public:
         new (static_cast<void *>(&table_[i].value)) Value();
       }
 
+      table_[i].key = key;
       used_.set(i, true);
       new (static_cast<void *>(&table_[i].key)) Key(key);
       used_count_++;
@@ -691,15 +692,10 @@ private:
 
     for (int i = 0; i < old.size(); i++) {
       if (old_used[i]) {
-        int index = find_pair<false, true>(old[i].key);
-
-        new (static_cast<void *>(&table_[index].key)) Key(std::move(old[i].key));
-        new (static_cast<void *>(&table_[index].value)) Value(std::move(old[i].value));
-
-        if constexpr (!Pair::is_simple()) {
+        insert(std::move(old[i].key), std::move(old[i].value));
+        if constexpr(!Pair::is_simple()) {
           old[i].~Pair();
         }
-        used_.set(index, true);
       }
     }
 

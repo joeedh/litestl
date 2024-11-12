@@ -27,7 +27,7 @@ concept KeyCopier = requires(Func f, Key k)
 } // namespace detail::map
 
 namespace detail::map {
-  template <typename Key, typename Value> struct Pair {
+template <typename Key, typename Value> struct Pair {
   Key key;
   Value value;
 
@@ -80,7 +80,7 @@ namespace detail::map {
             std::is_pointer_v<Value>);
   }
 };
-} // namespace detail::map
+} // namespace detail::map<<<<<<< HEAD
 
 /**
  * Open-addressing hash map with quadratic probing.
@@ -458,7 +458,6 @@ public:
     int i = find_pair<true, true>(key, &first_clearcell);
 
     if (value) {
-      new (static_cast<void *>(&table_[i].value)) Value();
       *value = &table_[i].value;
     }
 

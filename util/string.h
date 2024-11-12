@@ -274,6 +274,14 @@ public:
     if (&b == this) {
       return *this;
     }
+    
+    data_ = static_storage_;
+    ensure_size(b.size_);
+    size_ = b.size_;
+
+    for (int i = 0; i < b.size_; i++) {
+      data_[i] = b.data_[i];
+    }
 
     ensure_size(b.size_);
     size_ = b.size_;
@@ -421,7 +429,8 @@ private:
         data2 = static_cast<Char *>(alloc::alloc("string", size + 1));
       }
 
-      for (int i = 0; i < size_; i++) {
+      int i;
+      for (i = 0; i < size_; i++) {
         data2[i] = data_[i];
       }
       data2[size_] = 0;

@@ -27,7 +27,7 @@ concept KeyCopier = requires(Func f, Key k)
 } // namespace detail::map
 
 namespace detail::map {
-template <typename Key, typename Value> struct Pair {
+  template <typename Key, typename Value> struct Pair {
   Key key;
   Value value;
 
@@ -81,6 +81,7 @@ template <typename Key, typename Value> struct Pair {
   }
 };
 } // namespace detail::map
+
 /**
  * Open-addressing hash map with quadratic probing.
  *
@@ -329,7 +330,7 @@ public:
     add_finalize(i, key, value);
   }
 
-  /** Rvalue overload of insert method above. */
+  /** Rvalue overload of insert method above.  Does not check if key already exists.*/
   void insert(Key &&key, Value &&value)
   {
     check_load();
@@ -384,7 +385,6 @@ public:
         new (static_cast<void *>(&table_[i].value)) Value();
       }
 
-      table_[i].key = key;
       used_.set(i, true);
       new (static_cast<void *>(&table_[i].key)) Key(key);
       used_count_++;
@@ -458,6 +458,7 @@ public:
     int i = find_pair<true, true>(key, &first_clearcell);
 
     if (value) {
+      new (static_cast<void *>(&table_[i].value)) Value();
       *value = &table_[i].value;
     }
 
@@ -692,10 +693,15 @@ private:
 
     for (int i = 0; i < old.size(); i++) {
       if (old_used[i]) {
-        insert(std::move(old[i].key), std::move(old[i].value));
-        if constexpr(!Pair::is_simple()) {
+        int index = find_pair<false, true>(old[i].key);
+
+        new (static_cast<void *>(&table_[index].key)) Key(std::move(old[i].key));
+        new (static_cast<void *>(&table_[index].value)) Value(std::move(old[i].value));
+
+        if constexpr (!Pair::is_simple()) {
           old[i].~Pair();
         }
+        used_.set(index, true);
       }
     }
 

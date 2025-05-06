@@ -131,7 +131,7 @@ public:
 
 private:
   BlockInt *vector_ = nullptr;
-  BlockInt static_storage_[static_size >> block_shift];
+  BlockInt static_storage_[(static_size >> block_shift) + 1];
   int size_ = 0, vector_size_ = 0;
   int used_ = 0;
 

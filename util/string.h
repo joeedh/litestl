@@ -9,6 +9,7 @@
 
 #include "util/alloc.h"
 #include "util/compiler_util.h"
+#include "util/vector.h"
 
 namespace litestl::util {
 template <typename Char, int static_size = 32> struct String;
@@ -273,7 +274,7 @@ public:
     if (&b == this) {
       return *this;
     }
-    
+
     data_ = static_storage_;
     ensure_size(b.size_);
     size_ = b.size_;
@@ -370,11 +371,88 @@ public:
     return *this;
   }
 
+  String &operator+=(const Char b)
+  {
+    ensure_size(size_ + 1);
+    data_[size_] = b;
+    size_ += 1;
+    data_[size_] = 0;
+    return *this;
+  }
+
   size_t size() const
   {
     return size_;
   }
 
+  Vector<String> split(const Char splitC)
+  {
+    String current;
+    Vector<String> result = {};
+
+    int count = size();
+    for (int i = 0; i < count; i++) {
+      const Char c = data_[i];
+      if (c == splitC) {
+        result.append(String(current));
+        current = "";
+      } else {
+        current += c;
+      }
+    }
+    if (current.size_ > 0) {
+      result.append(current);
+    }
+    return result;
+  }
+
+  String trimRight()
+  {
+    String b = *this;
+    for (int i = 0; i < b.size_; i++) {
+      if (b.data_[i] == ' ' || b.data_[i] == '\n' || b.data_[i] == '\r' ||
+          b.data_[i] == '\t')
+      {
+        b.size_ = i;
+        b.data_[i] = 0;
+        return b;
+      }
+    }
+    return b;
+  }
+
+  String trimLeft()
+  {
+    String b = *this;
+    for (int i = 0; i < b.size_; i++) {
+      if (b.data_[i] == ' ' || b.data_[i] == '\n' || b.data_[i] == '\r' ||
+          b.data_[i] == '\t')
+      {
+        for (int j = 0; j < b.size_ - i; j++) {
+          b.data_[j] = b.data_[j + i];
+        }
+        b.size_ -= i;
+        b.data_[b.size_] = 0;
+        return b;
+      }
+    }
+    return b;
+  }
+
+  String trim()
+  {
+    return trimLeft().trimRight();
+  }
+
+  String substr(int start, int count)
+  {
+    String b;
+    count = std::min(count, int(size()) - start);
+    for (int i = start; i < start + count; i++) {
+      b += data_[i];
+    }
+    return b;
+  }
 private:
   /* Ensures data has at least size+1 elements, does not set size_*/
   void ensure_size(int size)

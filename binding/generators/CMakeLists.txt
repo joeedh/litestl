@@ -2,6 +2,7 @@ set(LIB
     eigen
     util
     binding
+    litestl_path
 )
 
 set(SRC

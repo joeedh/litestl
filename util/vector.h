@@ -47,7 +47,7 @@ template <typename T, VectorSortComparator<T> CB> struct Comparator {
 };
 } // namespace detail
 
-static constexpr int VectorDefaultStaticSize = 1;
+static constexpr int VectorDefaultStaticSize = 4;
 /**
  * Small-buffer-optimized dynamic array.
  *
@@ -764,6 +764,38 @@ public:
       std::swap(data_[i], data_[size_ - i - 1]);
     }
     return *this;
+  }
+
+  T join(T middle)
+  {
+    T sum = {};
+    for (int i = 0; i < this->size(); i++) {
+      if (i > 0) {
+        sum += middle;
+      }
+      sum += data_[i];
+    }
+    return sum;
+  }
+
+  Vector slice(int start)
+  {
+    return slice(start, size());
+  }
+
+  /** End is relative when negative, e.g. slice(0, -1) will copy everything except the last item. */
+  Vector slice(int start, int end)
+  {
+    if (end < 0) {
+      end += int(size_);
+    }
+    end = std::min(std::max(end, 0), int(size_));
+
+    Vector result;
+    for (int i = start; i < end; i++) {
+      result.append(data_[i]);
+    }
+    return result;
   }
 
 private:

@@ -8,6 +8,11 @@ namespace litestl::binding::generators {
 using util::string;
 using util::Vector;
 
+struct TypescriptType {
+  string name;
+  Vector<TypescriptType*> typeParams;
+};
+
 static void recurse(const BindingBase *type,
                     util::Map<string, const BindingBase *> &typeMap)
 {

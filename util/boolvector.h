@@ -2,9 +2,9 @@
 
 #include "alloc.h"
 #include "compiler_util.h"
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include <algorithm>
 
 namespace litestl::util {
 template <int static_size = 32> class BoolVector {
@@ -97,18 +97,21 @@ public:
     return vector_[index >> block_shift] & bit;
   }
 
-  void set(int index, bool val)
+  /** Returns old value */
+  inline bool set(int index, bool val)
   {
     int bit = 1 << (index & block_mask);
+    bool result = static_cast<bool>(vector_[index >> block_shift] & bit);
 
     if (val) {
       vector_[index >> block_shift] |= bit;
     } else {
       vector_[index >> block_shift] &= ~bit;
     }
+    return result;
   }
 
-  int size()
+  int size() const
   {
     return used_;
   }

@@ -16,11 +16,19 @@
 #include <mutex>
 #include <thread>
 
+/** Thread pool and parallel execution utilities. */
 namespace litestl::task {
 using ThreadMain = std::function<void()>;
 using litestl::util::Vector;
 
 namespace detail {
+/**
+ * Worker thread that maintains a task queue.
+ *
+ * Auto-starts a detached thread on first push and sleeps with a 2ms
+ * timeout when the queue is empty. Call stop() to signal the worker
+ * to exit after draining remaining tasks.
+ */
 struct TaskWorker {
   Vector<ThreadMain> queue;
   std::recursive_mutex mutex;
@@ -33,11 +41,13 @@ struct TaskWorker {
   {
   }
 
+  /** Signals the worker to stop after draining its queue. */
   void stop()
   {
     stop_ = true;
   }
 
+  /** Starts the worker thread if not already running. */
   void start()
   {
     {
@@ -53,6 +63,12 @@ struct TaskWorker {
     delete thread;
   }
 
+  /**
+   * Main worker loop.
+   *
+   * Drains the queue, then sleeps for up to 2ms waiting for new tasks.
+   * Exits when stop() has been called and the queue is empty.
+   */
   void run()
   {
     using namespace std::chrono_literals;
@@ -83,6 +99,7 @@ struct TaskWorker {
     }
   }
 
+  /** @deprecated Old recursive drain loop, replaced by run(). */
   void run_old()
   {
     using namespace std::chrono_literals;
@@ -106,12 +123,20 @@ struct TaskWorker {
     }
   }
 
+  /** Returns the current queue size. */
   int size()
   {
     return queue.size();
   }
+
+  /**
+   * Enqueues a task, waking or starting the worker as needed.
+   *
+   * If the worker is running and the queue was empty, notifies the
+   * condition variable. If the worker is not running, starts it.
+   */
   void push(ThreadMain main)
-  {    
+  {
     bool notify = false;
 
     {
@@ -135,12 +160,15 @@ struct TaskWorker {
       }
     }
   }
+  /** Dequeues and returns the last task. */
   ThreadMain pop()
   {
     std::lock_guard guard(mutex);
     ThreadMain ret = queue.pop_back();
     return ret;
   }
+
+  /** Returns true if the queue is empty. */
   bool empty()
   {
     std::lock_guard guard(mutex);
@@ -148,10 +176,14 @@ struct TaskWorker {
   }
 };
 
+/** Global worker pool array sized by LITESTL_WORKERS_COUNT. */
 extern TaskWorker workers[LITESTL_WORKERS_COUNT];
+/** Round-robin index into the worker pool. */
 extern int curWorker;
+/** Guards @p curWorker. */
 extern std::recursive_mutex curWorkerMutex;
 
+/** Returns the next worker via round-robin selection. */
 static TaskWorker &getWorker()
 {
 #if 0
@@ -180,6 +212,7 @@ static TaskWorker &getWorker()
 
 } // namespace detail
 
+/** Submits @p cb for asynchronous execution on the worker pool. */
 template <typename Callback> static void run(Callback cb)
 {
 #if 0
@@ -191,7 +224,15 @@ template <typename Callback> static void run(Callback cb)
 #endif
 }
 
-/* [&](IndexRange range) {} */
+/**
+ * Splits @p range into @p grain_size chunks distributed across threads.
+ *
+ * Spawns up to platform::max_thread_count() threads, distributes chunks
+ * round-robin, and blocks until all threads complete. Falls back to a
+ * single synchronous call when the range size is at or below @p grain_size.
+ *
+ * @p cb signature: `[&](IndexRange range) {}`
+ */
 template <typename Callback>
 void parallel_for(util::IndexRange range, Callback cb, int grain_size = 1)
 {

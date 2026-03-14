@@ -12,6 +12,14 @@
 
 namespace litestl::util {
 
+/**
+ * Open-addressing hash set with quadratic probing.
+ *
+ * Stores up to @p static_size_logical keys inline (actual table capacity
+ * is roughly 4x to maintain load factor). Falls back to heap via alloc::alloc
+ * when the element count exceeds the static capacity. Rehashes when more than
+ * one-third of slots are occupied. Uses tombstones for deletion.
+ */
 // cannot rely on pointer members forcibly aligning to 8
 // because of wasm
 template <typename Key, size_t static_size_logical = 4>
@@ -149,6 +157,8 @@ struct alignas(ContainerAlign<Key>()) Set {
     return iterator(this, table_.size());
   }
 
+  /** Inserts @p key if not already present. Returns true if inserted, false
+   * if the key already existed. */
   bool add(const Key &key)
   {
     check_capacity();
@@ -175,6 +185,7 @@ struct alignas(ContainerAlign<Key>()) Set {
     return false;
   }
 
+  /** Removes @p key from the set. Returns true if the key was found and removed. */
   bool remove(const Key &key)
   {
     int first_clearcell = -1;
@@ -192,6 +203,7 @@ struct alignas(ContainerAlign<Key>()) Set {
     return false;
   }
 
+  /** Returns true if @p key is present in the set. */
   bool contains(const Key &key) const
   {
     int first_clearcell = -1;
@@ -199,16 +211,19 @@ struct alignas(ContainerAlign<Key>()) Set {
     return usedmap_[i];
   }
 
+  /** Alias for contains(). */
   bool operator[](const Key &key) const
   {
     return contains(key);
   }
 
+  /** Returns the number of entries currently in the set. */
   size_t size()
   {
     return size_;
   }
 
+  /** Removes all entries from the set, destructing non-trivial keys. */
   Set &clear()
   {
     if constexpr (!is_simple<Key>()) {

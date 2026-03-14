@@ -1,6 +1,15 @@
 #pragma once
 
-/** Small linear algebra vector class. */
+/**
+ * Small fixed-size linear algebra vector class.
+ *
+ * @tparam T The scalar element type (e.g. float, double, int32_t).
+ * @tparam vec_size The number of components in the vector.
+ *
+ * Provides component-wise arithmetic, dot product, normalization,
+ * distance, interpolation, and 2D rotation. Common type aliases
+ * (e.g. float2, double3, int4) are generated via the DEF_VECS macro.
+ */
 
 #include <algorithm>
 #include <cmath>
@@ -19,11 +28,13 @@ public:
 
   static const int size = vec_size;
 
+  /** Default constructor. Initializes all components to zero. */
   constexpr Vec()
   {
     vec_[0] = vec_[1] = T(0);
   }
 
+  /** Constructs a vector from two components. Remaining components are zeroed. */
   constexpr Vec(T a, T b)
   {
     vec_[0] = a;
@@ -34,6 +45,7 @@ public:
     }
   }
 
+  /** Constructs a vector from three components. Remaining components are zeroed. */
   constexpr Vec(T a, T b, T c)
   {
     vec_[0] = a;
@@ -45,6 +57,7 @@ public:
     }
   }
 
+  /** Constructs a vector from four components. Remaining components are zeroed. */
   constexpr Vec(T a, T b, T c, T d)
   {
     vec_[0] = a;
@@ -57,6 +70,7 @@ public:
     }
   }
 
+  /** Broadcasts a single scalar value to all components. */
   constexpr Vec(T single)
   {
     for (int i = 0; i < vec_size; i++) {
@@ -64,6 +78,7 @@ public:
     }
   }
 
+  /** Constructs a vector by copying vec_size elements from a raw pointer. */
   constexpr Vec(const T *value)
   {
     for (int i = 0; i < vec_size; i++) {
@@ -71,6 +86,7 @@ public:
     }
   }
 
+  /** Copy constructor. */
   constexpr Vec(const Vec &b)
   {
     for (int i = 0; i < vec_size; i++) {
@@ -78,6 +94,7 @@ public:
     }
   }
 
+  /** Copy constructor (non-const overload). */
   constexpr Vec(Vec &b)
   {
     for (int i = 0; i < vec_size; i++) {
@@ -85,6 +102,7 @@ public:
     }
   }
 
+  /** Sets all components to zero. Returns *this for chaining. */
   inline constexpr Vec &zero()
   {
     for (int i = 0; i < vec_size; i++) {
@@ -94,16 +112,23 @@ public:
     return *this;
   }
 
+  /** Returns a mutable reference to the component at @p idx. */
   inline constexpr T &operator[](int idx)
   {
     return vec_[idx];
   }
 
+  /** Returns the component value at @p idx. */
   inline constexpr T operator[](int idx) const
   {
     return vec_[idx];
   }
 
+/**
+ * Defines component-wise arithmetic operators for a given operator symbol.
+ *
+ * For each op, generates: Vec op Vec, Vec op scalar, Vec op= scalar, Vec op= Vec.
+ */
 #ifdef VEC_OP_DEF
 #undef VEC_OP_DEF
 #endif
@@ -154,6 +179,7 @@ public:
 #pragma clang diagnostic pop
 #endif
 
+  /** Component-wise minimum with @p b. Modifies in-place. */
   constexpr Vec &min(const Vec &b)
   {
     for (int i = 0; i < vec_size; i++) {
@@ -163,6 +189,7 @@ public:
     return *this;
   }
 
+  /** Component-wise maximum with @p b. Modifies in-place. */
   constexpr Vec &max(const Vec &b)
   {
     for (int i = 0; i < vec_size; i++) {
@@ -172,6 +199,7 @@ public:
     return *this;
   }
 
+  /** Applies std::floor to each component. Modifies in-place. */
   constexpr Vec &floor()
   {
     for (int i = 0; i < vec_size; i++) {
@@ -181,6 +209,7 @@ public:
     return *this;
   }
 
+  /** Applies std::ceil to each component. Modifies in-place. */
   constexpr Vec &ceil()
   {
     for (int i = 0; i < vec_size; i++) {
@@ -190,6 +219,7 @@ public:
     return *this;
   }
 
+  /** Applies std::abs to each component. Modifies in-place. */
   constexpr Vec &abs()
   {
     for (int i = 0; i < vec_size; i++) {
@@ -199,6 +229,7 @@ public:
     return *this;
   }
 
+  /** Computes the fractional part of each component. Modifies in-place. */
   constexpr Vec &fract()
   {
     for (int i = 0; i < vec_size; i++) {
@@ -208,6 +239,7 @@ public:
     return *this;
   }
 
+  /** Returns the dot product of this vector with @p b. */
   T dot(const Vec &b) const
   {
     T sum = T(0);
@@ -218,6 +250,12 @@ public:
     return sum;
   }
 
+  /**
+   * Normalizes the vector to unit length in-place.
+   *
+   * @return The original length before normalization. If the length is
+   *         near zero (< 1e-8), the vector is zeroed and 0 is returned.
+   */
   constexpr T normalize()
   {
     T len = length();
@@ -235,26 +273,34 @@ public:
     return len;
   }
 
+  /** Returns the Euclidean length (L2 norm) of the vector. */
   constexpr T length() const
   {
     return std::sqrt(dot(*this));
   }
 
+  /** Returns the squared length of the vector (avoids the sqrt). */
   constexpr T lengthSqr() const
   {
     return dot(*this);
   }
 
+  /** Returns the Euclidean distance to @p b. */
   constexpr T distance(const Vec &b) const
   {
     return std::sqrt(distanceSqr(b));
   }
 
+  /** Returns the squared Euclidean distance to @p b (avoids the sqrt). */
   constexpr T distanceSqr(const Vec &b) const
   {
     return (b - *this).lengthSqr();
   }
 
+  /**
+   * Rotates the first two components around @p center by angle @p th (radians).
+   * Only meaningful for vec_size >= 2.
+   */
   constexpr Vec &rotate2d(Vec center, double th)
   {
     if constexpr (vec_size > 1) {
@@ -270,6 +316,11 @@ public:
     return *this;
   }
 
+  /**
+   * Linearly interpolates this vector toward @p b by @p factor.
+   * A factor of 0 leaves this unchanged; a factor of 1 makes it equal to @p b.
+   * Modifies in-place.
+   */
   constexpr Vec &interp(const Vec &b, double factor)
   {
     for (int i = 0; i < vec_size; i++) {
@@ -279,11 +330,13 @@ public:
     return *this;
   }
 
+  /** Implicit conversion to a raw pointer to the underlying array. */
   operator T *()
   {
     return vec_;
   }
 
+  /** Prints the vector components to stdout in the format "(x y z ...)". */
   void print()
   {
     printf("(");
@@ -296,7 +349,7 @@ public:
     printf(")");
   }
 
-  /* modifies vector in-place */
+  /** Negates all components in-place. */
   constexpr Vec &negate()
   {
     for (int i = 0; i < vec_size; i++) {
@@ -314,6 +367,11 @@ private:
 #endif
 } // namespace litestl::math
 
+/**
+ * Generates 1D through 4D Vec type aliases and marks them as simple types.
+ *
+ * For example, DEF_VECS(float, float) creates float1, float2, float3, float4.
+ */
 #define DEF_VECS(type, name)                                                             \
   namespace litestl::math {                                                              \
   using name##1 = Vec<type, 1>;                                                          \

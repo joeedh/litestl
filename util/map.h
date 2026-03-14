@@ -16,6 +16,7 @@ namespace litestl::util {
 
 namespace detail::map {
 
+/** Concept for callables that copy or transform a key during map insertion. */
 template <typename Func, typename Key>
 /* clang-format off */
 concept KeyCopier = requires(Func f, Key k)
@@ -80,6 +81,14 @@ template <typename Key, typename Value> struct Pair {
   }
 };
 } // namespace detail::map
+/**
+ * Open-addressing hash map with quadratic probing.
+ *
+ * Stores up to @p static_size key-value pairs inline (actual table capacity
+ * is roughly 3x to maintain load factor). Falls back to heap via alloc::alloc
+ * when the element count exceeds the static capacity. Rehashes when more than
+ * one-third of slots are occupied. Uses tombstones for deletion.
+ */
 template <typename Key, typename Value, int static_size = 16>
 class alignas(ContainerAlign<detail::map::Pair<Key, Value>>()) Map {
   using Pair = detail::map::Pair<Key, Value>;
@@ -279,11 +288,13 @@ public:
     alloc::release(static_cast<void *>(table_.data()));
   }
 
+  /** Returns an iterable range over all keys in the map. */
   key_range keys() const
   {
     return key_range(this);
   }
 
+  /** Returns an iterable range over all values in the map. */
   value_range values() const
   {
     return value_range(this);
@@ -299,12 +310,17 @@ public:
     return iterator(this, table_.size());
   }
 
+  /** Returns the number of entries currently in the map. */
   size_t size() const
   {
     return size_t(used_count_);
   }
 
-  /* Does not check if key already exists. */
+  /**
+   * Inserts @p key and @p value without checking for duplicates. Caller must
+   * ensure @p key is not already present; otherwise the map will contain
+   * duplicate entries.
+   */
   void insert(const Key &key, const Value &value)
   {
     check_load();
@@ -313,7 +329,7 @@ public:
     add_finalize(i, key, value);
   }
 
-  /* Does not check if key already exists. */
+  /** Rvalue overload of insert method above. */
   void insert(Key &&key, Value &&value)
   {
     check_load();
@@ -322,6 +338,10 @@ public:
     add_finalize(i, key, value);
   }
 
+  /**
+   * Inserts @p key and @p value if @p key is not already present. Returns true
+   * if inserted, false if the key already existed (value is not overwritten).
+   */
   bool add(const Key &key, const Value &value)
   {
     return add_intern<false>(key, value);
@@ -331,6 +351,10 @@ public:
     return add_intern<false>(key, value);
   }
 
+  /**
+   * Inserts or overwrites. Returns true if @p key was new, false if an
+   * existing value was overwritten.
+   */
   bool add_overwrite(const Key &key, const Value &value)
   {
     return add_intern<true>(key, value);
@@ -340,6 +364,10 @@ public:
     return add_intern<true>(key, value);
   }
 
+  /**
+   * Returns a reference to the value for @p key, inserting a
+   * default-constructed value if the key is not present.
+   */
   Value &operator[](const Key &key)
   {
     check_load();
@@ -363,6 +391,7 @@ public:
     return table_[i].value;
   }
 
+  /** Returns true if @p key is present in the map. */
   bool contains(const Key &key)
   {
     int i = find_pair<true, false>(key);
@@ -374,6 +403,7 @@ public:
     return i != -1;
   }
 
+  /** Returns a pointer to the value for @p key, or nullptr if not found. */
   Value *lookup_ptr(const Key &key)
   {
     int i = find_pair<true, false>(key);
@@ -384,6 +414,11 @@ public:
     return &table_[i].value;
   }
 
+  /**
+   * Inserts @p key only if absent, using @p copy_key to construct the stored
+   * key and @p set_value to construct the stored value. Returns a reference to
+   * the value (existing or newly created). Does nothing if key already exists.
+   */
   template <detail::map::KeyCopier<Key> KeyCopyFunc, typename ValueSetFunc>
   Value &add_callback(const Key &key, KeyCopyFunc copy_key, ValueSetFunc set_value)
   {
@@ -408,6 +443,12 @@ public:
     return table_[i].value;
   }
 
+  /**
+   * Inserts @p key if absent and writes a pointer to the value slot into
+   * @p value. The value slot is default-initialized for non-trivial types
+   * so the caller can use assignment rather than placement new. Returns true
+   * if the key was newly inserted.
+   */
   bool add_uninitialized(const Key &key, Value **value)
   {
     check_load();
@@ -441,13 +482,20 @@ public:
     return false;
   }
 
-  /* Undefined behavior if key is not in map, check existence with .contains(). */
+  /**
+   * Returns a reference to the value for @p key. Undefined behavior if
+   * @p key is not in the map; check with contains() first.
+   */
   Value &lookup(const Key &key)
   {
     int i = find_pair<true, false>(key);
     return table_[i].value;
   }
 
+  /**
+   * Removes @p key from the map. If @p out_value is non-null, the removed
+   * value is moved into it. Returns true if the key was found and removed.
+   */
   bool remove(const Key &key, Value *out_value = nullptr)
   {
     int i = find_pair<true, false>(key);
@@ -470,6 +518,10 @@ public:
     return true;
   }
 
+  /**
+   * Pre-allocates table capacity for at least @p size entries without
+   * changing the current contents.
+   */
   void reserve(size_t size)
   {
     size = size * 3 + 1;

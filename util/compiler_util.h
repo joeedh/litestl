@@ -12,8 +12,9 @@ using uint = unsigned int;
 
 #include "type_tags.h"
 
-// Note: we cannot rely on pointer members forcibly
-// aligning container types to 8 because of wasm
+/** 
+ * Computes an 8-byte-aligned size.  Used by litestl containers.
+ */
 template <typename T> static consteval size_t ContainerAlign()
 {
   return sizeof(T) < 8 ? sizeof(void *) : 8;
@@ -74,6 +75,7 @@ static inline const void *pointer_offset(const void *ptr, int n)
 #define force_inline [[clang::always_inline]]
 #endif
 
+// XXX: this is duplicative with MAKE_FLAGS_CLASS
 #define FlagOperators(T)                                                                 \
   static constexpr T operator|(T a, T b)                                                 \
   {                                                                                      \

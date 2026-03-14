@@ -21,6 +21,11 @@ static Iter operator+(int n, const Iter &b)
 }
 namespace litestl::util {
 
+/** 
+ * Concept for sort comparators. Must return negative for a < b, zero for a == b,
+ * positive for a > b. 
+ * Note: this can often be done with subtraction, e.g. `a - b`.
+ */
 template <typename BASE, typename ITEM>
 concept VectorSortComparator = requires(BASE base, const ITEM &a, const ITEM &b) {
   { base(a, b) } -> std::convertible_to<std::int32_t>;
@@ -43,8 +48,15 @@ template <typename T, VectorSortComparator<T> CB> struct Comparator {
 } // namespace detail
 
 static constexpr int VectorDefaultStaticSize = 1;
+/**
+ * Small-buffer-optimized dynamic array.
+ *
+ * Stores up to @p static_size elements inline to avoid heap allocation.
+ * Falls back to heap via alloc::alloc when the element count exceeds the
+ * static capacity. Supports move semantics, range-based for loops, and
+ * std::ranges algorithms.
+ */
 template <typename T, int static_size = VectorDefaultStaticSize>
-/** asdsa */
 class alignas(ContainerAlign<T>()) Vector {
 public:
   using value_type = T;
@@ -299,10 +311,11 @@ public:
     }
   }
 
-  /** Initialize from an existing array of items.
-   *  Items in `items` will be moved into newly
-   *  allocated memory (or the local static
-   *  storage if `itemCount < static_size`).
+  /**
+   * Initialize from an existing array of items.
+   * Items in `items` will be moved into newly
+   * allocated memory (or the local static
+   * storage if `itemCount < static_size`).
    */
   Vector(T *items, int itemCount)
   {
@@ -373,6 +386,7 @@ public:
     resize<true, true>(0);
   }
 
+  /** Clears all elements and releases heap memory, contracting back to static storage. */
   void clear_and_contract()
   {
     deconstruct_all();
@@ -380,6 +394,7 @@ public:
     contract();
   }
 
+  /** Sorts the vector using a comparator that returns negative for a < b. */
   template <VectorSortComparator<T> CB> void sort(CB cb)
   {
     std::ranges::sort(
@@ -527,6 +542,7 @@ public:
     return ret;
   }
 
+  /** Removes and returns the first element, shifting remaining elements left. O(n). */
   T pop_front()
   {
     T ret = std::move(data_[0]);
@@ -537,6 +553,12 @@ public:
     return ret;
   }
 
+  /**
+   * Removes the first occurrence of @p value.
+   * If @p swap_end_only is true, fills the gap by moving the last element into
+   * the removed slot (O(1) but does not preserve order). Otherwise shifts
+   * subsequent elements left (O(n), preserves order).
+   */
   bool remove(const T &value, bool swap_end_only = false)
   {
     return remove_intern<const T &>(value, swap_end_only);
@@ -552,6 +574,7 @@ public:
     return remove_at(i, swap_end_only);
   }
 
+  /** Removes the element at index @p i. See remove() for @p swap_end_only semantics. */
   bool remove_at(int i, bool swap_end_only = false)
   {
     if constexpr (!is_simple<T>()) {
@@ -587,6 +610,8 @@ public:
     return -1;
   }
 
+  /** Appends @p value only if it is not already present (linear search). Returns true if
+   * appended. */
   bool append_once(T &&value)
   {
     if (index_of(value) == -1) {
@@ -597,6 +622,8 @@ public:
     return false;
   }
 
+  /** Appends @p value only if it is not already present (linear search). Returns true if
+   * appended. */
   bool append_once(const T &value)
   {
     if (index_of(value) == -1) {
@@ -607,6 +634,8 @@ public:
     return false;
   }
 
+  /** Grows the vector by one element, placement-constructing it with @p args. Returns a
+   * reference to the new element. */
   template <typename... Args> T &grow_one(Args... args)
   {
     T &result = append_intern();
@@ -626,21 +655,32 @@ public:
     new (static_cast<void *>(&append_intern())) T(std::forward<T &&>(value));
   }
 
+  /** Inserts @p value at the front, shifting all existing elements right. O(n). */
   void prepend(const T &value)
   {
     new (static_cast<void *>(&prepend_intern())) T(value);
   }
 
+  /** Inserts @p value at the front, shifting all existing elements right. O(n). */
   void prepend(T &&value)
   {
     new (static_cast<void *>(&prepend_intern())) T(std::forward<T &&>(value));
   }
 
+  /** Pre-allocates memory for at least @p size elements without changing the current
+   * size. */
   void ensure_capacity(size_t size)
   {
     ensure_size(size);
   }
 
+  /**
+   * Resizes the vector to @p newsize elements.
+   * @tparam construct_destruct When true (default), runs constructors for new elements
+   *         and destructors for removed elements.
+   * @tparam shrink_only When true, skips constructing new elements on growth (useful for
+   *         caller-managed initialization).
+   */
   template <bool construct_destruct = true, bool shrink_only = false>
   void resize(size_t newsize)
   {
@@ -695,10 +735,7 @@ public:
     return data_;
   }
 
-  /**
-   *  cs the vector in-place.
-   *  Returns a reference to *this.
-   */
+  /** Reverses the vector in-place. Returns a reference to *this. */
   Vector<T, static_size> &reverse()
   {
     int size = size_ >> 1;

@@ -69,6 +69,15 @@ static MemList *getMemList()
 }
 namespace litestl::alloc {
 #ifndef NO_DEBUG_ALLOC
+
+void print_block(const void *vmem)
+{
+  std::lock_guard guard(getMemList()->mutex);
+
+  const MemHead *mem = static_cast<const MemHead *>(vmem);
+  printf("\"%s:%d\"  (%p)\n", mem->tag, int(mem->size), mem + 1);
+}
+
 bool print_blocks(bool printPermanent)
 {
   std::lock_guard guard(getMemList()->mutex);

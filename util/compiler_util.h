@@ -12,7 +12,7 @@ using uint = unsigned int;
 
 #include "type_tags.h"
 
-/** 
+/**
  * Computes an 8-byte-aligned size.  Used by litestl containers.
  */
 template <typename T> static consteval size_t ContainerAlign()
@@ -42,16 +42,19 @@ template <typename T> static consteval size_t ContainerAlign()
     return *this;                                                                        \
   }
 
+/** Increments pointer by n bytes. */
 static inline void *pointer_offset(void *ptr, int n)
 {
   return static_cast<void *>(static_cast<char *>(ptr) + n);
 }
 
+/** Increments const pointer by n bytes. */
 static inline const void *pointer_offset(const void *ptr, int n)
 {
   return static_cast<const void *>(static_cast<const char *>(ptr) + n);
 }
 
+/** Returns the number of elements in an array. */
 #define array_size(Array) (sizeof(Array) / sizeof(*(Array)))
 
 #ifdef __clang__
@@ -75,7 +78,9 @@ static inline const void *pointer_offset(const void *ptr, int n)
 #define force_inline [[clang::always_inline]]
 #endif
 
-// XXX: this is duplicative with MAKE_FLAGS_CLASS
+// TODO: remove this, this is duplicative with MAKE_FLAGS_CLASS. 
+// It's less intrusive but also less effective, there
+// are some operator cases it doesn't support.
 #define FlagOperators(T)                                                                 \
   static constexpr T operator|(T a, T b)                                                 \
   {                                                                                      \
@@ -106,15 +111,20 @@ static inline const void *pointer_offset(const void *ptr, int n)
     return T(uint64_t(a) & uint64_t(flag));                                              \
   }
 
-/* Example:
-    enum class _AttrFlag {
-      NONE = 0,
-      TOPO = 1 << 0,
-      TEMP = 1 << 1,
-      NOCOPY = 1 << 2,
-      NOINTERP = 1 << 3,
-    };
-    MAKE_FLAGS_CLASS(AttrFlag, _AttrFlag);
+/**
+ * Creates an enum class that supports bitwise operations.
+ *
+ * Example:
+ *     enum class _AttrFlag {
+ *       NONE = 0,
+ *       TOPO = 1 << 0,
+ *       TEMP = 1 << 1,
+ *       NOCOPY = 1 << 2,
+ *       NOINTERP = 1 << 3,
+ *     };
+ *     MAKE_FLAGS_CLASS(AttrFlag, _AttrFlag, int);
+ *
+ *   someFunction(AttrFlag::TOPO | AttrFlag::TEMP);
  */
 #define MAKE_FLAGS_CLASS(Name, Enum, Storage)                                            \
   struct Name {                                                                          \
@@ -218,17 +228,20 @@ static inline const void *pointer_offset(const void *ptr, int n)
   {                                                                                      \
     return Enum(~Storage(a));                                                            \
   }                                                                                      \
-  //struct _##Name##Semi_Placeholder {}
+  // struct _##Name##Semi_Placeholder {}
 
-/* Example:
-    enum class _AttrFlag {
-      NONE = 0,
-      TOPO = 1 << 0,
-      TEMP = 1 << 1,
-      NOCOPY = 1 << 2,
-      NOINTERP = 1 << 3,
-    };
-    MAKE_ENUM_CLASS(AttrFlag, _AttrFlag);
+/** 
+ * Creates a somewhat nicer wrapper class for enum classes.
+ *
+ * Example:
+ *   enum class _AttrFlag {
+ *     NONE = 0,
+ *     TOPO = 1,
+ *     TEMP = 2,
+ *     NOCOPY = 3,
+ *     NOINTERP = 4,
+ *   };
+ *   MAKE_ENUM_CLASS(AttrFlag, _AttrFlag);
  */
 #define MAKE_ENUM_CLASS(Name, Enum, Storage)                                             \
   struct Name {                                                                          \
@@ -277,6 +290,14 @@ template <typename T> static constexpr bool is_simple(T *)
 }
 } // namespace detail
 
+/**
+ * Tests whether a type is 'simple', i.e. an integral (int), floating point, pointer, 
+ * or the type has a `is_simple_override` tag (see force_type_is_simple macro).
+ *
+ * Note: This is mostly used to detect if a type has no constructors/destructors, 
+ *       thus can be safely allocated (and especially deallocated) in blocks
+ *       without having to call placemenet new/delete on individual elements.
+ */
 template <typename T> static constexpr bool is_simple()
 {
   return detail::is_simple(static_cast<std::remove_cv_t<T> *>(nullptr));
@@ -289,6 +310,10 @@ static constexpr char unsigned_char__test = -127;
 
 namespace litestl::util {
 
+
+/**
+ * Swaps two bit positions (or bit groups) within an integer value.
+ */
 template <typename T, typename F, typename G> static constexpr T swapBits(T n, F a, G b)
 {
   int mask = ~(int(a) | int(b));

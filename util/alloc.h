@@ -23,6 +23,8 @@ void *alloc(const char *tag, size_t size);
 void release(void *mem);
 /** Prints all the blocks allocated by this thread. */
 bool print_blocks(bool printPermanent);
+/** Print a block */
+void print_block(const void *mem);
 /** Returns the total memory allocated by all threads. */
 int getMemorySize();
 /** Returns the total permanent memory allocated by all threads. */
@@ -62,6 +64,9 @@ template<typename T> static const char *getMemoryTag(T *mem) {
 }
 
 static bool print_blocks() {
+}
+
+static void print_block(const void *mem) {
 }
 #endif
 

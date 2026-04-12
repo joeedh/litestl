@@ -80,7 +80,7 @@ template <typename Key, typename Value> struct Pair {
             std::is_pointer_v<Value>);
   }
 };
-} // namespace detail::map<<<<<<< HEAD
+} // namespace detail::map
 
 /**
  * Open-addressing hash map with quadratic probing.

@@ -39,9 +39,14 @@ template <typename Float, int N, int Options = Eigen::ColMajor> struct Matrix {
     *this = b;
   }
 
-  operator Float *() const
+  operator const Float *() const
   {
-    return &mat_[0][0];
+    return reinterpret_cast<const Float *>(&this->mat_);
+  }
+
+  operator Float *()
+  {
+    return reinterpret_cast<Float *>(&this->mat_);
   }
 
   inline Matrix &identity()
@@ -88,8 +93,7 @@ template <typename Float, int N, int Options = Eigen::ColMajor> struct Matrix {
     *m = m->inverse();
     return *this;
 #else
-    EigenMatrix m(&mat_[0][0]);
-    EigenMatrix r = m.inverse();
+    EigenMatrix r = asEigen().inverse();
     *this = r;
 #endif
 
@@ -114,11 +118,19 @@ template <typename Float, int N, int Options = Eigen::ColMajor> struct Matrix {
       Float sum = Float(0);
 
       for (int j = 0; j < n; j++) {
-        sum += v[j] * mat_[j][i];
+        if constexpr (Options & Eigen::RowMajor) {
+          sum += v[j] * mat_[j][i];
+        } else {
+          sum += v[j] * mat_[i][j];
+        }
       }
 
       if constexpr (N == 4 && M < 4) {
-        sum += mat_[3][i];
+        if constexpr (Options & Eigen::RowMajor) {
+          sum += mat_[3][i];
+        } else {
+          sum += mat_[i][3];
+        }
       }
 
       r[i] = sum;
@@ -127,9 +139,17 @@ template <typename Float, int N, int Options = Eigen::ColMajor> struct Matrix {
     return r;
   }
 
+  EigenMatrix asEigen() const
+  {
+    EigenMatrix m(&this[0][0]);
+    return m;
+  }
   /* Matrix multiplication. */
   Matrix operator*(const Matrix &b) const
   {
+    EigenMatrix result = asEigen() * b.asEigen();
+    return result;
+#if 0
     Matrix r;
 
     for (int i = 0; i < N; i++) {
@@ -137,14 +157,23 @@ template <typename Float, int N, int Options = Eigen::ColMajor> struct Matrix {
         Float sum = Float(0);
 
         for (int k = 0; k < N; k++) {
-          sum += mat_[i][k] * b.mat_[k][j];
+          if constexpr (Options & Eigen::RowMajor) {
+            sum += mat_[i][k] * b.mat_[k][j];
+          } else {
+            sum += mat_[k][i] * b.mat_[j][k];
+          }
         }
 
-        r.mat_[i][j] = sum;
+        if constexpr (Options & Eigen::RowMajor) {
+          r.mat_[i][j] = sum;
+        } else {
+          r.mat_[j][i] = sum;
+        }
       }
     }
 
     return r;
+#endif
   }
 
   Float determinant() const
@@ -194,7 +223,11 @@ template <typename Float, int N, int Options = Eigen::ColMajor> struct Matrix {
   {
     for (int i = 0; i < N; i++) {
       for (int j = 0; j < N; j++) {
-        mat_[i][j] = b(i, j);
+        if constexpr (Options & Eigen::RowMajor) {
+          mat_[i][j] = b(i, j);
+        } else {
+          mat_[i][j] = b(j, i);
+        }
       }
     }
 

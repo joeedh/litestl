@@ -1,9 +1,6 @@
 #include "litestl/math/matrix.h"
 #include "test_util.h"
 #include "litestl/util/rand.h"
-#include "litestl/util/set.h"
-#include "litestl/util/string.h"
-#include "litestl/util/vector.h"
 #include <cstdio>
 
 test_init;
@@ -18,7 +15,7 @@ int main()
 
     mat4 m4;
     mat3 m3;
-    double3 v;
+    float3 v;
 
     m4.identity();
     m3.identity();
@@ -29,7 +26,7 @@ int main()
       }
     }
 
-    v = m4 * double3(1.0f);
+    v = m4 * float3(1.0f);
 
     mat4 m5(m4);
     m5.invert();
@@ -50,7 +47,7 @@ int main()
     printf("dist %f\n", dist);
 
     if (std::fabs(dist) > 0.0001) {
-      printf("Matrix inversion error\n");
+      printf("Matrix inversion error: %f\n", dist);
       return -1;
     }
   }

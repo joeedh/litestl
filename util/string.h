@@ -276,14 +276,6 @@ public:
       return *this;
     }
 
-    data_ = static_storage_;
-    ensure_size(b.size_);
-    size_ = b.size_;
-
-    for (int i = 0; i < b.size_; i++) {
-      data_[i] = b.data_[i];
-    }
-
     ensure_size(b.size_);
     size_ = b.size_;
 
@@ -379,19 +371,11 @@ public:
   {
     return String(*this).operator+=(b);
   }
-  String &operator+=(Char b)
-  {
-    ensure_size(size_ + 1);
-    data_[size_++] = b;
-    data_[size_] = 0;
-    return *this;
-  }
-
+  
   String &operator+=(const Char b)
   {
     ensure_size(size_ + 1);
-    data_[size_] = b;
-    size_ += 1;
+    data_[size_++] = b;
     data_[size_] = 0;
     return *this;
   }

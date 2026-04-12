@@ -56,40 +56,6 @@ template <typename R, typename... Args> struct function_ref<R(Args...)> {
     return *this;
   }
 
-  /** Copy constructor. */
-  function_ref(const function_ref &b) : callback_(b.callback_), ptr_(b.ptr_)
-  {
-  }
-
-  /** Move constructor. Nulls out the source. */
-  function_ref(function_ref &&b) : callback_(b.callback_), ptr_(b.ptr_)
-  {
-    b.callback_ = nullptr;
-    b.ptr_ = nullptr;
-  }
-
-  DEFAULT_MOVE_ASSIGNMENT(function_ref)
-
-  /** Copy assignment. */
-  function_ref &operator=(const function_ref &b)
-  {
-    if (&b == this) {
-      return *this;
-    }
-
-    callback_ = b.callback_;
-    ptr_ = b.ptr_;
-    return *this;
-  }
-
-  /** Rebinds this function_ref to a new callable. */
-  template <typename CallImpl> function_ref &operator=(CallImpl &&impl)
-  {
-    callback_ = callback_impl<typename std::remove_reference_t<CallImpl>>;
-    ptr_ = reinterpret_cast<void *>(&impl);
-    return *this;
-  }
-
   /** Invokes the referenced callable, forwarding @p args. */
   template <typename... Args2> R operator()(Args2... args)
   {

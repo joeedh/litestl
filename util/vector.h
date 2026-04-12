@@ -476,29 +476,6 @@ public:
     return *this;
   }
 
-  Vector(T *items, int itemCount)
-  {
-    if (itemCount <= static_size) {
-      capacity_ = static_size;
-      size_ = 0;
-      data_ = reinterpret_cast<T *>(static_storage_);
-      for (int i = 0; i < itemCount; i++) {
-        this->append(std::move(items[i]));
-      }
-    } else {
-      data_ = static_cast<T *>(alloc::alloc("Vector data", sizeof(T) * itemCount));
-      capacity_ = size_ = itemCount;
-      if constexpr (!is_simple<T>()) {
-        for (int i = 0; i < itemCount; i++) {
-          new (static_cast<void *>(data_ + i)) T(std::move(items[i]));
-        }
-      } else {
-        memcpy(static_cast<void *>(data_),
-               static_cast<void *>(items),
-               sizeof(T) * itemCount);
-      }
-    }
-  }
 
   Vector(Vector &&b)
   {
@@ -889,5 +866,5 @@ private:
 #endif
   uint8_t static_storage_[static_size * sizeof(T)];
 };
- bugs)
+
 } // namespace litestl::util

@@ -1,7 +1,21 @@
+include(ExternalProject)
+include(FetchContent)
+
+FetchContent_Declare(
+	DTL
+	GIT_REPOSITORY https://github.com/joeedh/dtl.git
+)
+FetchContent_MakeAvailable(DTL dtl)
+
 macro(test file extra_lib)
 set(target "${file}_out")
 add_executable(${target} "${file}")
-target_link_libraries(${target} util ${extra_lib} math platform)
+add_dependencies(${target} dtl)
+target_link_libraries(${target} PUBLIC dtl util ${extra_lib} math platform)
+
+#target_include_directories(${target} PUBLIC myers-diff)
+#target_include_directories(${target} PUBLIC dtl)
+
 target_include_directories(${target} PUBLIC util)
 target_include_directories(${target} PUBLIC math)
 target_include_directories(${target} PUBLIC mesh)

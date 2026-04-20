@@ -15,9 +15,16 @@ struct BindingManager {
 
     if (binding->type == BindingType::Struct) {
       const types::_StructBase *st = static_cast<const types::_StructBase *>(binding);
-      // TODO: Process struct fields
       for (const auto &member : st->members) {
         add(member.type);
+      }
+      for (const types::Method *m : st->methods) {
+        if (m->returnType) {
+          add(m->returnType);
+        }
+        for (const auto &p : m->params) {
+          add(p.type);
+        }
       }
     }
   }

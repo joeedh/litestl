@@ -1,9 +1,13 @@
+#pragma once
+
 #include "binding_base.h"
 #include "binding_types.h"
 #include "util/vector.h"
 
 namespace litestl::binding::types {
 using util::Vector;
+
+struct Method;
 
 struct StructMember {
   string name;
@@ -13,6 +17,7 @@ struct StructMember {
 
 struct _StructBase : public BindingBase {
   Vector<StructMember> members;
+  Vector<const Method *> methods;
   size_t structSize;
 
   _StructBase(string name, size_t size)
@@ -21,7 +26,8 @@ struct _StructBase : public BindingBase {
     //
   }
   _StructBase(const _StructBase &b)
-      : BindingBase(b.type, b.name), structSize(b.structSize), members(b.members)
+      : BindingBase(b.type, b.name), members(b.members), methods(b.methods),
+        structSize(b.structSize)
   {
   }
   virtual size_t getSize() override
@@ -50,6 +56,10 @@ template <typename CLS = int> struct Struct : public _StructBase {
   void add(string name, size_t offset, const BindingBase *type)
   {
     members.append({name, offset, type});
+  }
+  void addMethod(const Method *m)
+  {
+    methods.append(m);
   }
 };
 

@@ -27,6 +27,14 @@ static void recurse(const BindingBase *type,
     for (auto &member : st->members) {
       recurse(member.type, typeMap);
     }
+    for (const types::Method *m : st->methods) {
+      if (m->returnType) {
+        recurse(m->returnType, typeMap);
+      }
+      for (const auto &p : m->params) {
+        recurse(p.type, typeMap);
+      }
+    }
   }
 }
 util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types)
@@ -75,6 +83,36 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
       if (member.type->type == BindingType::Struct) {
         imports.append(formatImport(member.type, filename));
       }
+    }
+    for (const types::Method *m : st->methods) {
+      s += "  " + m->name + "(";
+      for (size_t i = 0; i < m->params.size(); i++) {
+        const auto &p = m->params[i];
+        string pname = p.name.size() > 0 ? p.name : string("arg");
+        if (p.name.size() == 0) {
+          char buf[16];
+          snprintf(buf, sizeof(buf), "%zu", i);
+          pname = pname + string(buf);
+        }
+        if (i > 0) {
+          s += ", ";
+        }
+        s += pname + ": " + formatType(p.type);
+        if (p.type->type == BindingType::Struct) {
+          imports.append(formatImport(p.type, filename));
+        }
+      }
+      s += "): ";
+      if (m->returnType) {
+        s += formatType(m->returnType);
+        if (m->returnType->type == BindingType::Struct) {
+          imports.append(formatImport(m->returnType, filename));
+        }
+      }
+      else {
+        s += "void";
+      }
+      s += "\n";
     }
     s += "}\n";
 

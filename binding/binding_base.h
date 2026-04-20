@@ -13,6 +13,7 @@ enum class BindingType {
   Reference = 1 << 3,
   Struct = 1 << 4,
   Array = 1 << 5,
+  Method = 1 << 6,
 };
 FlagOperators(BindingType);
 

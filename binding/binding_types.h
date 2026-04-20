@@ -31,7 +31,7 @@ struct Number : public BindingBase {
 
 
   Number(NumberType subtype, NumberFlags flags=NumberFlags::None)
-      : BindingBase(BindingType::Boolean, "number"), subtype(subtype), flags(flags)
+      : BindingBase(BindingType::Number, "number"), subtype(subtype), flags(flags)
   {
     //
   }

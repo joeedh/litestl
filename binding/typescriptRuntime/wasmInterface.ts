@@ -31,6 +31,27 @@ export interface IBindingInfo {
             templateParams: number
             structSize: number
         }
+        Number: {
+            subtype: number
+            flags: number
+        }
+        Array: {
+            arrayType: number
+            arraySize: number
+        }
+        Literal: {
+            litType: number
+            litBind: number
+        }
+        NumLit: {
+            data: number
+        }
+        BoolLit: {
+            data: number
+        }
+        StrLit: {
+            data: number
+        }
     }
     Sizes: {
         Struct: {
@@ -38,6 +59,12 @@ export interface IBindingInfo {
             StructBase: number
             TemplateParam: number
             StructMethod: number
+        }
+        Types: {
+            Boolean: number
+            NumLit: number
+            BoolLit: number
+            StrLit: number
         }
     }
 }
@@ -108,30 +135,60 @@ export function createWasmHelpers(wasmBase: IWasmBase) {
     const wasm = createWasmViews(wasmBase)
     let ptr = wasm.LSTL_GetBindingInfo()
 
-    let i = ptr >> 2
     let data = wasm.HEAP32
-    const bindingInfo: IBindingInfo = {
-        Offsets: {
-            Base: {
-                name: data[i++],
-                type: data[i++],
-            },
-            Struct: {
-                members: data[i++],
-                methods: data[i++],
-                templateParams: data[i++],
-                structSize: data[i++],
-            }
+    let i = ptr >> 2
+    const Offsets = {
+        Base: {
+            name: data[i++],
+            type: data[i++],
         },
-        Sizes: {
-            Struct: {
-                StructMember: data[i++],
-                StructBase: data[i++],
-                TemplateParam: data[i++],
-                StructMethod: data[i++],
-            }
+        Struct: {
+            members: data[i++],
+            methods: data[i++],
+            templateParams: data[i++],
+            structSize: data[i++],
+        },
+        Number: {
+            subtype: data[i++],
+            flags: data[i++],
+        },
+        Array: {
+            arrayType: data[i++],
+            arraySize: data[i++],
+        },
+        Literal: {
+            litType: data[i++],
+            litBind: data[i++],
+        },
+        NumLit: {
+            data: data[i++],
+        },
+        BoolLit: {
+            data: data[i++],
+        },
+        StrLit: {
+            data: data[i++],
         }
     }
+    // skip trailing _pad int on the C side (pointer alignment)
+    i++
+
+    const Sizes = {
+        Struct: {
+            StructMember: data[i++],
+            StructBase: data[i++],
+            TemplateParam: data[i++],
+            StructMethod: data[i++],
+        },
+        Types: {
+            Boolean: data[i++],
+            NumLit: data[i++],
+            BoolLit: data[i++],
+            StrLit: data[i++],
+        }
+    }
+
+    const bindingInfo: IBindingInfo = { Offsets, Sizes }
     wasm.LSTL_FreeBindingInfo(ptr)
 
     const strPool = new Map<string, pointer>

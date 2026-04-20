@@ -1,5 +1,8 @@
 #include "binding.h"
 #include "binding/binding_base.h"
+#include "binding_literal.h"
+#include "binding_struct.h"
+#include "binding_types.h"
 #include "litestl/util/string.h"
 #include "manager.h"
 
@@ -15,6 +18,28 @@ struct WasmOffsets {
     int templateParams;
     int structSize;
   } Struct;
+  struct {
+    int subtype;
+    int flags;
+  } Number;
+  struct {
+    int arrayType;
+    int arraySize;
+  } Array;
+  struct {
+    int litType;
+    int litBind;
+  } Literal;
+  struct {
+    int data;
+  } NumLit;
+  struct {
+    int data;
+  } BoolLit;
+  struct {
+    int data;
+  } StrLit;
+  int _pad;
 };
 // ensure we are pointer aligned to avoid padding bytes
 static_assert(sizeof(WasmOffsets) % sizeof(void *) == 0);
@@ -26,6 +51,12 @@ struct TypeSizes {
     int TemplateParam;
     int StructMethod;
   } Struct;
+  struct {
+    int Boolean;
+    int NumLit;
+    int BoolLit;
+    int StrLit;
+  } Types;
 };
 static_assert(sizeof(TypeSizes) % sizeof(void *) == 0);
 
@@ -47,10 +78,31 @@ BindingInfo *LSTL_GetBindingInfo()
   info->offsets.Struct.templateParams = offsetof(_StructBase, templateParams);
   info->offsets.Struct.structSize = offsetof(_StructBase, structSize);
 
+  using NumberI32 = Number<int32_t>;
+  info->offsets.Number.subtype = offsetof(NumberI32, subtype);
+  info->offsets.Number.flags = offsetof(NumberI32, flags);
+
+  using ArrayBB = Array<BindingBase>;
+  info->offsets.Array.arrayType = offsetof(ArrayBB, arrayType);
+  info->offsets.Array.arraySize = offsetof(ArrayBB, arraySize);
+
+  info->offsets.Literal.litType = offsetof(LiteralType, litType);
+  info->offsets.Literal.litBind = offsetof(LiteralType, litBind);
+
+  info->offsets.NumLit.data = offsetof(NumLitType, data);
+  info->offsets.BoolLit.data = offsetof(BoolLitType, data);
+  info->offsets.StrLit.data = offsetof(StrLitType, data);
+  info->offsets._pad = 0;
+
   info->sizes.Struct.StructMember = sizeof(StructMember);
   info->sizes.Struct.StructBase = sizeof(_StructBase);
   info->sizes.Struct.TemplateParam = sizeof(StructTemplate);
   info->sizes.Struct.StructMethod = sizeof(Method);
+
+  info->sizes.Types.Boolean = sizeof(Boolean);
+  info->sizes.Types.NumLit = sizeof(NumLitType);
+  info->sizes.Types.BoolLit = sizeof(BoolLitType);
+  info->sizes.Types.StrLit = sizeof(StrLitType);
 
   return info;
 }

@@ -9,6 +9,11 @@ using util::Vector;
 
 struct Method;
 
+struct StructTemplate {
+  string name;
+  const BindingBase *type;
+};
+
 struct StructMember {
   string name;
   size_t offset;
@@ -18,6 +23,8 @@ struct StructMember {
 struct _StructBase : public BindingBase {
   Vector<StructMember> members;
   Vector<const Method *> methods;
+  Vector<StructTemplate> templateParams;
+
   size_t structSize;
 
   _StructBase(string name, size_t size)
@@ -61,6 +68,10 @@ template <typename CLS = int> struct Struct : public _StructBase {
   {
     methods.append(m);
   }
+  void addTemplateParam(const BindingBase *type, string name)
+  {
+    templateParams.append({name, type});
+  }
 };
 
 } // namespace litestl::binding::types
@@ -68,7 +79,9 @@ namespace litestl::binding {
 
 template <typename CLS>
 concept ClassBindingReq = requires(types::Struct<CLS> *def) {
-  { CLS::defineBindings() } -> std::convertible_to<const types::Struct<CLS> *>;
+  {
+    CLS::defineBindings()
+  } -> std::convertible_to<const types::Struct<CLS> *>;
 };
 
 template <typename CLS>

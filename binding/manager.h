@@ -1,3 +1,5 @@
+#pragma once
+
 #include "litestl/binding/binding.h"
 #include "litestl/util/map.h"
 #include "litestl/util/string.h"

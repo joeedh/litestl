@@ -10,7 +10,7 @@ using util::Vector;
 
 struct TypescriptType {
   string name;
-  Vector<TypescriptType*> typeParams;
+  Vector<TypescriptType *> typeParams;
 };
 
 static void recurse(const BindingBase *type,
@@ -37,8 +37,11 @@ static void recurse(const BindingBase *type,
     }
   }
 }
+
 util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types)
 {
+  using namespace litestl::binding::types;
+
   util::Map<string, string> *files =
       alloc::New<util::Map<string, string>>("generateTypescript result");
   util::Map<string, const BindingBase *> typeMap;
@@ -60,9 +63,76 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
     }
     return string((std::regex_replace(filename, std::regex("::"), ".")).c_str());
   };
-  auto formatImport = [&getFileName, formatType](const BindingBase *type, string filename) {
+  auto formatTemplate = [](const BindingBase *type, bool isDecl = false) {
+    if (type->type == BindingType::Struct) {
+      const _StructBase *st = static_cast<const _StructBase *>(type);
+      if (st->templateParams.size() == 0) {
+        return string("");
+      }
+      string s = "<";
+      int i = 0;
+      for (auto &param : st->templateParams) {
+        if (isDecl && param.type->type == BindingType::Literal) {
+          const LiteralType *lit = static_cast<const LiteralType *>(param.type);
+          s += param.name + " extends ";
+
+          switch (lit->litType) {
+          case LitType::Bool:
+            s += "boolean";
+            break;
+          case LitType::Number:
+            s += "number";
+            break;
+          case LitType::String:
+            s += "string";
+            break;
+          default:
+            s += "unknown";
+          }
+        } else if (!isDecl && param.type->type == BindingType::Literal) {
+          const LiteralType *lit = static_cast<const LiteralType *>(param.type);
+
+          switch (lit->litType) {
+          case LitType::Bool: {
+            const BoolLitType *lit2 = static_cast<const BoolLitType *>(lit);
+            s += lit2->data ? "true" : "false";
+            break;
+          }
+          case LitType::Number: {
+            const NumLitType *lit2 = static_cast<const NumLitType *>(lit);
+            // TODO: use std::format
+            char buf[512];
+            sprintf(buf, "%d", int(lit2->data));
+            s += buf;
+            break;
+          }
+          case LitType::String: {
+            const StrLitType *lit2 = static_cast<const StrLitType *>(lit);
+            s += "\"" + lit2->data + "\"";
+            break;
+          }
+          default:
+            s += "unknown";
+          }
+        } else {
+          s += isDecl ? param.name : param.type->name;
+        }
+
+        if (i < st->templateParams.size() - 1) {
+          s += ", ";
+        }
+        i++;
+      }
+      return s + ">";
+    }
+    return string("");
+  };
+
+  auto formatImport = [&getFileName, formatType](const BindingBase *type,
+                                                 string filename) {
     string s;
-    s += "import {" + formatType(type) + "} from \"" + path::relative(filename, getFileName(type->name)) + "\";";
+    s += "import {" + formatType(type) + "} from \"" +
+         path::relative(filename, getFileName(type->name)) + "\";";
     return s;
   };
 
@@ -77,12 +147,15 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
 
     Vector<string> imports;
 
-    s += "export interface " + formatType(type) + " {\n";
+    s += string("export interface ") + formatType(type) + formatTemplate(type, true) +
+         string(" {\n");
     for (auto &member : st->members) {
-      s += "  " + member.name + ": " + formatType(member.type) + "\n";
+      string s2 = "  " + member.name + ": " + formatType(member.type);
       if (member.type->type == BindingType::Struct) {
+        s2 += formatTemplate(member.type, false);
         imports.append(formatImport(member.type, filename));
       }
+      s += s2 + "\n";
     }
     for (const types::Method *m : st->methods) {
       s += "  " + m->name + "(";
@@ -99,6 +172,7 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
         }
         s += pname + ": " + formatType(p.type);
         if (p.type->type == BindingType::Struct) {
+          s += formatTemplate(p.type, false);
           imports.append(formatImport(p.type, filename));
         }
       }
@@ -108,8 +182,7 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
         if (m->returnType->type == BindingType::Struct) {
           imports.append(formatImport(m->returnType, filename));
         }
-      }
-      else {
+      } else {
         s += "void";
       }
       s += "\n";

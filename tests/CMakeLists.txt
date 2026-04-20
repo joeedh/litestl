@@ -35,3 +35,5 @@ test(test_task.cc "")
 test(test_vector.cc "")
 test(test_shared_ptr.cc "")
 test(test_binding_method.cc "binding")
+test(test_string "")
+

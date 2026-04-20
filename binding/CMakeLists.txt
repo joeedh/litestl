@@ -26,4 +26,6 @@ wasm_add_symbols("
   LSTL_Method_GetName
   LSTL_Method_IsConst
   LSTL_Method_Invoke
+  LSTL_GetBindingInfo
+  LSTL_FreeBindingInfo
 ")

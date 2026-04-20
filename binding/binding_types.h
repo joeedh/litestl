@@ -78,7 +78,7 @@ template <typename T> struct Array : public BindingBase {
   }
   virtual BindingBase *clone()
   {
-    return static_cast<BindingBase *>(new Number(*this));
+    return static_cast<BindingBase *>(new Array(*this));
   }
   virtual size_t getSize()
   {

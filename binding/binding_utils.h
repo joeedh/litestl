@@ -24,5 +24,7 @@ _(int, Int32, NumberFlags::None);
 _(unsigned int, Int32, NumberFlags::Unsigned);
 _(int64_t, Int64, NumberFlags::None);
 _(uint64_t, Int64, NumberFlags::Unsigned);
+_(float, Float32, NumberFlags::None);
+_(double, Float64, NumberFlags::None);
 
 } // namespace litestl::binding

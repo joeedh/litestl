@@ -21,14 +21,16 @@ static Iter operator+(int n, const Iter &b)
 }
 namespace litestl::util {
 
-/** 
+/**
  * Concept for sort comparators. Must return negative for a < b, zero for a == b,
- * positive for a > b. 
+ * positive for a > b.
  * Note: this can often be done with subtraction, e.g. `a - b`.
  */
 template <typename BASE, typename ITEM>
 concept VectorSortComparator = requires(BASE base, const ITEM &a, const ITEM &b) {
-  { base(a, b) } -> std::convertible_to<std::int32_t>;
+  {
+    base(a, b)
+  } -> std::convertible_to<std::int32_t>;
 };
 
 namespace detail {
@@ -470,12 +472,11 @@ public:
     resize<false>(b.size());
 
     for (int i = 0; i < size_; i++) {
-      data_[i] = b.data_[i];
+      new (static_cast<void *>(data_ + i)) T(b.data_[i]);
     }
 
     return *this;
   }
-
 
   Vector(Vector &&b)
   {
@@ -760,7 +761,8 @@ public:
     return slice(start, size());
   }
 
-  /** End is relative when negative, e.g. slice(0, -1) will copy everything except the last item. */
+  /** End is relative when negative, e.g. slice(0, -1) will copy everything except the
+   * last item. */
   Vector slice(int start, int end)
   {
     if (end < 0) {

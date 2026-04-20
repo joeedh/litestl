@@ -1,20 +1,56 @@
 #pragma once
 
+#include "dtl/dtl.hpp"
 #include "litestl/util/alloc.h"
 #include "litestl/util/string.h"
-#include "dtl/dtl.hpp"
 
 #include <cstdio>
+
+#ifdef WIN32
+
+#ifdef NDEBUG
+#define __NDEBUG
+#define DEBUG
+#undef NDEBUG
+#endif
+
+#include <intrin.h>
+
+#ifdef __NDEBUG
+#define NDEBUG
+#undef DEBUG
+#undef __NDEBUG
+#endif
+
+#else
+#include <assert.h>
+#endif
 
 #define test_init int retval = 0
 
 #define test_assert(expr)                                                                \
-  (!(expr) ? (retval = 0, fprintf(stderr, "%s failed\n", #expr), fflush(stderr)) : 0)
+  (!(expr) ? (retval = 0,                                                                \
+              fprintf(stderr, "%s failed\n", #expr),                                     \
+              fflush(stderr),                                                            \
+              test_break())                                                              \
+           : 0)
 
 extern int retval;
 static bool test_end()
 {
   return retval || litestl::alloc::print_blocks(false);
+}
+
+ATTR_NO_OPT
+static int test_break()
+{
+#ifdef WIN32
+  __debugbreak();
+#else
+  char *p = nullptr;
+  *p = 1;
+#endif
+  return 0;
 }
 
 static bool test_snapshot(const char *name, const char *data, bool update_snapshot)

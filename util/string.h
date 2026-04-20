@@ -13,7 +13,7 @@
 
 namespace litestl::util {
 // reserve enough space for a guid
-template <typename Char, int static_size = 40> struct String;
+template <typename Char, int static_size = 4> struct String;
 
 template <size_t N> struct StrLiteral {
   constexpr StrLiteral(const char (&str)[N])
@@ -206,6 +206,7 @@ private:
   int size_ = 0;
 };
 
+// default for static_size is defined in forward declaration at the top of this file
 template <typename Char, int static_size> class alignas(8) String {
 public:
   String() : size_(0)
@@ -223,7 +224,9 @@ public:
   {
     data_ = static_storage_;
     ensure_size(N);
-    size_ = N;
+
+    // str literals include their null byte
+    size_ = N - 1;
 
     for (int i = 0; i < N; i++) {
       data_[i] = lit.value[i];
@@ -371,7 +374,7 @@ public:
   {
     return String(*this).operator+=(b);
   }
-  
+
   String &operator+=(const Char b)
   {
     ensure_size(size_ + 1);
@@ -478,8 +481,9 @@ public:
     }
     return b;
   }
+
 private:
-  /* Ensures data has at least size+1 elements, does not set size_*/
+  /* Ensures data has at least size+1 elements, *does not set size_!* */
   void ensure_size(int size)
   {
     if (size > size_) {

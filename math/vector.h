@@ -25,6 +25,7 @@ namespace litestl::math {
 template <typename T, int vec_size> class Vec {
 public:
   using value_type = T;
+  using is_math_vector = std::true_type;
 
   static const int size = vec_size;
 

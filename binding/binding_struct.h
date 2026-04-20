@@ -11,23 +11,38 @@ struct StructMember {
   const BindingBase *type;
 };
 
-template <typename CLS = int> struct Struct : public BindingBase {
-  using struct_type = CLS;
-
-  struct_type *type_null;
-
+struct _StructBase : public BindingBase {
   Vector<StructMember> members;
   size_t structSize;
 
-  Struct(string name, size_t size)
+  _StructBase(string name, size_t size)
       : BindingBase(BindingType::Struct, name), structSize(size)
   {
     //
   }
-  Struct(const Struct &b)
+  _StructBase(const _StructBase &b)
       : BindingBase(b.type, b.name), structSize(b.structSize), members(b.members)
   {
   }
+  virtual size_t getSize() override
+  {
+    return structSize;
+  }
+};
+
+template <typename CLS = int> struct Struct : public _StructBase {
+  using struct_type = CLS;
+
+  struct_type *type_null;
+
+  Struct(string name, size_t size) : _StructBase(name, size)
+  {
+    //
+  }
+  Struct(const Struct &b) : _StructBase(b.name, b.structSize)
+  {
+  }
+
   virtual BindingBase *clone() override
   {
     return static_cast<BindingBase *>(new Struct(*this));
@@ -36,10 +51,6 @@ template <typename CLS = int> struct Struct : public BindingBase {
   {
     members.append({name, offset, type});
   }
-  virtual size_t getSize() override
-  {
-    return structSize;
-  }
 };
 
 } // namespace litestl::binding::types
@@ -47,9 +58,7 @@ namespace litestl::binding {
 
 template <typename CLS>
 concept ClassBindingReq = requires(types::Struct<CLS> *def) {
-  {
-    CLS::defineBindings()
-  } -> std::convertible_to<const types::Struct<CLS> *>;
+  { CLS::defineBindings() } -> std::convertible_to<const types::Struct<CLS> *>;
 };
 
 template <typename CLS>

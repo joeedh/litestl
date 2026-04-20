@@ -15,4 +15,11 @@ set(SRC
 )
 endif()
 
+if (BUILD_WASM)
+    set(SRC 
+        ${SRC}
+        wasm.cc
+    )
+endif()
+
 lt_add_library(platform "${SRC}" "${LIB}" OBJECT)

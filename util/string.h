@@ -13,7 +13,7 @@
 
 namespace litestl::util {
 // reserve enough space for a guid
-template <typename Char, int static_size = 4> struct String;
+template <typename Char, int static_size = 40> struct String;
 
 template <size_t N> struct StrLiteral {
   constexpr StrLiteral(const char (&str)[N])

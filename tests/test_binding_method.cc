@@ -30,6 +30,9 @@ struct Foo {
 
   static binding::types::Struct<Foo> *defineBindings()
   {
+    // tell allocator the binding system's allocations are not leaks
+    alloc::PermanentGuard guard;
+
     using binding::types::Struct;
     Struct<Foo> *st = new Struct<Foo>("test::Foo", sizeof(Foo));
     BIND_STRUCT_METHOD(st, add);

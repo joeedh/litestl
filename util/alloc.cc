@@ -81,16 +81,17 @@ void print_block(const void *vmem)
 bool print_blocks(bool printPermanent)
 {
   std::lock_guard guard(getMemList()->mutex);
-
+  int count = 0;
   MemHead *mem = getMemList()->first;
   while (mem) {
     if (!(mem->flag & MEM_PERMANENT) != printPermanent) {
       printf("\"%s:%d\"  (%p)\n", mem->tag, int(mem->size), mem + 1);
+      count++;
     }
     mem = mem->next;
   }
 
-  return getMemList()->first != nullptr;
+  return count != 0;
 }
 
 int getMemorySize()

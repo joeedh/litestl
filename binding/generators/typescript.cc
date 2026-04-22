@@ -1,10 +1,14 @@
 #include "typescript.h"
 #include "../../path/path.h"
 #include "../binding.h"
+#include "util/function.h"
+#include "util/set.h"
 #include <regex>
 #include <string>
 
 namespace litestl::binding::generators {
+using util::function_ref;
+using util::Set;
 using util::string;
 using util::Vector;
 
@@ -27,11 +31,19 @@ static void recurse(const BindingBase *type,
     for (auto &member : st->members) {
       recurse(member.type, typeMap);
     }
+    for (auto &param : st->templateParams) {
+      recurse(param.type, typeMap);
+    }
     for (const types::Method *m : st->methods) {
       if (m->returnType) {
         recurse(m->returnType, typeMap);
       }
       for (const auto &p : m->params) {
+        recurse(p.type, typeMap);
+      }
+    }
+    for (const types::Constructor *c : st->constructors) {
+      for (const auto &p : c->params) {
         recurse(p.type, typeMap);
       }
     }
@@ -50,20 +62,41 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
     recurse(type, typeMap);
   }
 
+  auto getModuleName = [](const string &name) {
+    std::string filename = name.c_str();
+    return string((std::regex_replace(filename, std::regex("::"), "/")).c_str());
+  };
   auto getFileName = [](const string &name) {
     std::string filename = name.c_str();
     return string((std::regex_replace(filename, std::regex("::"), "/") + ".ts").c_str());
   };
 
-  auto formatType = [](const BindingBase *type) {
-    std::string filename = type->name.c_str();
-    int i = filename.find_last_of(':');
-    if (i >= 0) {
-      return string(filename.substr(i + 1, filename.size() - i - 1).c_str());
-    }
-    return string((std::regex_replace(filename, std::regex("::"), ".")).c_str());
+  std::function<string(const BindingBase *)> formatType =
+      [&formatType](const BindingBase *type) {
+        if (type->type == BindingType::Array) {
+          const Array<BindingBase> *array = static_cast<const Array<BindingBase> *>(type);
+          return string(formatType(array->arrayType)) + "[]";
+        }
+        std::string filename = type->name.c_str();
+        int i = filename.find_last_of(':');
+        if (i >= 0) {
+          return string(filename.substr(i + 1, filename.size() - i - 1).c_str());
+        }
+        return string((std::regex_replace(filename, std::regex("::"), ".")).c_str());
+      };
+
+  auto formatImport = [&getModuleName, formatType](const BindingBase *type,
+                                                   string filename) {
+    string s;
+    s += "import {" + formatType(type) + "} from \"" +
+         path::relative(path::dirname(filename), getModuleName(type->name)) + "\";";
+    return s;
   };
-  auto formatTemplate = [](const BindingBase *type, bool isDecl = false) {
+
+  auto formatTemplate = [&formatImport, &formatType](const BindingBase *type,
+                                                     Set<string> &imports,
+                                                     string &filename,
+                                                     bool isDecl = false) {
     if (type->type == BindingType::Struct) {
       const _StructBase *st = static_cast<const _StructBase *>(type);
       if (st->templateParams.size() == 0) {
@@ -115,7 +148,10 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
             s += "unknown";
           }
         } else {
-          s += isDecl ? param.name : param.type->name;
+          s += isDecl ? param.name : formatType(param.type);
+          if (param.type->type == BindingType::Struct) {
+            imports.add(formatImport(param.type, filename));
+          }
         }
 
         if (i < st->templateParams.size() - 1) {
@@ -128,14 +164,6 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
     return string("");
   };
 
-  auto formatImport = [&getFileName, formatType](const BindingBase *type,
-                                                 string filename) {
-    string s;
-    s += "import {" + formatType(type) + "} from \"" +
-         path::relative(filename, getFileName(type->name)) + "\";";
-    return s;
-  };
-
   for (auto type : typeMap.values()) {
     if (type->type != BindingType::Struct) {
       continue;
@@ -144,16 +172,15 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
 
     string s = "";
     string filename = getFileName(type->name);
+    Set<string> imports;
 
-    Vector<string> imports;
-
-    s += string("export interface ") + formatType(type) + formatTemplate(type, true) +
-         string(" {\n");
+    s += string("export interface ") + formatType(type) +
+         formatTemplate(type, imports, filename, true) + string(" {\n");
     for (auto &member : st->members) {
       string s2 = "  " + member.name + ": " + formatType(member.type);
       if (member.type->type == BindingType::Struct) {
-        s2 += formatTemplate(member.type, false);
-        imports.append(formatImport(member.type, filename));
+        s2 += formatTemplate(member.type, imports, filename, false);
+        imports.add(formatImport(member.type, filename));
       }
       s += s2 + "\n";
     }
@@ -172,20 +199,42 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
         }
         s += pname + ": " + formatType(p.type);
         if (p.type->type == BindingType::Struct) {
-          s += formatTemplate(p.type, false);
-          imports.append(formatImport(p.type, filename));
+          s += formatTemplate(p.type, imports, filename, false);
+          imports.add(formatImport(p.type, filename));
         }
       }
       s += "): ";
       if (m->returnType) {
         s += formatType(m->returnType);
         if (m->returnType->type == BindingType::Struct) {
-          imports.append(formatImport(m->returnType, filename));
+          imports.add(formatImport(m->returnType, filename));
         }
       } else {
         s += "void";
       }
       s += "\n";
+    }
+    for (const types::Constructor *c : st->constructors) {
+      s += "  new(";
+      for (size_t i = 0; i < c->params.size(); i++) {
+        const auto &p = c->params[i];
+        string pname = p.name.size() > 0 ? p.name : string("arg");
+        if (p.name.size() == 0) {
+          char buf[16];
+          snprintf(buf, sizeof(buf), "%zu", i);
+          pname = pname + string(buf);
+        }
+        if (i > 0) {
+          s += ", ";
+        }
+        s += pname + ": " + formatType(p.type);
+        if (p.type->type == BindingType::Struct) {
+          s += formatTemplate(p.type, imports, filename, false);
+          imports.add(formatImport(p.type, filename));
+        }
+      }
+      s += "): " + formatType(type) + formatTemplate(type, imports, filename, false) +
+           "\n";
     }
     s += "}\n";
 

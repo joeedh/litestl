@@ -76,23 +76,26 @@ string relative(string basepath, string path)
 {
   auto baseparts = split(basepath);
   auto parts = split(path);
+  bool ok = false;
 
+  int commonCount = 0;
   for (int i = 0; i < std::min(baseparts.size(), parts.size()); i++) {
-    if (baseparts[i] != parts[i]) {
-      baseparts = baseparts.slice(i);
-      parts = parts.slice(i);
+    if (baseparts[i] == parts[i]) {
+      commonCount++;
+    } else {
+      break;
     }
   }
 
-  if (parts.size() <= 1) {
-    return "./" + parts.join("/");
-  }
+  string s = "";
+  s = parts.slice(commonCount).join("/");
 
-  int count = parts.size() - 1;
-  string result = parts.join("/");
-  for (int i = 0; i < count; i++) {
-    result = "../" + result;
+  for (int i = 0; i < baseparts.size() - commonCount; i++) {
+    s = "../" + s;
   }
-  return result;
+  if (s[0] != '.') {
+    s = s[0] == '/' ? "." + s : "./" + s;
+  }
+  return s;
 }
 } // namespace litestl::path

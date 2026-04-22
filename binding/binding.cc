@@ -15,9 +15,14 @@ struct WasmOffsets {
   struct {
     int members;
     int methods;
+    int constructors;
     int templateParams;
     int structSize;
   } Struct;
+  struct {
+    int ownerType;
+    int params;
+  } Constructor;
   struct {
     int subtype;
     int flags;
@@ -39,7 +44,7 @@ struct WasmOffsets {
   struct {
     int data;
   } StrLit;
-  int _pad;
+  int _pad[2];
 };
 // ensure we are pointer aligned to avoid padding bytes
 static_assert(sizeof(WasmOffsets) % sizeof(void *) == 0);
@@ -50,6 +55,7 @@ struct TypeSizes {
     int StructBase;
     int TemplateParam;
     int StructMethod;
+    int StructConstructor;
   } Struct;
   struct {
     int Boolean;
@@ -57,6 +63,7 @@ struct TypeSizes {
     int BoolLit;
     int StrLit;
   } Types;
+  int _pad;
 };
 static_assert(sizeof(TypeSizes) % sizeof(void *) == 0);
 
@@ -75,8 +82,12 @@ BindingInfo *LSTL_GetBindingInfo()
 
   info->offsets.Struct.members = offsetof(_StructBase, members);
   info->offsets.Struct.methods = offsetof(_StructBase, methods);
+  info->offsets.Struct.constructors = offsetof(_StructBase, constructors);
   info->offsets.Struct.templateParams = offsetof(_StructBase, templateParams);
   info->offsets.Struct.structSize = offsetof(_StructBase, structSize);
+
+  info->offsets.Constructor.ownerType = offsetof(Constructor, ownerType);
+  info->offsets.Constructor.params = offsetof(Constructor, params);
 
   using NumberI32 = Number<int32_t>;
   info->offsets.Number.subtype = offsetof(NumberI32, subtype);
@@ -92,12 +103,15 @@ BindingInfo *LSTL_GetBindingInfo()
   info->offsets.NumLit.data = offsetof(NumLitType, data);
   info->offsets.BoolLit.data = offsetof(BoolLitType, data);
   info->offsets.StrLit.data = offsetof(StrLitType, data);
-  info->offsets._pad = 0;
+  info->offsets._pad[0] = 0;
+  info->offsets._pad[1] = 0;
 
   info->sizes.Struct.StructMember = sizeof(StructMember);
   info->sizes.Struct.StructBase = sizeof(_StructBase);
   info->sizes.Struct.TemplateParam = sizeof(StructTemplate);
   info->sizes.Struct.StructMethod = sizeof(Method);
+  info->sizes.Struct.StructConstructor = sizeof(Constructor);
+  info->sizes._pad = 0;
 
   info->sizes.Types.Boolean = sizeof(Boolean);
   info->sizes.Types.NumLit = sizeof(NumLitType);
@@ -183,5 +197,101 @@ void LSTL_Method_Invoke(const types::Method *m, void *self, void **args, void *r
   if (m->thunk) {
     m->thunk(self, args, retBuf);
   }
+}
+
+size_t LSTL_Struct_GetConstructorCount(const types::_StructBase *s)
+{
+  return s->constructors.size();
+}
+const types::Constructor *LSTL_Struct_GetConstructor(const types::_StructBase *s,
+                                                     size_t i)
+{
+  if (i >= s->constructors.size()) {
+    return nullptr;
+  }
+  return s->constructors[static_cast<int>(i)];
+}
+const char *LSTL_Constructor_GetName(const types::Constructor *c)
+{
+  return c->name.c_str();
+}
+const BindingBase *LSTL_Constructor_GetOwner(const types::Constructor *c)
+{
+  return c->ownerType;
+}
+size_t LSTL_Constructor_GetParamCount(const types::Constructor *c)
+{
+  return c->params.size();
+}
+const BindingBase *
+LSTL_Constructor_GetParam(const types::Constructor *c, size_t i, const char **outName)
+{
+  if (i >= c->params.size()) {
+    return nullptr;
+  }
+  const auto &p = c->params[static_cast<int>(i)];
+  if (outName) {
+    *outName = p.name.c_str();
+  }
+  return p.type;
+}
+void LSTL_Constructor_Invoke(const types::Constructor *c, void *outBuf, void **args)
+{
+  if (c->thunk) {
+    c->thunk(outBuf, args);
+  }
+}
+unsigned char *LSTL_GenerateTypescript(BindingManager *manager, int *size_out)
+{
+  util::Vector<const BindingBase *> types;
+  for (auto *type : manager->bindings.values()) {
+    types.append(type);
+  }
+  int count = 0;
+  auto files = generators::generateTypescript(types);
+
+  for (auto &key : files->keys()) {
+    auto &value = files->lookup(key);
+    count += key.size() + 4 + value.size() + 4;
+  }
+
+  unsigned char *s = static_cast<unsigned char *>(malloc(count));
+  unsigned char *result = s;
+
+  for (auto &key : files->keys()) {
+    auto &value = files->lookup(key);
+
+    int n = key.size();
+    unsigned char *c = reinterpret_cast<unsigned char *>(&n);
+
+    // write size integer of filename
+    for (int i = 0; i < 4; i++) {
+      *s++ = c[i];
+    }
+
+    // write filename
+    for (int i = 0; i < key.size(); i++) {
+      *s++ = key[i];
+    }
+
+    n = value.size();
+    // write size integer of file buffer
+    for (int i = 0; i < 4; i++) {
+      *s++ = c[i];
+    }
+
+    // write file buffer
+    for (int i = 0; i < value.size(); i++) {
+      *s++ = value[i];
+    }
+  }
+
+  *size_out = count;
+  return result;
+}
+
+void LSTL_FreeTypescriptString(char *s)
+{
+  free(s);
 }
 }

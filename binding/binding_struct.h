@@ -8,6 +8,7 @@ namespace litestl::binding::types {
 using util::Vector;
 
 struct Method;
+struct Constructor;
 
 struct StructTemplate {
   string name;
@@ -23,6 +24,7 @@ struct StructMember {
 struct _StructBase : public BindingBase {
   Vector<StructMember> members;
   Vector<const Method *> methods;
+  Vector<const Constructor *> constructors;
   Vector<StructTemplate> templateParams;
 
   size_t structSize;
@@ -34,7 +36,7 @@ struct _StructBase : public BindingBase {
   }
   _StructBase(const _StructBase &b)
       : BindingBase(b.type, b.name), members(b.members), methods(b.methods),
-        structSize(b.structSize)
+        constructors(b.constructors), structSize(b.structSize)
   {
   }
   virtual size_t getSize() override
@@ -67,6 +69,10 @@ template <typename CLS = int> struct Struct : public _StructBase {
   void addMethod(const Method *m)
   {
     methods.append(m);
+  }
+  void addConstructor(const Constructor *c)
+  {
+    constructors.append(c);
   }
   void addTemplateParam(const BindingBase *type, string name)
   {

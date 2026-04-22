@@ -15,6 +15,7 @@ enum class BindingType {
   Array = 1 << 5,
   Method = 1 << 6,
   Literal = 1 << 7,
+  Constructor = 1 << 8,
 };
 FlagOperators(BindingType);
 

@@ -28,6 +28,11 @@ struct BindingManager {
           add(p.type);
         }
       }
+      for (const types::Constructor *c : st->constructors) {
+        for (const auto &p : c->params) {
+          add(p.type);
+        }
+      }
     }
   }
 };

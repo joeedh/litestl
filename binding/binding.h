@@ -1,6 +1,7 @@
 #pragma once
 
 #include "binding_base.h"
+#include "binding_constructor.h"
 #include "binding_literal.h"
 #include "binding_method.h"
 #include "binding_struct.h"

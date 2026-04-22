@@ -9,6 +9,7 @@ set(SRC
   PUBLIC binding_types.h
   PUBLIC binding_utils.h
   PUBLIC binding_method.h
+  PUBLIC binding_constructor.h
   binding.cc
 )
 
@@ -26,6 +27,15 @@ wasm_add_symbols("
   LSTL_Method_GetName
   LSTL_Method_IsConst
   LSTL_Method_Invoke
+  LSTL_Struct_GetConstructorCount
+  LSTL_Struct_GetConstructor
+  LSTL_Constructor_GetName
+  LSTL_Constructor_GetOwner
+  LSTL_Constructor_GetParamCount
+  LSTL_Constructor_GetParam
+  LSTL_Constructor_Invoke
   LSTL_GetBindingInfo
   LSTL_FreeBindingInfo
+  LSTL_GenerateTypescript
+  LSTL_FreeTypescriptString
 ")

@@ -14,6 +14,7 @@ export enum BindingType {
     Array = 1 << 5, //32
     Method = 1 << 6, //64
     Literal = 1 << 7, //128
+    Constructor = 1 << 8, //256
 };
 
 export enum NumberSubtype {
@@ -83,6 +84,7 @@ export class ArrayType<WASM extends INeededWasm = INeededWasm> extends BindingBa
 export class StructType<WASM extends INeededWasm = INeededWasm> extends BindingBase<WASM> {
     members: WasmVector<WASM>;
     methods: WasmVector<WASM>;
+    constructors: WasmVector<WASM>;
     templateParams: WasmVector<WASM>;
     structSize: number;
 
@@ -92,8 +94,20 @@ export class StructType<WASM extends INeededWasm = INeededWasm> extends BindingB
         const sz = wasm.bindingInfo.Sizes.Struct
         this.members = new WasmVector(wasm, ptr + o.members, sz.StructMember)
         this.methods = new WasmVector(wasm, ptr + o.methods, wasm.PTRSIZE)
+        this.constructors = new WasmVector(wasm, ptr + o.constructors, wasm.PTRSIZE)
         this.templateParams = new WasmVector(wasm, ptr + o.templateParams, sz.TemplateParam)
         this.structSize = wasm.HEAPU32[(ptr + o.structSize) >> wasm.SIZET_SHIFT]
+    }
+}
+
+export class ConstructorType<WASM extends INeededWasm = INeededWasm> extends BindingBase<WASM> {
+    ownerType: BindingBase<WASM> | null;
+
+    constructor(wasm: WASM, ptr: pointer) {
+        super(wasm, ptr)
+        const o = wasm.bindingInfo.Offsets.Constructor
+        const ownerPtr = wasm.HEAPPTR[(ptr + o.ownerType) >> wasm.PTRSHIFT]
+        this.ownerType = ownerPtr ? getBinding(wasm, ownerPtr) as BindingBase<WASM> : null
     }
 }
 
@@ -153,6 +167,8 @@ export function getBinding<WASM extends INeededWasm = INeededWasm>(wasm: WASM, p
             return new ArrayType(wasm, ptr)
         case BindingType.Struct:
             return new StructType(wasm, ptr)
+        case BindingType.Constructor:
+            return new ConstructorType(wasm, ptr)
         case BindingType.Literal: {
             const litType: LitType = wasm.HEAP32[(ptr + bi.Offsets.Literal.litType) >> wasm.INT32SHIFT]
             switch (litType) {

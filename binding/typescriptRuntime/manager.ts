@@ -1,17 +1,70 @@
 import {WasmBase} from './wasmBase'
 import {INeededWasm, pointer} from './wasmInterface'
-import {BindingBase, getBinding, BindingType} from './binding'
+import {BindingBase, getBinding, BindingType, StructType, ConstructorType} from './binding'
+import {createBoundType} from './bind'
 
-export class BindingManager<WASM extends INeededWasm = INeededWasm> extends WasmBase<WASM> {
+export class BindingManager<
+  WASM extends INeededWasm = INeededWasm,
+  AllBoundTypes extends {[k: string]: unknown} = {},
+> extends WasmBase<WASM> {
   types = new Map<string, BindingBase>()
+  boundClasses = new Map<string, unknown>()
+  //boundPointers = new Map<string, unknown>()
 
   constructor(wasm: WASM, ptr: pointer) {
     super(wasm, ptr)
+    // do not enumerate this.wasm in console.log
+    Object.defineProperty(this, 'wasm', {enumerable: false, configurable: true})
+  }
+
+  getBoundClass(type: StructType<WASM>) {
+    let cls = this.boundClasses.get(type.name)
+    if (cls) {
+      return cls
+    }
+
+    cls = createBoundType(this, this.wasm, type)
+    this.boundClasses.set(type.name, cls)
+    return cls
+  }
+
+  getBoundPointer(typeName: string, ptr: number) {
+    const cls = this.getBoundClass(this.get(typeName) as StructType<WASM>) as any
+    return new cls(this.wasm, ptr, this)
+  }
+
+  construct<K extends keyof AllBoundTypes>(typeName: K): AllBoundTypes[K] {
+    const type = this.get(typeName as string) as StructType<WASM> | undefined
+
+    if (!type) {
+      throw new Error(`Type ${String(typeName)} not found`)
+    }
+
+    // find default constructor
+    const ctype = type.constructors.find((c) => c.constructArgs.length === 0)
+    if (!ctype) {
+      throw new Error(`No default constructor found for type ${String(typeName)}`)
+    }
+
+    const cls = this.getBoundClass(type) as any
+    const ptr = ctype.construct()
+    return new cls(this.wasm, ptr, this)
+  }
+
+  constructClass<ARGS extends unknown[] = unknown[]>(ctype: ConstructorType<WASM>, ...args: ARGS) {
+    const cls = this.getBoundClass(ctype.ownerType) as any
+    const ptr = ctype.construct(...args)
+    return new cls(this.wasm, ptr, this, ctype.ownerType)
+  }
+
+  destroyInstance(structType: StructType<WASM>, instance: WasmBase<WASM>) {
+    const wasm = this.wasm
+    wasm.LSTL_Destructor_Invoke(structType.ptr, instance.ptr)
+    wasm.memRelease(instance.ptr)
   }
 
   load() {
     const wasm = this.wasm
-    const bi = wasm.bindingInfo
     const keysPtr = wasm.LSTL_Binding_GetKeys(this.ptr)
     const keys = wasm.jsString(keysPtr)
 

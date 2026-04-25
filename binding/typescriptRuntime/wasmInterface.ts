@@ -66,6 +66,12 @@ export interface IBindingInfo {
     StrLit: {
       data: number
     }
+    Pointer: {
+      ptrType: number
+    }
+    Reference: {
+      refType: number
+    }
   }
   Sizes: {
     Struct: {
@@ -80,6 +86,8 @@ export interface IBindingInfo {
       NumLit: number
       BoolLit: number
       StrLit: number
+      Pointer: number
+      Reference: number
     }
     Constructor: {
       ConstructorParam: number
@@ -93,6 +101,8 @@ export interface INeededWasm extends IWasmBase {
 
   // convert cstring to js string
   jsString(s: cstring): string
+
+  LSTL_PrintAllocBlocks(includePermanent: boolean): void
 
   LSTL_Binding_GetKeys(bindingManager: pointer): cstring
   LSTL_Binding_FreeKeys(bindingManager: pointer): cstring
@@ -116,6 +126,7 @@ export interface INeededWasm extends IWasmBase {
   LSTL_Constructor_GetParam(constructor: pointer, i: size_t, outName: pointer<cstring>): pointer
   LSTL_Constructor_Invoke(constructor: pointer, outBuf: pointer, args: pointer<pointer>): void
   LSTL_GetBindTypeSize(bindType: pointer): int
+  LSTL_Destructor_Invoke(structptr: pointer, obj: pointer): void
 
   // various helper stuff, create with createWasmHelpers() below
   bindingInfo: IBindingInfo
@@ -152,9 +163,9 @@ export interface INeededWasm extends IWasmBase {
 export function createWasmViews(wasmBase: IWasmBase) {
   const array = wasmBase.HEAPU8.buffer
   return {
-    HEAP16 : new Int16Array(array),
-    HEAP32 : new Int32Array(array),
-    HEAP64 : new BigInt64Array(array),
+    HEAP16: new Int16Array(array),
+    HEAP32: new Int32Array(array),
+    HEAP64: new BigInt64Array(array),
     HEAPU16: new Uint16Array(array),
     HEAPU32: new Uint32Array(array),
     HEAPU64: new BigUint64Array(array),
@@ -177,28 +188,28 @@ export function createWasmHelpers(wasmBase: IWasmBase) {
       type: data[i++],
     },
     Struct: {
-      members       : data[i++],
-      methods       : data[i++],
-      constructors  : data[i++],
+      members: data[i++],
+      methods: data[i++],
+      constructors: data[i++],
       templateParams: data[i++],
-      structSize    : data[i++],
+      structSize: data[i++],
     },
     Constructor: {
       ownerType: data[i++],
-      params   : data[i++],
+      params: data[i++],
     },
     ConstructorParam: {
       name: data[i++],
       type: data[i++],
     },
     StructMember: {
-      name  : data[i++],
+      name: data[i++],
       offset: data[i++],
-      type  : data[i++],
+      type: data[i++],
     },
     Number: {
       subtype: data[i++],
-      flags  : data[i++],
+      flags: data[i++],
     },
     Array: {
       arrayType: data[i++],
@@ -217,23 +228,33 @@ export function createWasmHelpers(wasmBase: IWasmBase) {
     StrLit: {
       data: data[i++],
     },
+    Pointer: {
+      ptrType: data[i++],
+    },
+    Reference: {
+      refType: data[i++],
+    },
   }
   // skip trailing _pad ints on the C side (pointer alignment)
-  i += 2
+  if (i % 2 !== 0) {
+    i++
+  }
 
   const Sizes = {
     Struct: {
-      StructMember     : data[i++],
-      StructBase       : data[i++],
-      TemplateParam    : data[i++],
-      StructMethod     : data[i++],
+      StructMember: data[i++],
+      StructBase: data[i++],
+      TemplateParam: data[i++],
+      StructMethod: data[i++],
       StructConstructor: data[i++],
     },
     Types: {
       Boolean: data[i++],
-      NumLit : data[i++],
+      NumLit: data[i++],
       BoolLit: data[i++],
-      StrLit : data[i++],
+      StrLit: data[i++],
+      Pointer: data[i++],
+      Reference: data[i++],
     },
     Constructor: {
       ConstructorParam: data[i++],
@@ -272,20 +293,20 @@ export function createWasmHelpers(wasmBase: IWasmBase) {
       }
       return s
     },
-    HEAPPTR    : wasm.HEAPU32,
-    INT8SIZE   : 1,
-    INT8SHIFT  : 0,
-    INT16SIZE  : 2,
-    INT16SHIFT : 1,
-    INT32SIZE  : 4,
-    INT32SHIFT : 2,
-    PTRSIZE    : 4,
-    PTRSHIFT   : 2,
-    F32SIZE    : 4,
-    F32SHIFT   : 2,
-    F64SIZE    : 8,
-    F64SHIFT   : 2,
-    SIZET_SIZE : 4,
+    HEAPPTR: wasm.HEAPU32,
+    INT8SIZE: 1,
+    INT8SHIFT: 0,
+    INT16SIZE: 2,
+    INT16SHIFT: 1,
+    INT32SIZE: 4,
+    INT32SHIFT: 2,
+    PTRSIZE: 4,
+    PTRSHIFT: 2,
+    F32SIZE: 4,
+    F32SHIFT: 2,
+    F64SIZE: 8,
+    F64SHIFT: 2,
+    SIZET_SIZE: 4,
     SIZET_SHIFT: 2,
     bindingInfo,
   }

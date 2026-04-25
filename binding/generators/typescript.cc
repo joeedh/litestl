@@ -3,6 +3,7 @@
 #include "../binding.h"
 #include "util/function.h"
 #include "util/set.h"
+#include <algorithm>
 #include <regex>
 #include <string>
 
@@ -20,13 +21,15 @@ struct TypescriptType {
 static void recurse(const BindingBase *type,
                     util::Map<string, const BindingBase *> &typeMap)
 {
-  if (typeMap.contains(type->name)) {
+  printf("recurse: %d, %s\n", type->type, type->buildFullName().c_str());
+  if (typeMap.contains(type->buildFullName())) {
     return;
   }
 
-  if (type->type == BindingType::Struct) {
+  switch (type->type) {
+  case BindingType::Struct: {
     const types::Struct<void> *st = static_cast<const types::Struct<void> *>(type);
-    typeMap.add(type->name, type);
+    typeMap.add(type->buildFullName(), type);
 
     for (auto &member : st->members) {
       recurse(member.type, typeMap);
@@ -47,6 +50,23 @@ static void recurse(const BindingBase *type,
         recurse(p.type, typeMap);
       }
     }
+    break;
+  }
+  case BindingType::Array: {
+    recurse(static_cast<const types::Array<void> *>(type)->arrayType, typeMap);
+    break;
+  }
+  case BindingType::Pointer: {
+    typeMap.add(type->name, type);
+    recurse(static_cast<const types::Pointer *>(type)->ptrType, typeMap);
+    break;
+  }
+  case BindingType::Reference: {
+    recurse(static_cast<const types::Reference *>(type)->refType, typeMap);
+    break;
+  }
+  default:
+    break;
   }
 }
 
@@ -62,6 +82,29 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
     recurse(type, typeMap);
   }
 
+  struct ClassRef {
+    string name;
+    string modulePath;
+    /** full name including namespace */
+    string fullName;
+    bool isTemplate;
+
+    bool operator==(const ClassRef &other) const
+    {
+      return name == other.name && modulePath == other.modulePath &&
+             isTemplate == other.isTemplate && fullName == other.fullName;
+    }
+  };
+  Set<string> classRefImports;
+  string classRefFilename = "";
+
+  // used to build various larger helper type unions and mapped types
+  Vector<ClassRef> classRefs;
+
+  auto escapeString = [](const string &name) {
+    std::string filename = name.c_str();
+    return string((std::regex_replace(filename, std::regex("\""), "\\\"")).c_str());
+  };
   auto getModuleName = [](const string &name) {
     std::string filename = name.c_str();
     return string((std::regex_replace(filename, std::regex("::"), "/")).c_str());
@@ -88,7 +131,7 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
   auto formatImport = [&getModuleName, formatType](const BindingBase *type,
                                                    string filename) {
     string s;
-    s += "import {" + formatType(type) + "} from \"" +
+    s += "import type {" + formatType(type) + "} from \"" +
          path::relative(path::dirname(filename), getModuleName(type->name)) + "\";";
     return s;
   };
@@ -155,7 +198,7 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
         }
 
         if (i < st->templateParams.size() - 1) {
-          s += ", ";
+          s += ",";
         }
         i++;
       }
@@ -174,11 +217,23 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
     string filename = getFileName(type->name);
     Set<string> imports;
 
+    classRefs.append_once({formatType(type),
+                           getModuleName(type->name),
+                           type->name,
+                           st->templateParams.size() > 0});
+
     s += string("export interface ") + formatType(type) +
          formatTemplate(type, imports, filename, true) + string(" {\n");
     for (auto &member : st->members) {
       string s2 = "  " + member.name + ": " + formatType(member.type);
       if (member.type->type == BindingType::Struct) {
+        classRefs.append_once(
+            {formatType(member.type),
+             getModuleName(member.type->name),
+             member.type->name +
+                 formatTemplate(member.type, classRefImports, classRefFilename, false),
+             false});
+
         s2 += formatTemplate(member.type, imports, filename, false);
         imports.add(formatImport(member.type, filename));
       }
@@ -246,6 +301,63 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
 
     files->add(filename, s);
   }
+
+  auto buildHelpers = [&classRefs, &escapeString, &classRefImports]() -> string {
+    string helpers = "";
+    Set<string> importSet;
+    Set<string> exportSet;
+
+    // build imports
+    for (auto &ref : classRefs) {
+      string modulePath = ref.modulePath;
+      importSet.add("import type {" + ref.name + "} from \"./" + modulePath + "\";");
+    }
+    for (auto &str : classRefImports) {
+      importSet.add(str);
+    }
+
+    // build exports
+    for (auto &ref : classRefs) {
+      string modulePath = ref.modulePath;
+      exportSet.add("export type {" + ref.name + "} from \"./" + modulePath + "\";");
+    }
+
+    // imports
+    for (auto &str : importSet) {
+      helpers += str + "\n";
+    }
+
+    // exports
+    helpers += "\n";
+    for (auto &str : exportSet) {
+      helpers += str + "\n";
+    }
+
+    helpers += "\n/** Note: Does not include templates */\n";
+    helpers += "export type AllBoundTypes = {\n";
+    for (auto &ref : classRefs) {
+      if (!ref.isTemplate) {
+        helpers += "  \"" + escapeString(ref.fullName) + "\": " + ref.name;
+
+        // append template parameters as ts generics if they exist
+        string test = "<";
+        int i = std::find_first_of(
+                    ref.fullName.begin(), ref.fullName.end(), test.begin(), test.end())
+                    .i;
+
+        if (i >= 0 && i < ref.fullName.size()) {
+          helpers += ref.fullName.substr(i);
+        }
+        helpers += ",\n";
+      }
+    }
+    helpers += "};\n";
+
+    return helpers;
+  };
+
+  files->add("index.ts", buildHelpers());
+
   return files;
 }
 } // namespace litestl::binding::generators

@@ -3,7 +3,7 @@
 #include "binding_base.h"
 #include "litestl/util/string.h"
 
-/** 
+/**
  * Literal binding types are types that map to typescript primitive literals,
  * e.g. litestl::util::StrLiteral<N> -> string, int/float/etc -> number, bool->boolean
  * These are emitted as actual primitive types, e.g.
@@ -33,27 +33,51 @@ struct LiteralType : public BindingBase {
   }
 };
 
-namespace detail {
-template <typename T, LitType Type> struct LitTypeImpl : public LiteralType {
-  T data;
+struct NumLitType : public LiteralType {
+  int data;
 
-  LitTypeImpl(T data, string name, BindingBase *bind)
-      : LiteralType(Type, name, bind), data(data)
+  NumLitType(int data, string name, BindingBase *bind)
+      : LiteralType(LitType::Number, name, bind), data(data)
   {
   }
-  LitTypeImpl(const LitTypeImpl &b) : LiteralType(b), data(b.data)
+  NumLitType(const NumLitType &b) : LiteralType(b), data(b.data)
   {
   }
 
-  virtual BindingBase *clone()
+  virtual BindingBase *clone() override
   {
-    return static_cast<BindingBase *>(new LitTypeImpl(*this));
+    return static_cast<BindingBase *>(new NumLitType(*this));
+  }
+
+  virtual string buildFullName() const override
+  {
+    char buf[512];
+    sprintf(buf, "%d", data);
+    return string(buf);
   }
 };
-} // namespace detail
 
-using NumLitType = detail::LitTypeImpl<int32_t, LitType::Number>;
-using BoolLitType = detail::LitTypeImpl<int32_t, LitType::Bool>;
+struct BoolLitType : public LiteralType {
+  bool data;
+
+  BoolLitType(bool data, string name, BindingBase *bind)
+      : LiteralType(LitType::Bool, name, bind), data(data)
+  {
+  }
+  BoolLitType(const BoolLitType &b) : LiteralType(b), data(b.data)
+  {
+  }
+
+  virtual BindingBase *clone() override
+  {
+    return static_cast<BindingBase *>(new BoolLitType(*this));
+  }
+
+  virtual string buildFullName() const override
+  {
+    return data ? "true" : "false";
+  }
+};
 
 struct StrLitType : public LiteralType {
   string data;
@@ -66,9 +90,14 @@ struct StrLitType : public LiteralType {
   {
   }
 
-  virtual BindingBase *clone()
+  virtual BindingBase *clone() override
   {
     return static_cast<BindingBase *>(new StrLitType(*this));
+  }
+
+  virtual string buildFullName() const override
+  {
+    return data;
   }
 };
 

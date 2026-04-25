@@ -8,11 +8,13 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <functional>
 #include <initializer_list>
 #include <ranges>
 #include <span>
 #include <type_traits>
 #include <utility>
+
 
 template <typename Iter, typename QualVec, typename QualT>
 static Iter operator+(int n, const Iter &b)
@@ -28,9 +30,7 @@ namespace litestl::util {
  */
 template <typename BASE, typename ITEM>
 concept VectorSortComparator = requires(BASE base, const ITEM &a, const ITEM &b) {
-  {
-    base(a, b)
-  } -> std::convertible_to<std::int32_t>;
+  { base(a, b) } -> std::convertible_to<std::int32_t>;
 };
 
 namespace detail {
@@ -529,6 +529,16 @@ public:
     return index_of(value) != -1;
   }
 
+  bool contains(std::function<bool(const T &)> predicate) const
+  {
+    for (int i = 0; i < size_; i++) {
+      if (predicate(data_[i])) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   T pop_back()
   {
     size_--;
@@ -744,6 +754,7 @@ public:
     return *this;
   }
 
+  /** Useful with strings, e.g. ["a", "b", "c"].join(", ") -> "a, b, c" */
   T join(T middle)
   {
     T sum = {};
@@ -775,6 +786,37 @@ public:
       result.append(data_[i]);
     }
     return result;
+  }
+
+  Vector &concat(const Vector &other)
+  {
+    for (int i = 0; i < other.size(); i++) {
+      append(other[i]);
+    }
+    return *this;
+  }
+  Vector &concat(Vector &&other)
+  {
+    // XXX TODO: test move semantics work properly here
+    for (int i = 0; i < other.size(); i++) {
+      append(std::forward<T>(other[i]));
+    }
+    return *this;
+  }
+  Vector &concat(const_span other)
+  {
+    for (int i = 0; i < other.size(); i++) {
+      append(other[i]);
+    }
+    return *this;
+  }
+  Vector &concat(std::span<T &&> other)
+  {
+    // XXX TODO: test move semantics work properly here
+    for (int i = 0; i < other.size(); i++) {
+      append(std::forward<T>(other[i]));
+    }
+    return *this;
   }
 
 private:

@@ -53,7 +53,13 @@ struct WasmOffsets {
   struct {
     int data;
   } StrLit;
-  int _pad[2];
+  struct {
+    int ptrType;
+  } Pointer;
+  struct {
+    int refType;
+  } Reference;
+  int _pad;
 };
 // ensure we are pointer aligned to avoid padding bytes
 static_assert(sizeof(WasmOffsets) % sizeof(void *) == 0);
@@ -71,11 +77,12 @@ struct TypeSizes {
     int NumLit;
     int BoolLit;
     int StrLit;
+    int Pointer;
+    int Reference;
   } Types;
   struct {
     int ConstructorParam;
   } Constructor;
-  int _pad[0];
 };
 static_assert(sizeof(TypeSizes) % sizeof(void *) == 0);
 
@@ -122,8 +129,9 @@ BindingInfo *LSTL_GetBindingInfo()
   info->offsets.NumLit.data = offsetof(NumLitType, data);
   info->offsets.BoolLit.data = offsetof(BoolLitType, data);
   info->offsets.StrLit.data = offsetof(StrLitType, data);
-  info->offsets._pad[0] = 0;
-  info->offsets._pad[1] = 0;
+
+  info->offsets.Pointer.ptrType = offsetof(Pointer, ptrType);
+  info->offsets.Reference.refType = offsetof(Reference, refType);
 
   info->sizes.Struct.StructMember = sizeof(StructMember);
   info->sizes.Struct.StructBase = sizeof(_StructBase);
@@ -135,6 +143,8 @@ BindingInfo *LSTL_GetBindingInfo()
   info->sizes.Types.NumLit = sizeof(NumLitType);
   info->sizes.Types.BoolLit = sizeof(BoolLitType);
   info->sizes.Types.StrLit = sizeof(StrLitType);
+  info->sizes.Types.Pointer = sizeof(Pointer);
+  info->sizes.Types.Reference = sizeof(Reference);
 
   info->sizes.Constructor.ConstructorParam = sizeof(ConstructorParam);
 
@@ -261,7 +271,15 @@ void LSTL_Constructor_Invoke(const types::Constructor *c, void *outBuf, void **a
     c->thunk(outBuf, args);
   }
 }
-int LSTL_GetBindTypeSize(BindingBase *b) {
+void LSTL_Destructor_Invoke(const types::_StructBase *s, void *obj)
+{
+  if (s->destructorThunk) {
+    (*s->destructorThunk)(obj);
+  }
+}
+
+int LSTL_GetBindTypeSize(BindingBase *b)
+{
   return b->getSize();
 }
 
@@ -317,5 +335,10 @@ unsigned char *LSTL_GenerateTypescript(BindingManager *manager, int *size_out)
 void LSTL_FreeTypescriptString(char *s)
 {
   free(s);
+}
+
+void LSTL_PrintAllocBlocks(bool includePermanent)
+{
+  alloc::print_blocks(includePermanent);
 }
 }

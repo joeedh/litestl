@@ -1,8 +1,10 @@
 #pragma once
 
 #include <algorithm>
+#include <atomic>
 #include <compare>
 #include <cstring>
+#include <iterator>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -111,7 +113,7 @@ namespace detail {
 template <typename Char> int strcmp(const Char *a, const Char *b)
 {
   if (!a || !b) {
-    return false;
+    return -1;
   }
 
   while (*a && *b) {
@@ -133,7 +135,103 @@ template <typename Char> int strcmp(const Char *a, const Char *b)
 }
 } // namespace detail
 
+namespace detail {
+template <typename S, typename QualValue> struct StringIter {
+  using value_type = QualValue;
+  using difference_type = std::ptrdiff_t;
+  using reference = value_type &;
+  using pointer = value_type *;
+  using iterator_category = std::random_access_iterator_tag;
+
+  S *str;
+  difference_type i;
+
+  StringIter() : str(nullptr), i(0)
+  {
+  }
+  StringIter(S *s, difference_type i = 0) : str(s), i(i)
+  {
+  }
+  StringIter(const StringIter &b) = default;
+  StringIter &operator=(const StringIter &b) = default;
+
+  reference operator*()
+  {
+    return (*str)[i];
+  }
+  reference operator*() const
+  {
+    return (*str)[i];
+  }
+
+  reference operator[](difference_type index)
+  {
+    return (*str)[i + index];
+  }
+  reference operator[](difference_type index) const
+  {
+    return (*str)[i + index];
+  }
+
+  StringIter &operator++()
+  {
+    i++;
+    return *this;
+  }
+  StringIter operator++(int arg)
+  {
+    StringIter cpy = *this;
+    i++;
+    return cpy;
+  }
+  StringIter &operator--()
+  {
+    i--;
+    return *this;
+  }
+  StringIter operator--(int arg)
+  {
+    StringIter cpy = *this;
+    i--;
+    return cpy;
+  }
+  bool operator==(const StringIter &) const = default;
+  auto operator<=>(const StringIter &b) const
+  {
+    return i <=> b.i;
+  }
+  StringIter &operator+=(difference_type offset)
+  {
+    i += offset;
+    return *this;
+  }
+  StringIter &operator-=(difference_type offset)
+  {
+    i -= offset;
+    return *this;
+  }
+  StringIter operator+(difference_type offset) const
+  {
+    return StringIter(str, i + offset);
+  }
+  friend StringIter operator+(difference_type offset, const StringIter &b)
+  {
+    return StringIter(b.str, offset + b.i);
+  }
+  StringIter operator-(difference_type offset) const
+  {
+    return StringIter(str, i - offset);
+  }
+  friend difference_type operator-(const StringIter &b, const StringIter &c)
+  {
+    return b.i - c.i;
+  }
+};
+} // namespace detail
+
 template <typename Char> struct StringRef {
+  using value_type = Char;
+
   StringRef()
   {
   }
@@ -209,6 +307,10 @@ private:
 // default for static_size is defined in forward declaration at the top of this file
 template <typename Char, int static_size> class alignas(8) String {
 public:
+  using value_type = Char;
+  using iterator = detail::StringIter<String, Char>;
+  using const_iterator = detail::StringIter<const String, const Char>;
+
   String() : size_(0)
   {
     data_ = static_storage_;
@@ -289,7 +391,12 @@ public:
     return *this;
   }
 
-  inline Char operator[](int idx)
+  inline Char &operator[](intptr_t idx)
+  {
+    return data_[idx];
+  }
+
+  inline const Char &operator[](intptr_t idx) const
   {
     return data_[idx];
   }
@@ -472,14 +579,39 @@ public:
     return trimLeft().trimRight();
   }
 
+  String substr(int start)
+  {
+    return substr(start, size() - start);
+  }
+
   String substr(int start, int count)
   {
     String b;
+    if (count < 0) {
+      count += size();
+    }
     count = std::min(count, int(size()) - start);
     for (int i = start; i < start + count; i++) {
       b += data_[i];
     }
     return b;
+  }
+
+  iterator begin()
+  {
+    return iterator(this, 0);
+  }
+  iterator end()
+  {
+    return iterator(this, size_);
+  }
+  const_iterator begin() const
+  {
+    return const_iterator(this, 0);
+  }
+  const_iterator end() const
+  {
+    return const_iterator(this, size_);
   }
 
 private:
@@ -525,5 +657,9 @@ using StringKey = int;
 
 /* Get a unique integer key for str. */
 StringKey get_stringkey(const stringref str);
+
+static_assert(std::random_access_iterator<detail::StringIter<string, char>>);
+static_assert(std::random_access_iterator<detail::StringIter<const string, const char>>);
+// static_assert(std::random_access_iterator<detail::StringIter<const char, const char>>);
 
 } // namespace litestl::util

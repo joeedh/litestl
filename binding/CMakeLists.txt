@@ -34,9 +34,11 @@ wasm_add_symbols("
   LSTL_Constructor_GetParamCount
   LSTL_Constructor_GetParam
   LSTL_Constructor_Invoke
+  LSTL_Destructor_Invoke
   LSTL_GetBindingInfo
   LSTL_FreeBindingInfo
   LSTL_GenerateTypescript
   LSTL_FreeTypescriptString
   LSTL_GetBindTypeSize
+  LSTL_PrintAllocBlocks
 ")

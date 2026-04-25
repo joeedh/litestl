@@ -49,9 +49,13 @@ struct BindingBase {
   {
     return nullptr;
   }
-  virtual size_t getSize()
+  virtual size_t getSize() const
   {
     return 0;
+  }
+  /** Creates a full name including template parameters. */
+  virtual string buildFullName() const {
+    return name;
   }
 };
 

@@ -35,8 +35,11 @@ export enum LitType {
   String = 2,
 }
 
-export class BindingBase<WASM extends INeededWasm = INeededWasm> extends WasmBase<WASM> {
-  type: BindingType
+export class BindingBase<
+  WASM extends INeededWasm = INeededWasm,
+  TYPE extends BindingType = BindingType,
+> extends WasmBase<WASM> {
+  type: TYPE
   name: string
   size: number
 
@@ -45,19 +48,22 @@ export class BindingBase<WASM extends INeededWasm = INeededWasm> extends WasmBas
     const bi = wasm.bindingInfo
 
     Error.stackTraceLimit = 100000
-    this.type = wasm.HEAP32[(ptr + bi.Offsets.Base.type) >> wasm.INT32SHIFT]
+    this.type = wasm.HEAP32[(ptr + bi.Offsets.Base.type) >> wasm.INT32SHIFT] as TYPE
     this.name = readLiteStlString(wasm, ptr + bi.Offsets.Base.name)
     this.size = wasm.LSTL_GetBindTypeSize(ptr)
+
+    // do not enumerate wasm in console.log
+    Object.defineProperty(this, 'wasm', {enumerable: false, configurable: true})
   }
 }
 
-export class BooleanType<WASM extends INeededWasm = INeededWasm> extends BindingBase<WASM> {
+export class BooleanType<WASM extends INeededWasm = INeededWasm> extends BindingBase<WASM, BindingType.Boolean> {
   constructor(wasm: WASM, ptr: pointer) {
     super(wasm, ptr)
   }
 }
 
-export class NumberType<WASM extends INeededWasm = INeededWasm> extends BindingBase<WASM> {
+export class NumberType<WASM extends INeededWasm = INeededWasm> extends BindingBase<WASM, BindingType.Number> {
   subtype: NumberSubtype
   flags: NumberFlags
 
@@ -69,7 +75,7 @@ export class NumberType<WASM extends INeededWasm = INeededWasm> extends BindingB
   }
 }
 
-export class ArrayType<WASM extends INeededWasm = INeededWasm> extends BindingBase<WASM> {
+export class ArrayType<WASM extends INeededWasm = INeededWasm> extends BindingBase<WASM, BindingType.Array> {
   elemType: BindingBase<WASM> | null
   arraySize: number
 
@@ -88,7 +94,7 @@ export interface StructMember {
   offset: number
 }
 
-export class StructType<WASM extends INeededWasm = INeededWasm> extends BindingBase<WASM> {
+export class StructType<WASM extends INeededWasm = INeededWasm> extends BindingBase<WASM, BindingType.Struct> {
   _members: WasmVector<WASM>
   members: StructMember[] = []
   methods: WasmVector<WASM>
@@ -116,6 +122,7 @@ export class StructType<WASM extends INeededWasm = INeededWasm> extends BindingB
     // load members
     for (const _ptr of this._members) {
       const name = readLiteStlString(wasm, _ptr + wasm.bindingInfo.Offsets.StructMember.name)
+      console.log(this.name, 'N', name)
       const offset = wasm.HEAP32[(_ptr + wasm.bindingInfo.Offsets.StructMember.offset) >> wasm.INT32SHIFT]
       const type = getBinding(
         wasm,
@@ -128,7 +135,10 @@ export class StructType<WASM extends INeededWasm = INeededWasm> extends BindingB
 
 export class WasmConstructError extends Error {}
 
-export class ConstructorType<WASM extends INeededWasm = INeededWasm> extends BindingBase<WASM> {
+export class ConstructorType<WASM extends INeededWasm = INeededWasm> extends BindingBase<
+  WASM,
+  BindingType.Constructor
+> {
   ownerType: StructType<WASM>
   _constructArgs: WasmVector<WASM>
   constructArgs: BindingBase<WASM>[] = []
@@ -245,20 +255,23 @@ export class ConstructorType<WASM extends INeededWasm = INeededWasm> extends Bin
   }
 }
 
-export class LiteralType<WASM extends INeededWasm = INeededWasm> extends BindingBase<WASM> {
-  litType: LitType
+export class LiteralType<
+  WASM extends INeededWasm = INeededWasm,
+  LIT_TYPE extends LitType = LitType,
+> extends BindingBase<WASM, BindingType.Literal> {
+  litType: LIT_TYPE
   litBind: BindingBase<WASM> | null
 
   constructor(wasm: WASM, ptr: pointer) {
     super(wasm, ptr)
     const o = wasm.bindingInfo.Offsets.Literal
-    this.litType = wasm.HEAP32[(ptr + o.litType) >> wasm.INT32SHIFT]
+    this.litType = wasm.HEAP32[(ptr + o.litType) >> wasm.INT32SHIFT] as LIT_TYPE
     const bindPtr = wasm.HEAPPTR[(ptr + o.litBind) >> wasm.PTRSHIFT]
     this.litBind = bindPtr ? (getBinding(wasm, bindPtr) as BindingBase<WASM>) : null
   }
 }
 
-export class NumLitType<WASM extends INeededWasm = INeededWasm> extends LiteralType<WASM> {
+export class NumLitType<WASM extends INeededWasm = INeededWasm> extends LiteralType<WASM, LitType.Num> {
   data: number
 
   constructor(wasm: WASM, ptr: pointer) {
@@ -268,7 +281,7 @@ export class NumLitType<WASM extends INeededWasm = INeededWasm> extends LiteralT
   }
 }
 
-export class BoolLitType<WASM extends INeededWasm = INeededWasm> extends LiteralType<WASM> {
+export class BoolLitType<WASM extends INeededWasm = INeededWasm> extends LiteralType<WASM, LitType.Bool> {
   data: boolean
 
   constructor(wasm: WASM, ptr: pointer) {
@@ -278,7 +291,7 @@ export class BoolLitType<WASM extends INeededWasm = INeededWasm> extends Literal
   }
 }
 
-export class StrLitType<WASM extends INeededWasm = INeededWasm> extends LiteralType<WASM> {
+export class StrLitType<WASM extends INeededWasm = INeededWasm> extends LiteralType<WASM, LitType.String> {
   data: string
 
   constructor(wasm: WASM, ptr: pointer) {
@@ -301,8 +314,6 @@ export function getBinding<WASM extends INeededWasm = INeededWasm>(wasm: WASM, p
       return new ArrayType(wasm, ptr)
     case BindingType.Struct:
       return new StructType(wasm, ptr)
-    case BindingType.Constructor:
-      return new ConstructorType(wasm, ptr)
     case BindingType.Literal: {
       const litType: LitType = wasm.HEAP32[(ptr + bi.Offsets.Literal.litType) >> wasm.INT32SHIFT]
       switch (litType) {
@@ -320,3 +331,45 @@ export function getBinding<WASM extends INeededWasm = INeededWasm>(wasm: WASM, p
       return new BindingBase(wasm, ptr)
   }
 }
+
+abstract class PointerTypeBase<
+  WASM extends INeededWasm = INeededWasm,
+  TYPE extends BindingType = BindingType,
+> extends BindingBase<WASM, TYPE> {
+  ptrType!: BindingBase<WASM>
+
+  constructor(wasm: WASM, ptr: pointer) {
+    super(wasm, ptr)
+  }
+}
+
+export class PointerType<WASM extends INeededWasm = INeededWasm> //
+  extends PointerTypeBase<WASM, BindingType.Pointer>
+{
+  constructor(wasm: WASM, ptr: pointer) {
+    super(wasm, ptr)
+    const o = wasm.bindingInfo.Offsets.Pointer
+    this.ptrType = getBinding(wasm, ptr + o.ptrType)
+  }
+}
+export class ReferenceType<WASM extends INeededWasm = INeededWasm> //
+  extends PointerTypeBase<WASM, BindingType.Reference>
+{
+  constructor(wasm: WASM, ptr: pointer) {
+    super(wasm, ptr)
+    const o = wasm.bindingInfo.Offsets.Reference
+    this.ptrType = getBinding(wasm, ptr + o.refType)
+  }
+}
+
+export type Binding<WASM extends INeededWasm = INeededWasm> =
+  | BooleanType<WASM>
+  | NumberType<WASM>
+  | ArrayType<WASM>
+  | StructType<WASM>
+  | ConstructorType<WASM>
+  | NumLitType<WASM>
+  | BoolLitType<WASM>
+  | StrLitType<WASM>
+  | PointerType<WASM>
+  | ReferenceType<WASM>

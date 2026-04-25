@@ -17,20 +17,18 @@ struct Boolean : public BindingBase {
   {
     return static_cast<BindingBase *>(new Boolean(*this));
   }
-  virtual size_t getSize()
+  virtual size_t getSize() const
   {
     return sizeof(bool);
   }
 };
 
-template<typename T>
-struct Number : public BindingBase {
+template <typename T> struct Number : public BindingBase {
   using value_type = T;
   NumberType subtype;
   NumberFlags flags;
 
-
-  Number(NumberType subtype, NumberFlags flags=NumberFlags::None)
+  Number(NumberType subtype, NumberFlags flags = NumberFlags::None)
       : BindingBase(BindingType::Number, "number"), subtype(subtype), flags(flags)
   {
     //
@@ -44,7 +42,7 @@ struct Number : public BindingBase {
   {
     return static_cast<BindingBase *>(new Number(*this));
   }
-  virtual size_t getSize()
+  virtual size_t getSize() const
   {
     switch (subtype) {
     case NumberType::Int8:
@@ -65,7 +63,7 @@ struct Number : public BindingBase {
 };
 
 template <typename T> struct Array : public BindingBase {
-  T *arrayType;
+  const BindingBase *arrayType;
   size_t arraySize;
 
   Array(T *arrayType, size_t arraySize)
@@ -80,9 +78,51 @@ template <typename T> struct Array : public BindingBase {
   {
     return static_cast<BindingBase *>(new Array(*this));
   }
-  virtual size_t getSize()
+  virtual size_t getSize() const
   {
     return arrayType->getSize() * arraySize;
+  }
+};
+
+struct Pointer : public BindingBase {
+  const BindingBase *ptrType;
+  Pointer(const BindingBase *ptrType, string name = "pointer")
+      : ptrType(ptrType), BindingBase(BindingType::Pointer, name)
+  {
+    //
+  }
+  Pointer(const Pointer &p) : BindingBase(p), ptrType(p.ptrType)
+  {
+    //
+  }
+  virtual BindingBase *clone()
+  {
+    return static_cast<BindingBase *>(new Pointer(*this));
+  }
+  virtual size_t getSize() const
+  {
+    return sizeof(void *);
+  }
+};
+
+struct Reference : public BindingBase {
+  const BindingBase *refType;
+  Reference(const BindingBase *ptrType, string name = "reference")
+      : refType(ptrType), BindingBase(BindingType::Reference, name)
+  {
+    //
+  }
+  Reference(const Reference &p) : BindingBase(p), refType(p.refType)
+  {
+    //
+  }
+  virtual BindingBase *clone()
+  {
+    return static_cast<BindingBase *>(new Reference(*this));
+  }
+  virtual size_t getSize() const
+  {
+    return sizeof(void *);
   }
 };
 

@@ -33,7 +33,7 @@ struct Constructor : public BindingBase {
       : BindingBase(b), ownerType(b.ownerType), params(b.params), thunk(b.thunk)
   {
   }
-  virtual size_t getSize() override
+  virtual size_t getSize() const override
   {
     return 0;
   }

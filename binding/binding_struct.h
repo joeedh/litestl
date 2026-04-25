@@ -1,13 +1,14 @@
 #pragma once
 
 #include "binding_base.h"
+#include "binding_method.h"
 #include "binding_types.h"
 #include "util/vector.h"
+#include <functional>
 
 namespace litestl::binding::types {
 using util::Vector;
 
-struct Method;
 struct Constructor;
 
 struct StructTemplate {
@@ -28,6 +29,8 @@ struct _StructBase : public BindingBase {
   Vector<StructTemplate> templateParams;
 
   size_t structSize;
+  // is set by Struct child template class below
+  std::function<void(void *)> *destructorThunk = nullptr;
 
   _StructBase(string name, size_t size)
       : BindingBase(BindingType::Struct, name), structSize(size)
@@ -39,23 +42,81 @@ struct _StructBase : public BindingBase {
         constructors(b.constructors), structSize(b.structSize)
   {
   }
-  virtual size_t getSize() override
+  virtual ~_StructBase()
+  {
+    if (destructorThunk) {
+      delete destructorThunk;
+    }
+  }
+  virtual size_t getSize() const override
   {
     return structSize;
   }
+  virtual string buildFullName() const override
+  {
+    string s = name;
+
+    if (templateParams.size() > 0) {
+      s += "<";
+      for (size_t i = 0; i < templateParams.size(); i++) {
+        if (i > 0) {
+          s += ",";
+        }
+        s += templateParams[i].type->buildFullName();
+      }
+      s += ">";
+    }
+    return s;
+  }
 };
 
-template <typename CLS = int> struct Struct : public _StructBase {
+template <typename T> struct DestructorThunk {
+  /** Calls destructor, but does not release the underlying memory */
+  std::function<void(void *)> destructor;
+
+  DestructorThunk()
+      : destructor([](void *obj) {
+          T *typedObj = static_cast<T *>(obj);
+          typedObj->~T();
+        })
+  {
+  }
+
+  DestructorThunk(const DestructorThunk &other) = delete;
+  DestructorThunk(DestructorThunk &&other) = delete;
+};
+
+template <typename CLS> struct Struct : public _StructBase {
   using struct_type = CLS;
 
   struct_type *type_null;
 
   Struct(string name, size_t size) : _StructBase(name, size)
   {
-    //
+    destructorThunk = new std::function<void(void *)>([](void *obj) {
+      CLS *typedObj = static_cast<CLS *>(obj);
+      typedObj->~CLS();
+    });
   }
   Struct(const Struct &b) : _StructBase(b.name, b.structSize)
   {
+    destructorThunk = b.destructorThunk;
+  }
+
+  void inherit(_StructBase *parent)
+  {
+    for (auto &member : parent->members) {
+      if (!members.contains(
+              [&member](const StructMember &m) { return m.name == member.name; }))
+        ;
+      members.append(member);
+    }
+    for (auto &method : parent->methods) {
+      if (!methods.contains(
+              [&method](const Method *m) { return m->name == method->name; }))
+        ;
+      methods.append(method);
+    }
   }
 
   virtual BindingBase *clone() override
@@ -85,9 +146,7 @@ namespace litestl::binding {
 
 template <typename CLS>
 concept ClassBindingReq = requires(types::Struct<CLS> *def) {
-  {
-    CLS::defineBindings()
-  } -> std::convertible_to<const types::Struct<CLS> *>;
+  { CLS::defineBindings() } -> std::convertible_to<const types::Struct<CLS> *>;
 };
 
 template <typename CLS>

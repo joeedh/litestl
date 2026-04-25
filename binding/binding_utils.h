@@ -10,10 +10,10 @@ namespace litestl::binding {
 #undef _
 #endif
 
-#define _(ctype, type, flags)                                                                \
-  template <std::same_as<ctype> T> types::Number<ctype> *Bind()                              \
+#define _(ctype, type, flags)                                                            \
+  template <std::same_as<ctype> T> types::Number<ctype> *Bind()                          \
   {                                                                                      \
-    return new types::Number<ctype>(NumberType::type, flags);                                   \
+    return new types::Number<ctype>(NumberType::type, flags);                            \
   }
 
 _(signed char, Int8, NumberFlags::None);
@@ -26,5 +26,10 @@ _(int64_t, Int64, NumberFlags::None);
 _(uint64_t, Int64, NumberFlags::Unsigned);
 _(float, Float32, NumberFlags::None);
 _(double, Float64, NumberFlags::None);
+
+template <std::same_as<bool> T> types::Boolean *Bind()
+{
+  return new types::Boolean();
+}
 
 } // namespace litestl::binding

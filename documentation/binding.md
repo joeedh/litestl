@@ -70,6 +70,53 @@ Because `BIND_STRUCT_MEMBER` dispatches through `Bind<T>()`, nested structs
 compose naturally: a `Transform` with a `Vec3 position` field just works, as
 long as `Vec3` itself provides `defineBindings()`.
 
+Note: struct bindings are *always final*.  The binding system cannot bind raw template
+types since it cannot generate code.  *However*, the binding system does retain
+template parameters in the bound types.  For example:
+
+```c++
+template<typename T, int staticValue>
+class MyTemplate<T> {
+public:
+  T value;
+  
+  static const types::Struct<MyTemplate<T>> *defineBindings() {
+    static auto *def = new types::Struct<MyTemplate<T>>("MyTemplate", sizeof(MyTemplate<T>));
+    def->addTemplateParam(Bind<T>(), "T");
+    def->addTemplateParam(new NumLitType(staticValue), "staticValue");
+    BIND_STRUCT_MEMBER(def, value);
+    return def;
+  }
+};
+
+auto instance = 
+```
+
+If you registered `instance` you might get the following typescript code:
+
+```ts
+export interface MyTemplate<T, staticValue extends number> {
+  value: T;
+}
+```
+
+References to MyTemplate would include the literal parameters, e.g.
+```ts
+export class MyClass {
+  templateInstance: MyTemplate<number, 42>;
+}
+```
+
+If you set up the binding manager with `AllBoundTypes` you'd be able to 
+create a new instance of MyTemplate using the fully qualified name:
+
+```ts
+const instance = bindingManager.construct('MyTemplate<number, 42>')
+```
+
+...if you registered that particular template instantiation with the manager
+of course.
+
 ## Collecting and emitting
 
 `BindingManager` (in `manager.h`) is a simple registry keyed by type name. Adding

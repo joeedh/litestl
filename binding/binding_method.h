@@ -1,7 +1,6 @@
 #pragma once
 
 #include "binding_base.h"
-#include "binding_struct.h"
 #include "binding_utils.h"
 #include "util/vector.h"
 
@@ -35,7 +34,7 @@ struct Method : public BindingBase {
         isConst(b.isConst), isStatic(b.isStatic)
   {
   }
-  virtual size_t getSize() override
+  virtual size_t getSize() const override
   {
     return 0;
   }
@@ -76,8 +75,7 @@ template <auto Mfp> struct MethodBuilder {
   {
     if constexpr (std::is_void_v<return_type>) {
       return nullptr;
-    }
-    else {
+    } else {
       return Bind<std::remove_cvref_t<return_type>>();
     }
   }
@@ -89,32 +87,28 @@ template <auto Mfp> struct MethodBuilder {
 
   static void thunk(void *self, void **args, void *ret)
   {
-    invokeImpl(static_cast<class_type *>(self), args, ret,
-               std::make_index_sequence<arity>{});
+    invokeImpl(
+        static_cast<class_type *>(self), args, ret, std::make_index_sequence<arity>{});
   }
 
 private:
-  template <size_t I>
-  using arg_t = std::tuple_element_t<I, typename Traits::args_tuple>;
+  template <size_t I> using arg_t = std::tuple_element_t<I, typename Traits::args_tuple>;
 
   template <size_t... I>
   static void fillParamsImpl(Vector<MethodParam> &out, std::index_sequence<I...>)
   {
-    (out.append(
-         MethodParam{string(""), Bind<std::remove_cvref_t<arg_t<I>>>()}),
-     ...);
+    (out.append(MethodParam{string(""), Bind<std::remove_cvref_t<arg_t<I>>>()}), ...);
   }
 
   template <size_t... I>
-  static void invokeImpl(class_type *self, void **args, void *ret,
-                         std::index_sequence<I...>)
+  static void
+  invokeImpl(class_type *self, void **args, void *ret, std::index_sequence<I...>)
   {
     (void)args;
     (void)ret;
     if constexpr (std::is_void_v<return_type>) {
       (self->*Mfp)(*static_cast<std::remove_cvref_t<arg_t<I>> *>(args[I])...);
-    }
-    else {
+    } else {
       *static_cast<return_type *>(ret) =
           (self->*Mfp)(*static_cast<std::remove_cvref_t<arg_t<I>> *>(args[I])...);
     }
@@ -138,8 +132,7 @@ private:
 #define BIND_STRUCT_METHOD_SIG(def, mname, RET, ARGS)                                    \
   do {                                                                                   \
     using _BSM_C = std::remove_reference_t<decltype(*(def)->type_null)>;                 \
-    constexpr auto _BSM_FP =                                                             \
-        static_cast<RET (_BSM_C::*) ARGS>(&_BSM_C::mname);                               \
+    constexpr auto _BSM_FP = static_cast<RET(_BSM_C::*) ARGS>(&_BSM_C::mname);           \
     using _BSM_MB = ::litestl::binding::types::MethodBuilder<_BSM_FP>;                   \
     auto *_BSM_m = new ::litestl::binding::types::Method(#mname);                        \
     _BSM_m->returnType = _BSM_MB::returnType();                                          \

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "binding.h"
+#include "binding_base.h"
 #include "util/alloc.h"
 
 namespace litestl::binding {

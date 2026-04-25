@@ -62,6 +62,10 @@ template <typename T, int static_size = VectorDefaultStaticSize>
 class alignas(ContainerAlign<T>()) Vector {
 public:
   using value_type = T;
+  using is_litestl_vector = std::true_type;
+
+  // c++ doesn't allow us to shadow template parameters
+  static const int staticSize = static_size;
 
   template <typename Iter> struct iterator_diff {
     flatten_inline iterator_diff()

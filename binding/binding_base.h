@@ -16,6 +16,7 @@ enum class BindingType {
   Method = 1 << 6,
   Literal = 1 << 7,
   Constructor = 1 << 8,
+  Enum = 1 << 9,
 };
 FlagOperators(BindingType);
 
@@ -54,7 +55,8 @@ struct BindingBase {
     return 0;
   }
   /** Creates a full name including template parameters. */
-  virtual string buildFullName() const {
+  virtual string buildFullName() const
+  {
     return name;
   }
 };

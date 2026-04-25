@@ -7,4 +7,38 @@
 #include "binding_struct.h"
 #include "binding_types.h"
 #include "binding_utils.h"
+#include "binding_number.h"
+#include "binding_enum.h"
+
 #include "generators/typescript.h"
+
+// XXX vector binding utility, find where to put it other then this file!
+namespace litestl::binding {
+using litestl::util::Vector;
+
+template <typename T>
+concept IsVector = requires(T v) {
+  // { Bind<T::value_type>() } -> std::derived_from<const BindingBase *>;
+  std::same_as<typename T::is_litestl_vector, std::true_type>;
+};
+
+/** vector binding */
+template <IsVector VEC> const BindingBase *Bind()
+{
+  types::Struct<VEC> *st = new types::Struct<VEC>("litestl::util::Vector", sizeof(VEC));
+  st->addTemplateParam(Bind<typename VEC::value_type>(), "T");
+  st->addTemplateParam(
+      new types::NumLitType(VEC::staticSize, "static_size", Bind<int>()),
+      "static_size");
+
+  return st;
+}
+
+// string binding
+template<std::same_as<litestl::util::string> S>
+const BindingBase *Bind()
+{
+  types::Struct<S> *st = new types::Struct<S>("litestl::util::String", sizeof(S));
+  return st;
+}
+} // namespace litestl::binding

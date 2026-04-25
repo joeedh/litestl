@@ -13,6 +13,7 @@ export enum BindingType {
   Method = 1 << 6, //64
   Literal = 1 << 7, //128
   Constructor = 1 << 8, //256
+  Enum = 1 << 9, //512
 }
 
 export enum NumberSubtype {
@@ -54,6 +55,37 @@ export class BindingBase<
 
     // do not enumerate wasm in console.log
     Object.defineProperty(this, 'wasm', {enumerable: false, configurable: true})
+  }
+}
+
+export class EnumBinding<WASM extends INeededWasm = INeededWasm> extends BindingBase<WASM, BindingType.Enum> {
+  _items: WasmVector<WASM>
+  items = new Map<string, number | bigint>()
+  baseSize: number
+  isBitMask: boolean
+
+  constructor(wasm: WASM, ptr: pointer) {
+    super(wasm, ptr)
+    const o = wasm.bindingInfo.Offsets.Enum
+
+    this._items = new WasmVector(wasm, ptr + o.items, wasm.bindingInfo.Sizes.Enum.EnumItem)
+    this.baseSize = wasm.HEAP32[(ptr + o.baseSize) >> wasm.INT32SHIFT]
+    this.isBitMask = wasm.HEAP8[(ptr + o.isBitMask) >> wasm.INT8SHIFT] !== 0
+
+    for (const itemPtr of this._items) {
+      const name = readLiteStlString(wasm, itemPtr)
+      switch (this.baseSize) {
+        case 2:
+          this.items.set(name, wasm.HEAP16[(itemPtr + wasm.bindingInfo.Offsets.EnumItem.value) >> wasm.INT16SHIFT])
+          break
+        case 4:
+          this.items.set(name, wasm.HEAP32[(itemPtr + wasm.bindingInfo.Offsets.EnumItem.value) >> wasm.INT32SHIFT])
+          break
+        case 8:
+          this.items.set(name, wasm.HEAP64[(itemPtr + wasm.bindingInfo.Offsets.EnumItem.value) >> wasm.INT64SHIFT])
+          break
+      }
+    }
   }
 }
 
@@ -271,7 +303,7 @@ export class LiteralType<
   }
 }
 
-export class NumLitType<WASM extends INeededWasm = INeededWasm> extends LiteralType<WASM, LitType.Num> {
+export class NumLitType<WASM extends INeededWasm = INeededWasm> extends LiteralType<WASM, LitType.Number> {
   data: number
 
   constructor(wasm: WASM, ptr: pointer) {
@@ -327,6 +359,8 @@ export function getBinding<WASM extends INeededWasm = INeededWasm>(wasm: WASM, p
           return new LiteralType(wasm, ptr)
       }
     }
+    case BindingType.Enum:
+      return new EnumBinding(wasm, ptr)
     default:
       return new BindingBase(wasm, ptr)
   }

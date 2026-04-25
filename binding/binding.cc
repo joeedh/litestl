@@ -59,7 +59,15 @@ struct WasmOffsets {
   struct {
     int refType;
   } Reference;
-  int _pad;
+  struct {
+    int name;
+    int value;
+  } EnumItem;
+  struct {
+    int items;
+    int baseSize;
+    int isBitMask;
+  } Enum;
 };
 // ensure we are pointer aligned to avoid padding bytes
 static_assert(sizeof(WasmOffsets) % sizeof(void *) == 0);
@@ -83,6 +91,10 @@ struct TypeSizes {
   struct {
     int ConstructorParam;
   } Constructor;
+  struct {
+    int EnumItem;
+    int Enum;
+  } Enum;
 };
 static_assert(sizeof(TypeSizes) % sizeof(void *) == 0);
 
@@ -133,6 +145,12 @@ BindingInfo *LSTL_GetBindingInfo()
   info->offsets.Pointer.ptrType = offsetof(Pointer, ptrType);
   info->offsets.Reference.refType = offsetof(Reference, refType);
 
+  info->offsets.EnumItem.name = offsetof(EnumItem, name);
+  info->offsets.EnumItem.value = offsetof(EnumItem, value);
+  info->offsets.Enum.items = offsetof(Enum, items);
+  info->offsets.Enum.baseSize = offsetof(Enum, baseSize);
+  info->offsets.Enum.isBitMask = offsetof(Enum, isBitMask);
+  
   info->sizes.Struct.StructMember = sizeof(StructMember);
   info->sizes.Struct.StructBase = sizeof(_StructBase);
   info->sizes.Struct.TemplateParam = sizeof(StructTemplate);
@@ -147,6 +165,8 @@ BindingInfo *LSTL_GetBindingInfo()
   info->sizes.Types.Reference = sizeof(Reference);
 
   info->sizes.Constructor.ConstructorParam = sizeof(ConstructorParam);
+  info->sizes.Enum.EnumItem = sizeof(EnumItem);
+  info->sizes.Enum.Enum = sizeof(Enum);
 
   return info;
 }

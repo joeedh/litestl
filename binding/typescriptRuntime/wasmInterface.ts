@@ -72,6 +72,15 @@ export interface IBindingInfo {
     Reference: {
       refType: number
     }
+    EnumItem: {
+      name: number
+      value: number
+    }
+    Enum: {
+      items: number
+      baseSize: number
+      isBitMask: number
+    }
   }
   Sizes: {
     Struct: {
@@ -91,6 +100,10 @@ export interface IBindingInfo {
     }
     Constructor: {
       ConstructorParam: number
+    }
+    Enum: {
+      EnumItem: number
+      Enum: number
     }
   }
 }
@@ -163,9 +176,9 @@ export interface INeededWasm extends IWasmBase {
 export function createWasmViews(wasmBase: IWasmBase) {
   const array = wasmBase.HEAPU8.buffer
   return {
-    HEAP16: new Int16Array(array),
-    HEAP32: new Int32Array(array),
-    HEAP64: new BigInt64Array(array),
+    HEAP16 : new Int16Array(array),
+    HEAP32 : new Int32Array(array),
+    HEAP64 : new BigInt64Array(array),
     HEAPU16: new Uint16Array(array),
     HEAPU32: new Uint32Array(array),
     HEAPU64: new BigUint64Array(array),
@@ -188,28 +201,28 @@ export function createWasmHelpers(wasmBase: IWasmBase) {
       type: data[i++],
     },
     Struct: {
-      members: data[i++],
-      methods: data[i++],
-      constructors: data[i++],
+      members       : data[i++],
+      methods       : data[i++],
+      constructors  : data[i++],
       templateParams: data[i++],
-      structSize: data[i++],
+      structSize    : data[i++],
     },
     Constructor: {
       ownerType: data[i++],
-      params: data[i++],
+      params   : data[i++],
     },
     ConstructorParam: {
       name: data[i++],
       type: data[i++],
     },
     StructMember: {
-      name: data[i++],
+      name  : data[i++],
       offset: data[i++],
-      type: data[i++],
+      type  : data[i++],
     },
     Number: {
       subtype: data[i++],
-      flags: data[i++],
+      flags  : data[i++],
     },
     Array: {
       arrayType: data[i++],
@@ -234,6 +247,15 @@ export function createWasmHelpers(wasmBase: IWasmBase) {
     Reference: {
       refType: data[i++],
     },
+    EnumItem: {
+      name : data[i++],
+      value: data[i++],
+    },
+    Enum: {
+      items    : data[i++],
+      baseSize : data[i++],
+      isBitMask: data[i++],
+    },
   }
   // skip trailing _pad ints on the C side (pointer alignment)
   if (i % 2 !== 0) {
@@ -242,22 +264,26 @@ export function createWasmHelpers(wasmBase: IWasmBase) {
 
   const Sizes = {
     Struct: {
-      StructMember: data[i++],
-      StructBase: data[i++],
-      TemplateParam: data[i++],
-      StructMethod: data[i++],
+      StructMember     : data[i++],
+      StructBase       : data[i++],
+      TemplateParam    : data[i++],
+      StructMethod     : data[i++],
       StructConstructor: data[i++],
     },
     Types: {
-      Boolean: data[i++],
-      NumLit: data[i++],
-      BoolLit: data[i++],
-      StrLit: data[i++],
-      Pointer: data[i++],
+      Boolean  : data[i++],
+      NumLit   : data[i++],
+      BoolLit  : data[i++],
+      StrLit   : data[i++],
+      Pointer  : data[i++],
       Reference: data[i++],
     },
     Constructor: {
       ConstructorParam: data[i++],
+    },
+    Enum: {
+      EnumItem: data[i++],
+      Enum    : data[i++],
     },
   }
 
@@ -293,20 +319,20 @@ export function createWasmHelpers(wasmBase: IWasmBase) {
       }
       return s
     },
-    HEAPPTR: wasm.HEAPU32,
-    INT8SIZE: 1,
-    INT8SHIFT: 0,
-    INT16SIZE: 2,
-    INT16SHIFT: 1,
-    INT32SIZE: 4,
-    INT32SHIFT: 2,
-    PTRSIZE: 4,
-    PTRSHIFT: 2,
-    F32SIZE: 4,
-    F32SHIFT: 2,
-    F64SIZE: 8,
-    F64SHIFT: 2,
-    SIZET_SIZE: 4,
+    HEAPPTR    : wasm.HEAPU32,
+    INT8SIZE   : 1,
+    INT8SHIFT  : 0,
+    INT16SIZE  : 2,
+    INT16SHIFT : 1,
+    INT32SIZE  : 4,
+    INT32SHIFT : 2,
+    PTRSIZE    : 4,
+    PTRSHIFT   : 2,
+    F32SIZE    : 4,
+    F32SHIFT   : 2,
+    F64SIZE    : 8,
+    F64SHIFT   : 2,
+    SIZET_SIZE : 4,
     SIZET_SHIFT: 2,
     bindingInfo,
   }

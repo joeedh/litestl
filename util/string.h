@@ -463,6 +463,15 @@ public:
     return String(*this).operator+=(b);
   }
 
+  String operator+(const std::string &b) const
+  {
+    return String(*this).operator+=(b);
+  }
+  String operator+(const char *b) const
+  {
+    return String(*this).operator+=(b);
+  }
+
   String &operator+=(const String &b)
   {
     ensure_size(size_ + b.size_);
@@ -487,6 +496,17 @@ public:
     ensure_size(size_ + 1);
     data_[size_++] = b;
     data_[size_] = 0;
+    return *this;
+  }
+  String &operator+=(const std::string &b)
+  {
+    operator+=(String(b.c_str()));
+    return *this;
+  }
+  
+  String &operator+=(const Char *b)
+  {
+    operator+=(String(b));
     return *this;
   }
 

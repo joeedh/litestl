@@ -18,10 +18,40 @@ struct TypescriptType {
   Vector<TypescriptType *> typeParams;
 };
 
+static string formatType(const BindingBase *type)
+{
+  using namespace litestl::binding::types;
+  if (type->type == BindingType::Array) {
+    const Array<BindingBase> *array = static_cast<const Array<BindingBase> *>(type);
+    return string(formatType(array->arrayType)) + "[]";
+  }
+  std::string filename = type->name.c_str();
+  int i = filename.find_last_of(':');
+  if (i >= 0) {
+    return string(filename.substr(i + 1, filename.size() - i - 1).c_str());
+  }
+  return string((std::regex_replace(filename, std::regex("::"), ".")).c_str());
+};
+
+static string getModuleName(const string &name)
+{
+  std::string filename = name.c_str();
+  return string((std::regex_replace(filename, std::regex("::"), "/")).c_str());
+};
+
+static string buildEnum(const types::Enum *e)
+{
+  string content = "export enum " + path::basename(getModuleName(e->name)) + " {\n";
+  for (auto &item : e->items) {
+    content += string("  ") + item.name + " = " + std::to_string(item.value) + ",\n";
+  }
+  content += "}\n";
+  return content;
+}
+
 static void recurse(const BindingBase *type,
                     util::Map<string, const BindingBase *> &typeMap)
 {
-  printf("recurse: %d, %s\n", type->type, type->buildFullName().c_str());
   if (typeMap.contains(type->buildFullName())) {
     return;
   }
@@ -105,41 +135,22 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
     std::string filename = name.c_str();
     return string((std::regex_replace(filename, std::regex("\""), "\\\"")).c_str());
   };
-  auto getModuleName = [](const string &name) {
-    std::string filename = name.c_str();
-    return string((std::regex_replace(filename, std::regex("::"), "/")).c_str());
-  };
   auto getFileName = [](const string &name) {
     std::string filename = name.c_str();
     return string((std::regex_replace(filename, std::regex("::"), "/") + ".ts").c_str());
   };
 
-  std::function<string(const BindingBase *)> formatType =
-      [&formatType](const BindingBase *type) {
-        if (type->type == BindingType::Array) {
-          const Array<BindingBase> *array = static_cast<const Array<BindingBase> *>(type);
-          return string(formatType(array->arrayType)) + "[]";
-        }
-        std::string filename = type->name.c_str();
-        int i = filename.find_last_of(':');
-        if (i >= 0) {
-          return string(filename.substr(i + 1, filename.size() - i - 1).c_str());
-        }
-        return string((std::regex_replace(filename, std::regex("::"), ".")).c_str());
-      };
-
-  auto formatImport = [&getModuleName, formatType](const BindingBase *type,
-                                                   string filename) {
+  auto formatImport = [](const BindingBase *type, string filename) {
     string s;
     s += "import type {" + formatType(type) + "} from \"" +
          path::relative(path::dirname(filename), getModuleName(type->name)) + "\";";
     return s;
   };
 
-  auto formatTemplate = [&formatImport, &formatType](const BindingBase *type,
-                                                     Set<string> &imports,
-                                                     string &filename,
-                                                     bool isDecl = false) {
+  auto formatTemplate = [&formatImport](const BindingBase *type,
+                                        Set<string> &imports,
+                                        string &filename,
+                                        bool isDecl = false) {
     if (type->type == BindingType::Struct) {
       const _StructBase *st = static_cast<const _StructBase *>(type);
       if (st->templateParams.size() == 0) {
@@ -216,6 +227,7 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
     string s = "";
     string filename = getFileName(type->name);
     Set<string> imports;
+    Set<string> enums;
 
     classRefs.append_once({formatType(type),
                            getModuleName(type->name),
@@ -236,6 +248,8 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
 
         s2 += formatTemplate(member.type, imports, filename, false);
         imports.add(formatImport(member.type, filename));
+      } else if (member.type->type == BindingType::Enum) {
+        enums.add(buildEnum(static_cast<const types::Enum *>(member.type)));
       }
       s += s2 + "\n";
     }
@@ -298,6 +312,12 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
       importString += import + "\n";
     }
     s = importString + "\n" + s;
+
+    string enumDeclString = "";
+    for (auto &enumDecl : enums) {
+      enumDeclString += enumDecl + "\n";
+    }
+    s = enumDeclString + "\n" + s;
 
     files->add(filename, s);
   }

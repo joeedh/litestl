@@ -53,7 +53,7 @@ string dirname(string path)
 
 string basename(string path)
 {
-  auto parts = path.trim().split('\\');
+  auto parts = path.trim().split('/');
   int i = parts.size() - 1;
   while (i >= 0) {
     if (parts[i].size() > 0) {

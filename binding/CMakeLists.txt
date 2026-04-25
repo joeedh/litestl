@@ -38,4 +38,5 @@ wasm_add_symbols("
   LSTL_FreeBindingInfo
   LSTL_GenerateTypescript
   LSTL_FreeTypescriptString
+  LSTL_GetBindTypeSize
 ")

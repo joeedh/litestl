@@ -8,13 +8,13 @@ type cstring = pointer<number>
 interface IWasmBase {
   LSTL_GetBindingInfo(): pointer
   LSTL_FreeBindingInfo(info: pointer): void
-  HEAPU8: Uint8Array;
+  HEAPU8: Uint8Array
 
   // tagged allocators, tags are to help track down leaks
   memAlloc(tag: cstring, size: number): pointer
   memRelease(ptr: number): void
 
-  // non-tagged 
+  // non-tagged
   _rawAlloc(size: number): pointer
   _rawRelease(ptr: pointer): void
 }
@@ -35,6 +35,15 @@ export interface IBindingInfo {
     Constructor: {
       ownerType: number
       params: number
+    }
+    ConstructorParam: {
+      name: number
+      type: number
+    }
+    StructMember: {
+      name: number
+      offset: number
+      type: number
     }
     Number: {
       subtype: number
@@ -72,6 +81,9 @@ export interface IBindingInfo {
       BoolLit: number
       StrLit: number
     }
+    Constructor: {
+      ConstructorParam: number
+    }
   }
 }
 
@@ -84,7 +96,7 @@ export interface INeededWasm extends IWasmBase {
 
   LSTL_Binding_GetKeys(bindingManager: pointer): cstring
   LSTL_Binding_FreeKeys(bindingManager: pointer): cstring
-  LSTL_Binding_Get(bindingManager: pointer, key: cstring): pointer;
+  LSTL_Binding_Get(bindingManager: pointer, key: cstring): pointer
   LSTL_Struct_GetMethodCount(structptr: pointer): size_t
   LSTL_Struct_GetMethod(structptr: pointer, i: size_t): pointer
   LSTL_Method_GetParamCount(method: pointer): size_t
@@ -96,46 +108,60 @@ export interface INeededWasm extends IWasmBase {
   LSTL_GenerateTypescript(bindingManager: pointer, sizeOut: pointer<int>): pointer
   LSTL_FreeTypescriptString(buf: pointer): void
 
+  LSTL_Struct_GetConstructorCount(structptr: pointer): size_t
+  LSTL_Struct_GetConstructor(structptr: pointer, i: size_t): pointer
+  LSTL_Constructor_GetName(constructor: pointer): cstring
+  LSTL_Constructor_GetOwner(constructor: pointer): pointer
+  LSTL_Constructor_GetParamCount(constructor: pointer): size_t
+  LSTL_Constructor_GetParam(constructor: pointer, i: size_t, outName: pointer<cstring>): pointer
+  LSTL_Constructor_Invoke(constructor: pointer, outBuf: pointer, args: pointer<pointer>): void
+  LSTL_GetBindTypeSize(bindType: pointer): int
+
   // various helper stuff, create with createWasmHelpers() below
   bindingInfo: IBindingInfo
 
-  HEAPU16: Uint16Array;
-  HEAPU32: Uint32Array;
-  HEAP8: Int8Array;
-  HEAP16: Int16Array;
-  HEAP32: Int32Array;
-  HEAPF32: Float64Array;
-  HEAPF64: Float64Array;
-  DATAVIEW: DataView;
-  HEAPPTR: ArrayLike<number>;
+  HEAPU16: Uint16Array
+  HEAPU32: Uint32Array
+  HEAPU64: BigUint64Array
+  HEAP8: Int8Array
+  HEAP16: Int16Array
+  HEAP32: Int32Array
+  HEAP64: BigInt64Array
+  HEAPF32: Float64Array
+  HEAPF64: Float64Array
+  DATAVIEW: DataView
+  HEAPPTR: Uint32Array
 
-  INT8SIZE: number,
-  INT8SHIFT: number,
-  INT16SIZE: number,
-  INT16SHIFT: number,
-  INT32SIZE: number,
-  INT32SHIFT: number,
-  PTRSIZE: number,
-  PTRSHIFT: number,
-  F32SIZE: number,
-  F32SHIFT: number,
-  F64SIZE: number,
+  INT8SIZE: number
+  INT8SHIFT: number
+  INT16SIZE: number
+  INT16SHIFT: number
+  INT32SIZE: number
+  INT32SHIFT: number
+  INT64SHIFT: number
+  PTRSIZE: number
+  PTRSHIFT: number
+  F32SIZE: number
+  F32SHIFT: number
+  F64SIZE: number
   F64SHIFT: number
-  SIZET_SIZE: number,
-  SIZET_SHIFT: number,
+  SIZET_SIZE: number
+  SIZET_SHIFT: number
 }
 
 export function createWasmViews(wasmBase: IWasmBase) {
   const array = wasmBase.HEAPU8.buffer
   return {
-    HEAP16: new Int16Array(array),
-    HEAP32: new Int32Array(array),
+    HEAP16 : new Int16Array(array),
+    HEAP32 : new Int32Array(array),
+    HEAP64 : new BigInt64Array(array),
     HEAPU16: new Uint16Array(array),
     HEAPU32: new Uint32Array(array),
+    HEAPU64: new BigUint64Array(array),
     HEAPPTR: new Uint32Array(array),
     HEAPF32: new Float32Array(array),
     HEAPF64: new Float64Array(array),
-    ...wasmBase
+    ...wasmBase,
   }
 }
 
@@ -151,19 +177,28 @@ export function createWasmHelpers(wasmBase: IWasmBase) {
       type: data[i++],
     },
     Struct: {
-      members: data[i++],
-      methods: data[i++],
-      constructors: data[i++],
+      members       : data[i++],
+      methods       : data[i++],
+      constructors  : data[i++],
       templateParams: data[i++],
-      structSize: data[i++],
+      structSize    : data[i++],
     },
     Constructor: {
       ownerType: data[i++],
-      params: data[i++],
+      params   : data[i++],
+    },
+    ConstructorParam: {
+      name: data[i++],
+      type: data[i++],
+    },
+    StructMember: {
+      name  : data[i++],
+      offset: data[i++],
+      type  : data[i++],
     },
     Number: {
       subtype: data[i++],
-      flags: data[i++],
+      flags  : data[i++],
     },
     Array: {
       arrayType: data[i++],
@@ -181,31 +216,34 @@ export function createWasmHelpers(wasmBase: IWasmBase) {
     },
     StrLit: {
       data: data[i++],
-    }
+    },
   }
   // skip trailing _pad ints on the C side (pointer alignment)
   i += 2
 
   const Sizes = {
     Struct: {
-      StructMember: data[i++],
-      StructBase: data[i++],
-      TemplateParam: data[i++],
-      StructMethod: data[i++],
+      StructMember     : data[i++],
+      StructBase       : data[i++],
+      TemplateParam    : data[i++],
+      StructMethod     : data[i++],
       StructConstructor: data[i++],
     },
     Types: {
       Boolean: data[i++],
-      NumLit: data[i++],
+      NumLit : data[i++],
       BoolLit: data[i++],
-      StrLit: data[i++],
-    }
+      StrLit : data[i++],
+    },
+    Constructor: {
+      ConstructorParam: data[i++],
+    },
   }
 
-  const bindingInfo: IBindingInfo = { Offsets, Sizes }
+  const bindingInfo: IBindingInfo = {Offsets, Sizes}
   wasm.LSTL_FreeBindingInfo(ptr)
 
-  const strPool = new Map<string, pointer>
+  const strPool = new Map<string, pointer>()
 
   return {
     ...wasm,
@@ -234,21 +272,21 @@ export function createWasmHelpers(wasmBase: IWasmBase) {
       }
       return s
     },
-    HEAPPTR: wasm.HEAPU32,
-    INT8SIZE: 1,
-    INT8SHIFT: 0,
-    INT16SIZE: 2,
-    INT16SHIFT: 1,
-    INT32SIZE: 4,
-    INT32SHIFT: 2,
-    PTRSIZE: 4,
-    PTRSHIFT: 2,
-    F32SIZE: 4,
-    F32SHIFT: 2,
-    F64SIZE: 8,
-    F64SHIFT: 2,
-    SIZET_SIZE: 4,
+    HEAPPTR    : wasm.HEAPU32,
+    INT8SIZE   : 1,
+    INT8SHIFT  : 0,
+    INT16SIZE  : 2,
+    INT16SHIFT : 1,
+    INT32SIZE  : 4,
+    INT32SHIFT : 2,
+    PTRSIZE    : 4,
+    PTRSHIFT   : 2,
+    F32SIZE    : 4,
+    F32SHIFT   : 2,
+    F64SIZE    : 8,
+    F64SHIFT   : 2,
+    SIZET_SIZE : 4,
     SIZET_SHIFT: 2,
-    bindingInfo
+    bindingInfo,
   }
 }

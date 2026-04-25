@@ -24,6 +24,15 @@ struct WasmOffsets {
     int params;
   } Constructor;
   struct {
+    int name;
+    int type;
+  } ConstructorParam;
+  struct {
+    int name;
+    int offset;
+    int type;
+  } StructMember;
+  struct {
     int subtype;
     int flags;
   } Number;
@@ -63,7 +72,10 @@ struct TypeSizes {
     int BoolLit;
     int StrLit;
   } Types;
-  int _pad;
+  struct {
+    int ConstructorParam;
+  } Constructor;
+  int _pad[0];
 };
 static_assert(sizeof(TypeSizes) % sizeof(void *) == 0);
 
@@ -89,6 +101,13 @@ BindingInfo *LSTL_GetBindingInfo()
   info->offsets.Constructor.ownerType = offsetof(Constructor, ownerType);
   info->offsets.Constructor.params = offsetof(Constructor, params);
 
+  info->offsets.ConstructorParam.name = offsetof(ConstructorParam, name);
+  info->offsets.ConstructorParam.type = offsetof(ConstructorParam, type);
+
+  info->offsets.StructMember.name = offsetof(StructMember, name);
+  info->offsets.StructMember.offset = offsetof(StructMember, offset);
+  info->offsets.StructMember.type = offsetof(StructMember, type);
+
   using NumberI32 = Number<int32_t>;
   info->offsets.Number.subtype = offsetof(NumberI32, subtype);
   info->offsets.Number.flags = offsetof(NumberI32, flags);
@@ -111,12 +130,13 @@ BindingInfo *LSTL_GetBindingInfo()
   info->sizes.Struct.TemplateParam = sizeof(StructTemplate);
   info->sizes.Struct.StructMethod = sizeof(Method);
   info->sizes.Struct.StructConstructor = sizeof(Constructor);
-  info->sizes._pad = 0;
 
   info->sizes.Types.Boolean = sizeof(Boolean);
   info->sizes.Types.NumLit = sizeof(NumLitType);
   info->sizes.Types.BoolLit = sizeof(BoolLitType);
   info->sizes.Types.StrLit = sizeof(StrLitType);
+
+  info->sizes.Constructor.ConstructorParam = sizeof(ConstructorParam);
 
   return info;
 }
@@ -241,6 +261,10 @@ void LSTL_Constructor_Invoke(const types::Constructor *c, void *outBuf, void **a
     c->thunk(outBuf, args);
   }
 }
+int LSTL_GetBindTypeSize(BindingBase *b) {
+  return b->getSize();
+}
+
 unsigned char *LSTL_GenerateTypescript(BindingManager *manager, int *size_out)
 {
   util::Vector<const BindingBase *> types;

@@ -1,5 +1,25 @@
 # `litestl::util` Containers
 
+<!-- toc -->
+
+- [`Vector`](#vector)
+  * [Construction](#construction)
+  * [Core API](#core-api)
+  * [Comparator convention](#comparator-convention)
+  * [Gotchas](#gotchas)
+- [`Set`](#set)
+  * [API](#api)
+- [`Map`](#map)
+  * [Construction](#construction-1)
+  * [API](#api-1)
+- [`BoolVector`](#boolvector)
+  * [API](#api-2)
+- [`litestl::hash` — `util/hash.h`](#litestlhash--utilhashh)
+- [Choosing a container](#choosing-a-container)
+<!-- auto-generated with markdown-toc! regenerate with ${SCRIPT_NAME} -->
+
+<!-- tocstop -->
+
 This document introduces the core container types in `litestl::util` and the
 hashing API in `util/hash.h` that the hashed containers are built on. These
 containers are the preferred replacements for `std::vector`, `std::unordered_set`,

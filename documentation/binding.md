@@ -1,5 +1,16 @@
 # The `litestl::binding` System
 
+<!-- toc -->
+
+- [Overview](#overview)
+- [The core idea: `Bind()`](#the-core-idea-bind)
+- [Describing a struct](#describing-a-struct)
+- [Collecting and emitting](#collecting-and-emitting)
+- [Design trajectory](#design-trajectory)
+<!-- auto-generated with markdown-toc! regenerate with ${SCRIPT_NAME} -->
+
+<!-- tocstop -->
+
 ## Overview
 
 `litestl::binding` is a lightweight C++ reflection layer that lets you describe

@@ -20,7 +20,7 @@ interface IBoundClass {
   isBoundObject(obj: unknown): boolean
   manager: BindingManager
   bindType: Binding
-  dispose(): void
+  [Symbol.dispose](): void
 }
 
 class BoundClass extends WasmBase implements IBoundClass {
@@ -41,7 +41,7 @@ class BoundClass extends WasmBase implements IBoundClass {
     return typeof obj === 'object' && obj instanceof BoundClass
   }
 
-  dispose(): void {
+  [Symbol.dispose](): void {
     this.manager.destroyInstance(this.bindType as StructType<INeededWasm>, this)
   }
 }
@@ -134,8 +134,28 @@ export function createBoundCode(
 
 export function createBoundType(manager: BindingManager, wasm: INeededWasm, st: StructType) {
   const name = st.name.replace(/::/g, '_')
-  let s = `class ${name} extends BoundClass {\n`
+  let s =
+    `
+class ${name} extends BoundClass {
+  bindType = structType; 
+`.trim() + '\n'
+
   let codePreSet = new Set<string>()
+
+  const methodTypeKey = (s2: string) => `__${s2}Type`
+  let index = 0
+
+  for (const method of st.methods) {
+    const args = method.methodArgs.map((arg) => arg.name)
+
+    codePreSet.add(`const ${methodTypeKey(method.name)} = structType.methods[${index}]`)
+    s += `
+  ${method.name}(${args.join(', ')}) {
+    return this.manager.invokeMethod(this, structType, ${methodTypeKey(method.name)}, ${args.join(', ')});
+  }
+    `
+    index++
+  }
 
   for (const member of st.members) {
     const memberCode = createBoundCode(
@@ -167,13 +187,12 @@ export function createBoundType(manager: BindingManager, wasm: INeededWasm, st: 
   s += '\n}\n'
   s = Array.from(codePreSet).join('\n') + '\n' + s
 
-  console.log(s)
   s = `
-  (function(BoundClass) {
+  (function(BoundClass, structType) {
     ${s};
     return ${name};
   })
   `
 
-  return (0, eval)(s)(BoundClass)
+  return (0, eval)(s)(BoundClass, st)
 }

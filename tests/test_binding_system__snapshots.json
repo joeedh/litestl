@@ -1,0 +1,22 @@
+[
+  {
+    "name": "test::VecTest default constructor",
+    "value": "constructing VecTest\n"
+  },
+  {
+    "name": "wasm types",
+    "value": "litestl::util::Vector<litestl::math::float3,4>,boolean,test::VecTest,test::Foo,double,litestl::util::String,float,int,litestl::util::Vector<float,4>"
+  },
+  {
+    "name": "bound class accessors",
+    "value": "1 2 3"
+  },
+  {
+    "name": "test::VecTest argumented constructor",
+    "value": "a: 1, b: 2.00, c: 3.00, d: true, e: false\n"
+  },
+  {
+    "name": "test::VecTest print",
+    "value": "pos: (1.00, 2.00, 3.00)\nf: ()\nflag: 42\nstr: test\n\n"
+  }
+]

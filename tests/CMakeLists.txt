@@ -48,7 +48,7 @@ if (BUILD_WASM)
         PRIVATE binding_generators
     )
 	
-	set(MYWASM "getBindingManager\nmain")
+	set(MYWASM "getBindingManager\nmain\nClearMessageBuf\nGetMessageBuf")
 
 	add_executable(test_binding_system "test_binding_system.cc")
 	target_link_libraries(test_binding_system PRIVATE ${LIB2})

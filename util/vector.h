@@ -806,18 +806,25 @@ public:
     }
     return *this;
   }
-  Vector &concat(const_span other)
+  Vector &concat(std::span<T> other)
   {
     for (int i = 0; i < other.size(); i++) {
       append(other[i]);
     }
     return *this;
   }
-  Vector &concat(std::span<T &&> other)
+  Vector &concat(std::span<const T> other)
+  {
+    for (int i = 0; i < other.size(); i++) {
+      append(other[i]);
+    }
+    return *this;
+  }
+  Vector &concat(std::span<T> &&other)
   {
     // XXX TODO: test move semantics work properly here
     for (int i = 0; i < other.size(); i++) {
-      append(std::forward<T>(other[i]));
+      append(std::move(other[i]));
     }
     return *this;
   }

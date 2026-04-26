@@ -85,8 +85,6 @@ export class BoundVector<T = any, MANAGER extends BindingManager = BindingManage
         }
         const itemPtr = _vec.get(i)
 
-        console.log(elemSize, i, typeFullName, ptr, _vec.get(0), wasm.HEAPF32.length, itemPtr >> 2)
-
         if (type.type === BindingType.Struct) {
           const obj = boundCache.get(itemPtr)
           if (obj) {

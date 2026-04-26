@@ -9,6 +9,9 @@
 #include <string>
 
 static constexpr const char *header = R"(/** Auto-generated file */
+/* eslint-disable @typescript-eslint/no-misused-new */
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 type float = number;
 type pointer<T=any> = number;
 type int = number;
@@ -305,6 +308,7 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
 
     s += string("export interface ") + formatType(type) +
          formatTemplate(type, imports, filename, true) + string(" {\n");
+    s += "  [Symbol.dispose](): void;\n";
     for (auto &member : st->members) {
       string s2 = "  " + member.name + ": " + formatType(member.type);
       if (member.type->type == BindingType::Struct) {

@@ -78,16 +78,16 @@ private:
 
 } // namespace litestl::binding::types
 
-#define BIND_STRUCT_CONSTRUCTOR(def, ...)                                                \
+#define BIND_STRUCT_CONSTRUCTOR(def, name, ...)                                                \
   do {                                                                                   \
     using _BSC_C = std::remove_reference_t<decltype(*(def)->type_null)>;                 \
     using _BSC_CB =                                                                      \
         ::litestl::binding::types::ConstructorBuilder<_BSC_C, ##__VA_ARGS__>;            \
-    auto *_BSC_c = new ::litestl::binding::types::Constructor((def)->name);              \
+    auto *_BSC_c = new ::litestl::binding::types::Constructor(name);              \
     _BSC_c->ownerType = (def);                                                           \
     _BSC_CB::fillParams(_BSC_c->params);                                                 \
     _BSC_c->thunk = &_BSC_CB::thunk;                                                     \
     (def)->addConstructor(_BSC_c);                                                       \
   } while (0)
 
-#define BIND_STRUCT_DEFAULT_CONSTRUCTOR(def) BIND_STRUCT_CONSTRUCTOR(def)
+#define BIND_STRUCT_DEFAULT_CONSTRUCTOR(def) BIND_STRUCT_CONSTRUCTOR(def, "default")

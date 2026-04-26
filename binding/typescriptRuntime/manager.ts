@@ -1,8 +1,23 @@
 import {WasmBase} from './wasmBase'
 import {INeededWasm, pointer} from './wasmInterface'
-import {BindingBase, getBinding, BindingType, StructType, ConstructorType, ArrayType} from './binding'
+import {
+  BindingBase,
+  Binding,
+  getBinding,
+  BindingType,
+  StructType,
+  ConstructorType,
+  ArrayType,
+  MethodType,
+  NumberSubtype,
+  NumberFlags,
+} from './binding'
 import {createBoundType} from './bind'
 import {BoundArray, BoundVector} from './boundVector'
+
+export class NotStructError extends Error {}
+export class UnknownTypeError extends Error {}
+export class UnknownConstructorError extends Error {}
 
 export class BindingManager<
   WASM extends INeededWasm = INeededWasm,
@@ -32,7 +47,7 @@ export class BindingManager<
   getBoundArray(arrayTypeName: string, ptr: pointer) {
     const arrayType = this.types.get(arrayTypeName)
     if (arrayType === undefined) {
-      throw new Error('unknown type ' + arrayTypeName)
+      throw new UnknownTypeError('unknown type ' + arrayTypeName)
     }
     return new BoundArray(this.wasm, ptr, arrayType as ArrayType, this)
   }
@@ -40,39 +55,56 @@ export class BindingManager<
   getBoundVector(vecTypeName: string, ptr: pointer) {
     const vecType = this.types.get(vecTypeName)
     if (vecType === undefined) {
-      throw new Error('unknown type ' + vecTypeName)
+      throw new UnknownTypeError('unknown type ' + vecTypeName)
     }
     return new BoundVector(this.wasm, ptr, vecType as StructType, this)
   }
 
-  getBoundPointer(typeName: string, ptr: pointer) {
-    const wasm = this.wasm
-    switch (typeName) {
-      case 'float':
-        return wasm.HEAPF32[ptr >> wasm.F32SHIFT]
-      case 'double':
-        return wasm.HEAPF64[ptr >> wasm.F64SHIFT]
-      case 'char':
-        return wasm.HEAP8[ptr]
-      case 'short':
-        return wasm.HEAP16[ptr >> wasm.INT16SHIFT]
-      case 'int':
-        return wasm.HEAP32[ptr >> wasm.INT32SHIFT]
-      case 'longlong':
-        return wasm.HEAP64[ptr >> wasm.INT64SHIFT]
-      case 'uchar':
-        return wasm.HEAPU8[ptr]
-      case 'ushort':
-        return wasm.HEAPU16[ptr >> wasm.INT16SHIFT]
-      case 'uint':
-        return wasm.HEAPU32[ptr >> wasm.INT32SHIFT]
-      case 'ulonglong':
-        return wasm.HEAPU64[ptr >> wasm.INT64SHIFT]
-      default:
-        break
+  getBoundPointer(typeName: string, ptr: pointer): number | WasmBase<WASM> | undefined
+  getBoundPointer(typeName: string | Binding, ptr: pointer) {
+    const binding = typeof typeName === 'string' ? this.get(typeName) : typeName
+    if (binding === undefined) {
+      throw new UnknownTypeError('unknown type ' + typeName)
     }
-    const cls = this.getBoundClass(this.get(typeName) as StructType<WASM>) as any
-    return new cls(this.wasm, ptr, this)
+
+    if (binding.type === BindingType.Struct && binding.isVector) {
+      return this.getBoundVector(binding.name, ptr)
+    }
+
+    const wasm = this.wasm
+
+    switch (binding.type) {
+      case BindingType.Array:
+        return this.getBoundArray(binding.name, ptr)
+      case BindingType.Number: {
+        const unsigned = binding.flags & NumberFlags.Unsigned
+
+        switch (binding.subtype) {
+          case NumberSubtype.Float32:
+            return wasm.HEAPF32[ptr >> wasm.F32SHIFT]
+          case NumberSubtype.Float64:
+            return wasm.HEAPF64[ptr >> wasm.F64SHIFT]
+          case NumberSubtype.Int8:
+            return (unsigned ? wasm.HEAPU8 : wasm.HEAP8)[ptr]
+          case NumberSubtype.Int16:
+            return (unsigned ? wasm.HEAPU16 : wasm.HEAP16)[ptr >> wasm.INT16SHIFT]
+          case NumberSubtype.Int32:
+            return (unsigned ? wasm.HEAPU32 : wasm.HEAP32)[ptr >> wasm.INT32SHIFT]
+          case NumberSubtype.Int64:
+            return (unsigned ? wasm.HEAPU64 : wasm.HEAP64)[ptr >> wasm.INT64SHIFT]
+        }
+        break
+      }
+      case BindingType.Boolean:
+        return wasm.HEAP8[ptr] ? true : false
+      case BindingType.Struct: {
+        const name = typeof typeName === 'string' ? typeName : binding.buildFullName()
+        const cls = this.getBoundClass(this.get(name) as StructType<WASM>) as any
+        return new cls(this.wasm, ptr, this)
+      }
+    }
+
+    throw new Error('unknown binding type in getBoundPointer: ' + binding.type)
   }
 
   /**
@@ -126,7 +158,7 @@ export class BindingManager<
 
       const cpyCtor = type.findCopyConstructor()
       if (!cpyCtor) {
-        throw new Error('no copy constructor for ' + typeName)
+        throw new UnknownConstructorError('no copy constructor for ' + typeName)
       }
 
       this.wasm.LSTL_Destructor_Invoke(type.ptr, ptr)
@@ -134,21 +166,51 @@ export class BindingManager<
     }
   }
 
+  get<K extends keyof AllBoundTypes>(typeName: K): Binding
+  get<K extends keyof AllBoundTypes | string>(typeName: K): Binding | undefined {
+    return this.types.get(typeName as string) as Binding | undefined
+  }
+
+  getStruct<K extends keyof AllBoundTypes>(typeName: K): StructType
+  getStruct<K extends keyof AllBoundTypes | string>(typeName: K): StructType | undefined {
+    const type = this.types.get(typeName as string) as StructType | undefined
+    if (type !== undefined && type.type !== BindingType.Struct) {
+      throw new NotStructError(`Type ${String(typeName)} is not a struct`)
+    }
+    return type
+  }
+
   construct<K extends keyof AllBoundTypes>(typeName: K): AllBoundTypes[K] {
-    const type = this.get(typeName as string) as StructType<WASM> | undefined
+    const type = this.get(typeName) as StructType<WASM> | undefined
 
     if (!type) {
-      throw new Error(`Type ${String(typeName)} not found`)
+      throw new UnknownTypeError(`Type ${String(typeName)} not found`)
     }
 
     // find default constructor
-    const ctype = type.constructors.find((c) => c.constructArgs.length === 0)
+    const ctype = type.findDefaultConstructor()
     if (!ctype) {
-      throw new Error(`No default constructor found for type ${String(typeName)}`)
+      throw new UnknownConstructorError(`No default constructor found for type ${String(typeName)}`)
     }
 
-    const cls = this.getBoundClass(type) as any
-    const ptr = ctype.construct()
+    return this.constructWith(ctype)
+  }
+
+  invokeMethod(instance: WasmBase<WASM>, structType: StructType, methodType: MethodType, ...args: any[]) {
+    const ptr = instance.ptr
+    const resultPtr = methodType.invoke(ptr, ...args)
+    const returnType = methodType.returnType
+
+    if (returnType === undefined) {
+      return undefined
+    }
+
+    return this.getBoundPointer(returnType, resultPtr)
+  }
+
+  constructWith<K extends keyof AllBoundTypes>(ctype: ConstructorType<WASM>, ...args: any[]): AllBoundTypes[K] {
+    const cls = this.getBoundClass(ctype.ownerType) as any
+    const ptr = ctype.construct(...args)
     return new cls(this.wasm, ptr, this)
   }
 
@@ -179,10 +241,6 @@ export class BindingManager<
       const type = getBinding(wasm, ptr)
       this.types.set(key, type)
     }
-  }
-
-  get(typeName: string) {
-    return this.types.get(typeName)
   }
 
   generateTypeScript() {

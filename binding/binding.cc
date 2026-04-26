@@ -7,7 +7,7 @@
 #include "manager.h"
 
 extern "C" {
-struct WasmOffsets {
+struct [[gnu::packed]] WasmOffsets {
   struct {
     int name;
     int type;
@@ -72,11 +72,19 @@ struct WasmOffsets {
     int name;
     int type;
   } TemplateParam;
+  struct {
+    int returnType;
+    int params;
+    int isConst;
+    int isStatic;
+  } Method;
+  struct {
+    int name;
+    int type;
+  } MethodParam;
 };
-// ensure we are pointer aligned to avoid padding bytes
-static_assert(sizeof(WasmOffsets) % sizeof(void *) == 0);
 
-struct TypeSizes {
+struct [[gnu::packed]] TypeSizes {
   struct {
     int StructMember;
     int StructBase;
@@ -99,13 +107,17 @@ struct TypeSizes {
     int EnumItem;
     int Enum;
   } Enum;
+  struct {
+    int Method;
+    int MethodParam;
+  } Method;
 };
-static_assert(sizeof(TypeSizes) % sizeof(void *) == 0);
 
 struct BindingInfo {
   WasmOffsets offsets;
   TypeSizes sizes;
 };
+
 BindingInfo *LSTL_GetBindingInfo()
 {
   BindingInfo *info = litestl::alloc::New<BindingInfo>("binding info");
@@ -158,6 +170,14 @@ BindingInfo *LSTL_GetBindingInfo()
   info->offsets.TemplateParam.name = offsetof(StructTemplate, name);
   info->offsets.TemplateParam.type = offsetof(StructTemplate, type);
 
+  info->offsets.Method.returnType = offsetof(Method, returnType);
+  info->offsets.Method.params = offsetof(Method, params);
+  info->offsets.Method.isConst = offsetof(Method, isConst);
+  info->offsets.Method.isStatic = offsetof(Method, isStatic);
+
+  info->offsets.MethodParam.name = offsetof(MethodParam, name);
+  info->offsets.MethodParam.type = offsetof(MethodParam, type);
+
   info->sizes.Struct.StructMember = sizeof(StructMember);
   info->sizes.Struct.StructBase = sizeof(_StructBase);
   info->sizes.Struct.TemplateParam = sizeof(StructTemplate);
@@ -174,6 +194,9 @@ BindingInfo *LSTL_GetBindingInfo()
   info->sizes.Constructor.ConstructorParam = sizeof(ConstructorParam);
   info->sizes.Enum.EnumItem = sizeof(EnumItem);
   info->sizes.Enum.Enum = sizeof(Enum);
+
+  info->sizes.Method.MethodParam = sizeof(MethodParam);
+  info->sizes.Method.Method = sizeof(Method);
 
   return info;
 }

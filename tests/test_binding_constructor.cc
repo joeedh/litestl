@@ -28,7 +28,7 @@ struct Foo {
     using binding::types::Struct;
     Struct<Foo> *st = new Struct<Foo>("test::Foo", sizeof(Foo));
     BIND_STRUCT_DEFAULT_CONSTRUCTOR(st);
-    BIND_STRUCT_CONSTRUCTOR(st, int, int);
+    BIND_STRUCT_CONSTRUCTOR(st, "main", int, int);
     return st;
   }
 };

@@ -1,6 +1,7 @@
 import {Binding, BindingType} from './binding'
 import {BindingManager} from './manager'
 import {INeededWasm} from './wasmInterface'
+import {termColor} from './termColor'
 
 export interface ISpecialGenerator {
   onBind(
@@ -15,14 +16,10 @@ export interface ISpecialGenerator {
 const VectorBinding: ISpecialGenerator = {
   onBind(manager, wasm, type, ptrCode, propKey) {
     if (type.type == BindingType.Struct && type.name.startsWith('litestl::util::Vector')) {
-      //s = `this.manager.getBoundPointer('${type.name}', ${ptrCode})`
-      const subType = type.templateParams[0]
-      console.log(type.templateParams)
       return {
         codePre: `
 const boundVecSym = Symbol('boundVecSym');
 function _getBoundVec(obj, key, typeName, ptr) {
-    console.log('ptr2:', ptr)
     if (!obj[boundVecSym]) {
         obj[boundVecSym] = {};
     }
@@ -32,8 +29,8 @@ function _getBoundVec(obj, key, typeName, ptr) {
     return obj[boundVecSym][key];
 }
         `,
-        get    : `_getBoundVec(this, '${propKey}', '${type.buildFullName()}', ${ptrCode})`,
-        set    : '',
+        get: `_getBoundVec(this, '${propKey}', '${type.buildFullName()}', ${ptrCode})`,
+        set: '',
       }
     }
   },
@@ -44,7 +41,7 @@ const ArrayBinding: ISpecialGenerator = {
     if (type.type == BindingType.Array) {
       const typeName = type.buildFullName()
       if (!manager.types.has(typeName)) {
-        console.log('had to add array type to manager')
+        console.log(termColor('had to add array type to manager', 'orange'))
         manager.types.set(typeName, type)
       }
       return {
@@ -60,8 +57,8 @@ function _getBoundArray(obj, key, typeName, ptr) {
     return obj[boundArraySym][key];
 }
         `,
-        get    : `_getBoundArray(this, '${propKey}', '${type.buildFullName()}', ${ptrCode})`,
-        set    : '',
+        get: `_getBoundArray(this, '${propKey}', '${type.buildFullName()}', ${ptrCode})`,
+        set: '',
       }
     }
   },

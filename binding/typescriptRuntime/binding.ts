@@ -17,12 +17,12 @@ export enum BindingType {
 }
 
 export enum NumberSubtype {
-  Int8 = 1 << 0,
-  Int16 = 1 << 1,
-  Int32 = 1 << 2,
-  Int64 = 1 << 3,
-  Float32 = 1 << 4,
-  Float64 = 1 << 5,
+  Int8 = 1 << 0, //1
+  Int16 = 1 << 1, //2
+  Int32 = 1 << 2, //4
+  Int64 = 1 << 3, //8
+  Float32 = 1 << 4, //16
+  Float64 = 1 << 5, //32
 }
 
 export enum NumberFlags {
@@ -136,19 +136,24 @@ export interface StructMember {
 export class StructType<WASM extends INeededWasm = INeededWasm> extends BindingBase<WASM, BindingType.Struct> {
   _members: WasmVector<WASM>
   members: StructMember[] = []
-  methods: WasmVector<WASM>
+  _methods: WasmVector<WASM>
+  methods: MethodType<WASM>[] = []
   templateParams: {name: string; type: BindingBase<WASM>}[] = []
   _constructors: WasmVector<WASM>
   _templateParams: WasmVector<WASM>
   structSize: number
   constructors: ConstructorType<WASM>[] = []
 
+  get isVector() {
+    return this.name == 'litestl::util::Vector'
+  }
+
   constructor(wasm: WASM, ptr: pointer) {
     super(wasm, ptr)
     const o = wasm.bindingInfo.Offsets.Struct
     const sz = wasm.bindingInfo.Sizes.Struct
     this._members = new WasmVector(wasm, ptr + o.members, sz.StructMember)
-    this.methods = new WasmVector(wasm, ptr + o.methods, wasm.PTRSIZE)
+    this._methods = new WasmVector(wasm, ptr + o.methods, wasm.PTRSIZE)
     this._constructors = new WasmVector(wasm, ptr + o.constructors, wasm.PTRSIZE)
     this._templateParams = new WasmVector(wasm, ptr + o.templateParams, sz.TemplateParam)
     this.structSize = wasm.HEAPU32[(ptr + o.structSize) >> wasm.SIZET_SHIFT]
@@ -162,7 +167,6 @@ export class StructType<WASM extends INeededWasm = INeededWasm> extends BindingB
     // load members
     for (const _ptr of this._members) {
       const name = readLiteStlString(wasm, _ptr + wasm.bindingInfo.Offsets.StructMember.name)
-      console.log(this.name, 'N', name)
       const offset = wasm.HEAP32[(_ptr + wasm.bindingInfo.Offsets.StructMember.offset) >> wasm.INT32SHIFT]
       const type = getBinding(
         wasm,
@@ -180,6 +184,25 @@ export class StructType<WASM extends INeededWasm = INeededWasm> extends BindingB
       )
       this.templateParams.push({name: paramName, type: paramType})
     }
+
+    // load methods
+    for (const vecPtr of this._methods) {
+      const argPtr = wasm.HEAPPTR[vecPtr >> wasm.PTRSHIFT]
+      this.methods.push(getBinding(wasm, argPtr) as MethodType<WASM>)
+    }
+  }
+
+  findConstructor(name: string): ConstructorType<WASM> | undefined {
+    return this.constructors.find((c) => c.name === name)
+  }
+
+  findDefaultConstructor() {
+    for (const c of this.constructors) {
+      if (c.constructArgs.length === 0) {
+        return c
+      }
+    }
+    return undefined
   }
 
   findCopyConstructor() {
@@ -187,7 +210,7 @@ export class StructType<WASM extends INeededWasm = INeededWasm> extends BindingB
       if (c.constructArgs.length !== 1) {
         continue
       }
-      const type = c.constructArgs[0] as Binding
+      const type = c.constructArgs[0].type as Binding
       if (type.type === BindingType.Reference && type.ptrType.buildFullName() === this.buildFullName()) {
         return c
       }
@@ -197,6 +220,147 @@ export class StructType<WASM extends INeededWasm = INeededWasm> extends BindingB
 }
 
 export class WasmConstructError extends Error {}
+export class WasmInvokeError extends Error {}
+
+interface ConstructArg<WASM extends INeededWasm = INeededWasm> {
+  name: string
+  type: Binding
+}
+interface MethodArg<WASM extends INeededWasm = INeededWasm> extends ConstructArg<WASM> {
+  name: string
+  type: Binding
+}
+
+function buildArgs(wasm: INeededWasm, argTypes: ConstructArg[], ...args: unknown[]) {
+  const getHeap = (num: NumberType) => {
+    const subtype = num.subtype
+    const unsigned = num.flags & NumberFlags.Unsigned
+
+    switch (subtype) {
+      case NumberSubtype.Int8:
+        return unsigned ? wasm.HEAPU8 : wasm.HEAP8
+      case NumberSubtype.Int16:
+        return unsigned ? wasm.HEAPU16 : wasm.HEAP16
+      case NumberSubtype.Int32:
+        return unsigned ? wasm.HEAPU32 : wasm.HEAP32
+      case NumberSubtype.Int64:
+        return unsigned ? wasm.HEAPU64 : wasm.HEAP64
+    }
+    throw new Error('unknown number type ' + subtype)
+  }
+
+  const ptrList = wasm.memAlloc(wasm.cstring('constructor arguments'), wasm.PTRSIZE * argTypes.length)
+  const ptrs = [] as pointer[]
+
+  let heap = wasm.HEAPU8
+  let index = 0
+  for (const {name, type} of argTypes) {
+    // XXX calc size properly
+    const argPtr = wasm.memAlloc(wasm.cstring('constructor argument'), 8)
+    ptrs.push(argPtr)
+
+    wasm.HEAPPTR[(ptrList >> wasm.PTRSHIFT) + index] = argPtr
+
+    for (let i = 0; i < 8; i++) {
+      heap[argPtr + i] = 0
+    }
+
+    switch (type.type) {
+      case BindingType.Boolean:
+        heap[argPtr] = args[index] ? 1 : 0
+        break
+      case BindingType.Number: {
+        switch (type.subtype) {
+          case NumberSubtype.Int8:
+            getHeap(type)[argPtr] = args[index] as number
+            break
+          case NumberSubtype.Int16:
+            getHeap(type)[argPtr >> wasm.INT16SHIFT] = args[index] as number
+            break
+          case NumberSubtype.Int32:
+            getHeap(type)[argPtr >> wasm.INT32SHIFT] = args[index] as number
+            break
+          case NumberSubtype.Int64:
+            getHeap(type)[argPtr >> wasm.INT64SHIFT] = args[index] as number
+            break
+          case NumberSubtype.Float32:
+            wasm.HEAPF32[argPtr >> wasm.F32SHIFT] = args[index] as number
+            break
+          case NumberSubtype.Float64:
+            wasm.HEAPF64[argPtr >> wasm.F64SHIFT] = args[index] as number
+            break
+        }
+        break
+      }
+      case BindingType.Array:
+      case BindingType.Pointer:
+      case BindingType.Reference: {
+        let argPtr2: number | undefined | null
+        if (typeof args[index] === 'object' && 'ptr' in (args[index] as object)) {
+          argPtr2 = (args[index] as {ptr: number}).ptr
+        } else if (typeof args[index] === 'number') {
+          argPtr2 = args[index] as number
+        } else {
+          throw new Error('unknown argument type for value ' + args[index])
+        }
+        if (argPtr2 === null || argPtr2 === undefined) {
+          argPtr2 = 0
+        }
+        wasm.HEAPPTR[argPtr >> wasm.PTRSHIFT] = argPtr2
+      }
+    }
+    index++
+  }
+  return {ptrs, ptrList}
+}
+
+export class MethodType<WASM extends INeededWasm = INeededWasm> extends BindingBase<WASM, BindingType.Method> {
+  returnType?: Binding<WASM>
+  _methodArgs: WasmVector<WASM>
+  methodArgs: MethodArg<WASM>[] = []
+
+  constructor(wasm: WASM, ptr: pointer) {
+    super(wasm, ptr)
+    const o = wasm.bindingInfo.Offsets
+    const sz = wasm.bindingInfo.Sizes.Method
+
+    const retPtr = wasm.HEAPPTR[(ptr + o.Method.returnType) >> wasm.PTRSHIFT]
+    this.returnType = retPtr === 0 ? undefined : (getBinding(wasm, retPtr) as Binding<WASM>)
+    this._methodArgs = new WasmVector(wasm, ptr + wasm.bindingInfo.Offsets.Method.params, sz.MethodParam)
+
+    for (const _ptr of this._methodArgs) {
+      const name = readLiteStlString(wasm, _ptr + wasm.bindingInfo.Offsets.MethodParam.name)
+      const typePtr = _ptr + wasm.bindingInfo.Offsets.MethodParam.type
+      const argPtr = wasm.HEAPPTR[typePtr >> wasm.PTRSHIFT]
+      this.methodArgs.push({name, type: getBinding(wasm, argPtr) as Binding})
+    }
+  }
+
+  invoke(thisPtr: pointer, ...args: unknown[]) {
+    if (args.length !== this.methodArgs.length) {
+      throw new WasmInvokeError(`Expected ${this.methodArgs.length} arguments`)
+    }
+
+    // build argument list
+    // TODO: don't use the heap for this, instead have per-thread
+    // global scratch buffers
+    const {ptrs, ptrList} = buildArgs(this.wasm, this.methodArgs, ...args)
+    let retBuf = 0
+    if (this.returnType !== undefined) {
+      retBuf = this.wasm.memAlloc(0, this.returnType.size)
+    }
+
+    this.wasm.LSTL_Method_Invoke(this.ptr, thisPtr, ptrList, retBuf)
+
+    // free argument list
+    for (const ptr of ptrs) {
+      this.wasm.memRelease(ptr)
+    }
+    this.wasm.memRelease(ptrList)
+
+    return retBuf === 0 ? undefined : retBuf
+  }
+}
 
 export class ConstructorType<WASM extends INeededWasm = INeededWasm> extends BindingBase<
   WASM,
@@ -204,7 +368,7 @@ export class ConstructorType<WASM extends INeededWasm = INeededWasm> extends Bin
 > {
   ownerType: StructType<WASM>
   _constructArgs: WasmVector<WASM>
-  constructArgs: BindingBase<WASM>[] = []
+  constructArgs: ConstructArg<WASM>[] = []
 
   constructor(wasm: WASM, ptr: pointer, ownerType: StructType<WASM>) {
     super(wasm, ptr)
@@ -214,8 +378,10 @@ export class ConstructorType<WASM extends INeededWasm = INeededWasm> extends Bin
 
     this._constructArgs = new WasmVector(wasm, ptr + o.params, sz.Constructor.ConstructorParam)
     for (const _ptr of this._constructArgs) {
-      const argPtr = wasm.HEAPPTR[_ptr >> wasm.PTRSHIFT]
-      this.constructArgs.push(getBinding(wasm, argPtr))
+      const name = readLiteStlString(wasm, _ptr + wasm.bindingInfo.Offsets.ConstructorParam.name)
+      const typePtr = _ptr + wasm.bindingInfo.Offsets.ConstructorParam.type
+      const argPtr = wasm.HEAPPTR[typePtr >> wasm.PTRSHIFT]
+      this.constructArgs.push({name, type: getBinding(wasm, argPtr) as Binding})
     }
   }
 
@@ -225,87 +391,7 @@ export class ConstructorType<WASM extends INeededWasm = INeededWasm> extends Bin
       throw new WasmConstructError(`Expected ${this.constructArgs.length} arguments`)
     }
 
-    const getHeap = (num: NumberType) => {
-      const subtype = num.subtype
-      const unsigned = num.flags & NumberFlags.Unsigned
-
-      switch (subtype) {
-        case NumberSubtype.Int8:
-          return unsigned ? wasm.HEAPU8 : wasm.HEAP8
-        case NumberSubtype.Int16:
-          return unsigned ? wasm.HEAPU16 : wasm.HEAP16
-        case NumberSubtype.Int32:
-          return unsigned ? wasm.HEAPU32 : wasm.HEAP32
-        case NumberSubtype.Int64:
-          return unsigned ? wasm.HEAPU64 : wasm.HEAP64
-      }
-      throw new Error('unknown number type ' + subtype)
-    }
-
-    const ptrList = wasm.memAlloc(wasm.cstring('constructor arguments'), wasm.PTRSIZE * this.constructArgs.length)
-    const ptrs = [] as pointer[]
-
-    let heap = wasm.HEAPU8
-    let index = 0
-    for (const type of this.constructArgs) {
-      // XXX calc size properly
-      const argPtr = wasm.memAlloc(wasm.cstring('constructor argument'), 8)
-      ptrs.push(argPtr)
-
-      wasm.HEAPPTR[(ptrList >> wasm.PTRSHIFT) + index] = argPtr
-
-      for (let i = 0; i < 8; i++) {
-        heap[argPtr + i] = 0
-      }
-
-      switch (type.type) {
-        case BindingType.Boolean:
-          heap[argPtr] = args[index] ? 1 : 0
-          break
-        case BindingType.Number: {
-          const num = args[index] as NumberType
-          switch (num.subtype) {
-            case NumberSubtype.Int8:
-              getHeap(num)[argPtr] = args[index] as number
-              break
-            case NumberSubtype.Int16:
-              getHeap(num)[argPtr >> wasm.INT16SHIFT] = args[index] as number
-              break
-            case NumberSubtype.Int32:
-              getHeap(num)[argPtr >> wasm.INT32SHIFT] = args[index] as number
-              break
-            case NumberSubtype.Int64:
-              getHeap(num)[argPtr >> wasm.INT64SHIFT] = args[index] as number
-              break
-            case NumberSubtype.Float32:
-              wasm.HEAPF32[argPtr >> wasm.F32SHIFT] = args[index] as number
-              break
-            case NumberSubtype.Float64:
-              wasm.HEAPF64[argPtr >> wasm.F64SHIFT] = args[index] as number
-              break
-          }
-          break
-        }
-        case BindingType.Pointer:
-        case BindingType.Reference: {
-          let argPtr2: number | undefined | null
-          if (typeof args[index] === 'object' && 'ptr' in (args[index] as object)) {
-            argPtr2 = (args[index] as {ptr: number}).ptr
-          } else if (typeof args[index] === 'number') {
-            argPtr2 = args[index] as number
-          } else {
-            console.log(args[index], type)
-            throw new Error('unknown argument type for value ' + args[index])
-          }
-          if (argPtr2 === null || argPtr2 === undefined) {
-            argPtr2 = 0
-          }
-          wasm.HEAPPTR[argPtr >> wasm.PTRSHIFT] = argPtr2
-        }
-      }
-      index++
-    }
-
+    const {ptrs, ptrList} = buildArgs(wasm, this.constructArgs, ...args)
     wasm.LSTL_Constructor_Invoke(this.ptr, thisPtr, ptrList)
 
     for (const ptr of ptrs) {
@@ -398,6 +484,8 @@ export function getBinding<WASM extends INeededWasm = INeededWasm>(wasm: WASM, p
     }
     case BindingType.Enum:
       return new EnumBinding(wasm, ptr)
+    case BindingType.Method:
+      return new MethodType(wasm, ptr)
     default:
       return new BindingBase(wasm, ptr)
   }

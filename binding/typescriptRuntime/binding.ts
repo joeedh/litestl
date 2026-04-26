@@ -56,6 +56,13 @@ export class BindingBase<
     // do not enumerate wasm in console.log
     Object.defineProperty(this, 'wasm', {enumerable: false, configurable: true})
   }
+
+  buildFullName() {
+    const namePtr = this.wasm.LSTL_Binding_GetFullName(this.ptr)
+    const result = this.wasm.jsString(namePtr)
+    this.wasm.memRelease(namePtr)
+    return result
+  }
 }
 
 export class EnumBinding<WASM extends INeededWasm = INeededWasm> extends BindingBase<WASM, BindingType.Enum> {
@@ -130,8 +137,9 @@ export class StructType<WASM extends INeededWasm = INeededWasm> extends BindingB
   _members: WasmVector<WASM>
   members: StructMember[] = []
   methods: WasmVector<WASM>
+  templateParams: {name: string; type: BindingBase<WASM>}[] = []
   _constructors: WasmVector<WASM>
-  templateParams: WasmVector<WASM>
+  _templateParams: WasmVector<WASM>
   structSize: number
   constructors: ConstructorType<WASM>[] = []
 
@@ -142,7 +150,7 @@ export class StructType<WASM extends INeededWasm = INeededWasm> extends BindingB
     this._members = new WasmVector(wasm, ptr + o.members, sz.StructMember)
     this.methods = new WasmVector(wasm, ptr + o.methods, wasm.PTRSIZE)
     this._constructors = new WasmVector(wasm, ptr + o.constructors, wasm.PTRSIZE)
-    this.templateParams = new WasmVector(wasm, ptr + o.templateParams, sz.TemplateParam)
+    this._templateParams = new WasmVector(wasm, ptr + o.templateParams, sz.TemplateParam)
     this.structSize = wasm.HEAPU32[(ptr + o.structSize) >> wasm.SIZET_SHIFT]
 
     // load constructors
@@ -162,6 +170,29 @@ export class StructType<WASM extends INeededWasm = INeededWasm> extends BindingB
       )
       this.members.push({name, type, offset})
     }
+
+    // load template params
+    for (const _ptr of this._templateParams) {
+      const paramName = readLiteStlString(wasm, _ptr + wasm.bindingInfo.Offsets.TemplateParam.name)
+      const paramType = getBinding(
+        wasm,
+        wasm.HEAPPTR[(_ptr + wasm.bindingInfo.Offsets.TemplateParam.type) >> wasm.PTRSHIFT] as pointer
+      )
+      this.templateParams.push({name: paramName, type: paramType})
+    }
+  }
+
+  findCopyConstructor() {
+    for (const c of this.constructors) {
+      if (c.constructArgs.length !== 1) {
+        continue
+      }
+      const type = c.constructArgs[0] as Binding
+      if (type.type === BindingType.Reference && type.ptrType.buildFullName() === this.buildFullName()) {
+        return c
+      }
+    }
+    return undefined
   }
 }
 
@@ -188,7 +219,7 @@ export class ConstructorType<WASM extends INeededWasm = INeededWasm> extends Bin
     }
   }
 
-  construct(...args: unknown[]) {
+  constructTo(thisPtr: number, ...args: unknown[]) {
     const wasm = this.wasm
     if (args.length !== this.constructArgs.length) {
       throw new WasmConstructError(`Expected ${this.constructArgs.length} arguments`)
@@ -275,14 +306,20 @@ export class ConstructorType<WASM extends INeededWasm = INeededWasm> extends Bin
       index++
     }
 
-    const result = wasm.memAlloc(wasm.cstring(this.ownerType.name), this.ownerType.structSize)
-    wasm.LSTL_Constructor_Invoke(this.ptr, result, ptrList)
+    wasm.LSTL_Constructor_Invoke(this.ptr, thisPtr, ptrList)
 
     for (const ptr of ptrs) {
       wasm.memRelease(ptr)
     }
     wasm.memRelease(ptrList)
 
+    return thisPtr
+  }
+
+  construct(...args: unknown[]) {
+    const wasm = this.wasm
+    const result = wasm.memAlloc(wasm.cstring(this.ownerType.name), this.ownerType.structSize)
+    this.constructTo(result, ...args)
     return result
   }
 }

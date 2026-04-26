@@ -1,6 +1,6 @@
-#include "../binding/binding.h"
-#include "vector.h"
-#include <concepts>
+#pragma once
+#include "../binding/binding_types.h"
+#include "../binding/binding_struct.h"
 #include <type_traits>
 
 namespace litestl::binding {
@@ -33,7 +33,7 @@ template <isMathVec T> static BindingBase *Bind()
   char size[2] = {charN, 0};
   name += string(size);
 
-  types::Struct<T> *st = new types::Struct<T>(name, sizeof(T));
+  types::Struct<T> *st = new types::Struct<T>("litestl::math::" + name, sizeof(T));
   st->add("vec", 0, new types::Array(Bind<typename T::value_type>(), n));
   return st;
 }

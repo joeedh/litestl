@@ -15,7 +15,7 @@ set(SRC
 
 lt_add_library(binding "${SRC}" "${LIB}" STATIC)
 add_subdirectory(generators)
-wasm_add_symbols("
+set(WASMSYM "
   LSTL_Binding_GetKeys
   LSTL_Binding_FreeKeys
   LSTL_Binding_Get
@@ -41,4 +41,16 @@ wasm_add_symbols("
   LSTL_FreeTypescriptString
   LSTL_GetBindTypeSize
   LSTL_PrintAllocBlocks
-")
+  LSTL_Binding_GetFullName
+  printMemBlocks
+  _rawAlloc
+  _rawRelease
+  memAlloc
+  memRelease
+  "
+)
+
+lt_wasm_add_symbols("${WASMSYM}")
+set_target_properties(binding PROPERTIES 
+    INTERFACE_WASM_SYMBOLS "${WASMSYM}"
+)

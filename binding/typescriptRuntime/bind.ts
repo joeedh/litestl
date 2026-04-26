@@ -11,6 +11,7 @@ import {
 import type {INeededWasm} from './wasmInterface'
 import {WasmBase} from './wasmBase'
 import type {BindingManager} from './manager'
+import {specialGenerators} from './specials'
 
 interface IBoundClass {
   wasm: INeededWasm
@@ -45,8 +46,22 @@ class BoundClass extends WasmBase implements IBoundClass {
   }
 }
 
-export function createBoundCode(manager: BindingManager, wasm: INeededWasm, type: Binding, ptrCode: string) {
+export function createBoundCode(
+  manager: BindingManager,
+  wasm: INeededWasm,
+  type: Binding,
+  ptrCode: string,
+  propKey: string
+): {get: string; set: string; codePre?: string} | undefined {
   ptrCode = `(${ptrCode})`
+
+  // Check for special generators first
+  for (const generator of specialGenerators) {
+    const result = generator.onBind(manager, wasm, type, ptrCode, propKey ?? '')
+    if (result !== undefined) {
+      return result
+    }
+  }
 
   switch (type.type) {
     case BindingType.Boolean:
@@ -75,7 +90,7 @@ export function createBoundCode(manager: BindingManager, wasm: INeededWasm, type
         }
       } else {
         const ptrCode2 = `this.wasm.HEAPPTR[${ptrCode} >> ${wasm.PTRSHIFT}]`
-        return createBoundCode(manager, wasm, type.ptrType as Binding, ptrCode2)
+        return createBoundCode(manager, wasm, type.ptrType as Binding, ptrCode2, propKey)
       }
     }
     case BindingType.Number: {
@@ -120,15 +135,25 @@ export function createBoundCode(manager: BindingManager, wasm: INeededWasm, type
 export function createBoundType(manager: BindingManager, wasm: INeededWasm, st: StructType) {
   const name = st.name.replace(/::/g, '_')
   let s = `class ${name} extends BoundClass {\n`
+  let codePreSet = new Set<string>()
 
   for (const member of st.members) {
-    const memberCode = createBoundCode(manager, wasm, member.type as Binding, 'this.ptr + ' + member.offset)
+    const memberCode = createBoundCode(
+      manager,
+      wasm,
+      member.type as Binding,
+      'this.ptr + ' + member.offset,
+      member.name
+    )
     if (memberCode === undefined) {
       console.log('Skipping member ' + member.name)
       continue
     }
 
-    const {get, set} = memberCode
+    const {get, set, codePre} = memberCode
+    if (codePre !== undefined) {
+      codePreSet.add(codePre)
+    }
     s += `
     get ${member.name}() {
       return ${get}
@@ -140,11 +165,13 @@ export function createBoundType(manager: BindingManager, wasm: INeededWasm, st: 
   }
 
   s += '\n}\n'
+  s = Array.from(codePreSet).join('\n') + '\n' + s
 
   console.log(s)
   s = `
   (function(BoundClass) {
-    return ${s};
+    ${s};
+    return ${name};
   })
   `
 

@@ -1,0 +1,14 @@
+{
+    "type": "module",
+    "scripts": {
+        "test": "npx tsx test_binding_system.ts",
+        "test:debug": "npx tsx --inspect-brk test_binding_system.ts"
+    },
+    "dependencies": {
+        "@litestl/typescript-runtime": "workspace:*"
+    },
+    "packageManager": "pnpm@10.30.3",
+    "devDependencies": {
+        "tsx": "^4.21.0"
+    }
+}

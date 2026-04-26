@@ -68,6 +68,10 @@ struct WasmOffsets {
     int baseSize;
     int isBitMask;
   } Enum;
+  struct {
+    int name;
+    int type;
+  } TemplateParam;
 };
 // ensure we are pointer aligned to avoid padding bytes
 static_assert(sizeof(WasmOffsets) % sizeof(void *) == 0);
@@ -150,7 +154,10 @@ BindingInfo *LSTL_GetBindingInfo()
   info->offsets.Enum.items = offsetof(Enum, items);
   info->offsets.Enum.baseSize = offsetof(Enum, baseSize);
   info->offsets.Enum.isBitMask = offsetof(Enum, isBitMask);
-  
+
+  info->offsets.TemplateParam.name = offsetof(StructTemplate, name);
+  info->offsets.TemplateParam.type = offsetof(StructTemplate, type);
+
   info->sizes.Struct.StructMember = sizeof(StructMember);
   info->sizes.Struct.StructBase = sizeof(_StructBase);
   info->sizes.Struct.TemplateParam = sizeof(StructTemplate);
@@ -357,8 +364,41 @@ void LSTL_FreeTypescriptString(char *s)
   free(s);
 }
 
+/** Note: must free result with memRelease() */
+const char *LSTL_Binding_GetFullName(const BindingBase *type)
+{
+  string s = type->buildFullName();
+  char *s2 = static_cast<char *>(alloc::alloc("LSTL_Binding_GetFullName", s.size() + 1));
+ 
+  memcpy(s2, s.c_str(), s.size());
+  // explicitly null-terminate
+  s2[s.size()] = 0;
+  return s2;
+}
+
 void LSTL_PrintAllocBlocks(bool includePermanent)
 {
   alloc::print_blocks(includePermanent);
+}
+void *memAlloc(const char *tag, size_t size)
+{
+  return alloc::alloc(tag, size);
+}
+
+void memRelease(void *mem)
+{
+  alloc::release(mem);
+}
+void printMemBlocks()
+{
+  alloc::print_blocks(true);
+}
+void *_rawAlloc(int size)
+{
+  return malloc(size);
+}
+void _rawRelease(void *ptr)
+{
+  free(ptr);
 }
 }

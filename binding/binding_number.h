@@ -4,7 +4,6 @@
 #include "concepts"
 #include <cstdint>
 
-
 namespace litestl::binding {
 
 #ifdef _
@@ -14,7 +13,7 @@ namespace litestl::binding {
 #define _(ctype, type, flags)                                                            \
   template <std::same_as<ctype> T> types::Number<ctype> *Bind()                          \
   {                                                                                      \
-    return new types::Number<ctype>(NumberType::type, flags);                            \
+    return new types::Number<ctype>(NumberType::type, #ctype, flags);                    \
   }
 
 _(signed char, Int8, NumberFlags::None);

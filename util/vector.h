@@ -15,7 +15,6 @@
 #include <type_traits>
 #include <utility>
 
-
 template <typename Iter, typename QualVec, typename QualT>
 static Iter operator+(int n, const Iter &b)
 {

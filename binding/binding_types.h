@@ -28,8 +28,8 @@ template <typename T> struct Number : public BindingBase {
   NumberType subtype;
   NumberFlags flags;
 
-  Number(NumberType subtype, NumberFlags flags = NumberFlags::None)
-      : BindingBase(BindingType::Number, "number"), subtype(subtype), flags(flags)
+  Number(NumberType subtype, string name, NumberFlags flags = NumberFlags::None)
+      : BindingBase(BindingType::Number, name), subtype(subtype), flags(flags)
   {
     //
   }
@@ -74,13 +74,17 @@ template <typename T> struct Array : public BindingBase {
   Array(const Array &b) : BindingBase(b), arrayType(b.arrayType), arraySize(b.arraySize)
   {
   }
-  virtual BindingBase *clone()
+  virtual BindingBase *clone() override
   {
     return static_cast<BindingBase *>(new Array(*this));
   }
-  virtual size_t getSize() const
+  virtual size_t getSize() const override
   {
     return arrayType->getSize() * arraySize;
+  }
+  virtual string buildFullName() const override
+  {
+    return arrayType->buildFullName() + "[" + std::to_string(arraySize) + "]";
   }
 };
 

@@ -1,0 +1,1 @@
+C:/dev/webgl-app-framework/sculptcore/build/source/litestl/tests/test_binding_system.js

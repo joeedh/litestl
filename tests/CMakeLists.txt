@@ -38,3 +38,25 @@ test(test_binding_method.cc "binding")
 test(test_binding_constructor.cc "binding")
 test(test_string "")
 
+include(../build_files/macros.cmake)
+if (BUILD_WASM)
+ 	set(LIB2
+        PRIVATE platform
+        PRIVATE util
+        PRIVATE math
+        PRIVATE binding
+        PRIVATE binding_generators
+    )
+	
+	set(MYWASM "getBindingManager\nmain")
+
+	add_executable(test_binding_system "test_binding_system.cc")
+	target_link_libraries(test_binding_system PRIVATE ${LIB2})
+	get_target_property(wasm_symbols binding INTERFACE_WASM_SYMBOLS)
+
+	build_wasm_post(test_binding_system "test_binding_system.cc" "${LIB2}" "${wasm_symbols}\n${MYWASM}")
+	# 1. Get the directory where the target was defined
+	get_target_property(TARGET_SRC_DIR test_binding_system SOURCE_DIR)
+
+	file(GENERATE OUTPUT "${TARGET_SRC_DIR}/test_binding_system.path.txt" CONTENT "$<TARGET_FILE:test_binding_system>")
+endif()

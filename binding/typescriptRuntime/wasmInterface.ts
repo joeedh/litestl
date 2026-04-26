@@ -81,6 +81,10 @@ export interface IBindingInfo {
       baseSize: number
       isBitMask: number
     }
+    TemplateParam: {
+      name: number
+      type: number
+    }
   }
   Sizes: {
     Struct: {
@@ -120,6 +124,7 @@ export interface INeededWasm extends IWasmBase {
   LSTL_Binding_GetKeys(bindingManager: pointer): cstring
   LSTL_Binding_FreeKeys(bindingManager: pointer): cstring
   LSTL_Binding_Get(bindingManager: pointer, key: cstring): pointer
+  LSTL_Binding_GetFullName(binding: pointer): cstring
   LSTL_Struct_GetMethodCount(structptr: pointer): size_t
   LSTL_Struct_GetMethod(structptr: pointer, i: size_t): pointer
   LSTL_Method_GetParamCount(method: pointer): size_t
@@ -189,7 +194,21 @@ export function createWasmViews(wasmBase: IWasmBase) {
   }
 }
 
+function unprefixWasm(wasmBase: IWasmBase): IWasmBase {
+  const wasmAny = wasmBase as unknown as any
+  for (let k in wasmAny) {
+    if (typeof k !== 'string' || k[0] !== '_') {
+      continue
+    }
+    const unprefixed = k.substring(1)
+    wasmAny[unprefixed] = wasmAny[k]
+  }
+  return wasmBase
+}
+
 export function createWasmHelpers(wasmBase: IWasmBase) {
+  wasmBase = unprefixWasm(wasmBase)
+
   const wasm = createWasmViews(wasmBase)
   let ptr = wasm.LSTL_GetBindingInfo()
 
@@ -255,6 +274,10 @@ export function createWasmHelpers(wasmBase: IWasmBase) {
       items    : data[i++],
       baseSize : data[i++],
       isBitMask: data[i++],
+    },
+    TemplateParam: {
+      name: data[i++],
+      type: data[i++],
     },
   }
   // skip trailing _pad ints on the C side (pointer alignment)

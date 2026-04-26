@@ -1,7 +1,8 @@
 import {WasmBase} from './wasmBase'
 import {INeededWasm, pointer} from './wasmInterface'
-import {BindingBase, getBinding, BindingType, StructType, ConstructorType} from './binding'
+import {BindingBase, getBinding, BindingType, StructType, ConstructorType, ArrayType} from './binding'
 import {createBoundType} from './bind'
+import {BoundArray, BoundVector} from './boundVector'
 
 export class BindingManager<
   WASM extends INeededWasm = INeededWasm,
@@ -28,9 +29,109 @@ export class BindingManager<
     return cls
   }
 
-  getBoundPointer(typeName: string, ptr: number) {
+  getBoundArray(arrayTypeName: string, ptr: pointer) {
+    const arrayType = this.types.get(arrayTypeName)
+    if (arrayType === undefined) {
+      throw new Error('unknown type ' + arrayTypeName)
+    }
+    return new BoundArray(this.wasm, ptr, arrayType as ArrayType, this)
+  }
+
+  getBoundVector(vecTypeName: string, ptr: pointer) {
+    const vecType = this.types.get(vecTypeName)
+    if (vecType === undefined) {
+      throw new Error('unknown type ' + vecTypeName)
+    }
+    return new BoundVector(this.wasm, ptr, vecType as StructType, this)
+  }
+
+  getBoundPointer(typeName: string, ptr: pointer) {
+    const wasm = this.wasm
+    switch (typeName) {
+      case 'float':
+        return wasm.HEAPF32[ptr >> wasm.F32SHIFT]
+      case 'double':
+        return wasm.HEAPF64[ptr >> wasm.F64SHIFT]
+      case 'char':
+        return wasm.HEAP8[ptr]
+      case 'short':
+        return wasm.HEAP16[ptr >> wasm.INT16SHIFT]
+      case 'int':
+        return wasm.HEAP32[ptr >> wasm.INT32SHIFT]
+      case 'longlong':
+        return wasm.HEAP64[ptr >> wasm.INT64SHIFT]
+      case 'uchar':
+        return wasm.HEAPU8[ptr]
+      case 'ushort':
+        return wasm.HEAPU16[ptr >> wasm.INT16SHIFT]
+      case 'uint':
+        return wasm.HEAPU32[ptr >> wasm.INT32SHIFT]
+      case 'ulonglong':
+        return wasm.HEAPU64[ptr >> wasm.INT64SHIFT]
+      default:
+        break
+    }
     const cls = this.getBoundClass(this.get(typeName) as StructType<WASM>) as any
     return new cls(this.wasm, ptr, this)
+  }
+
+  /**
+   * note: this is equivalent to operator=(), the assignment operator.
+   * if you want to copy construct, use the copy constructor instead.
+   */
+  setBoundPointer(typeName: string, ptr: pointer, value: any) {
+    const wasm = this.wasm
+    switch (typeName) {
+      case 'float':
+        wasm.HEAPF32[ptr >> wasm.F32SHIFT] = value as number
+        break
+      case 'double':
+        wasm.HEAPF64[ptr >> wasm.F64SHIFT] = value as number
+        break
+      case 'char':
+        wasm.HEAP8[ptr] = value as number
+        break
+      case 'short':
+        wasm.HEAP16[ptr >> wasm.INT16SHIFT] = value as number
+        break
+      case 'int':
+        wasm.HEAP32[ptr >> wasm.INT32SHIFT] = value as number
+        break
+      case 'longlong':
+        wasm.HEAP64[ptr >> wasm.INT64SHIFT] = BigInt(value)
+        break
+      case 'uchar':
+        wasm.HEAPU8[ptr] = value as number
+        break
+      case 'ushort':
+        wasm.HEAPU16[ptr >> wasm.INT16SHIFT] = value as number
+        break
+      case 'uint':
+        wasm.HEAPU32[ptr >> wasm.INT32SHIFT] = value as number
+        break
+      case 'ulonglong':
+        wasm.HEAPU64[ptr >> wasm.INT64SHIFT] = BigInt(value)
+        break
+      default:
+        break
+    }
+
+    const type = this.types.get(typeName)
+    if (type instanceof StructType) {
+      const otherPtr = typeof value === 'number' ? value : (value.ptr as number)
+      if (otherPtr === ptr) {
+        //self-assignment, no nothing
+        return
+      }
+
+      const cpyCtor = type.findCopyConstructor()
+      if (!cpyCtor) {
+        throw new Error('no copy constructor for ' + typeName)
+      }
+
+      this.wasm.LSTL_Destructor_Invoke(type.ptr, ptr)
+      cpyCtor.constructTo(ptr, otherPtr)
+    }
   }
 
   construct<K extends keyof AllBoundTypes>(typeName: K): AllBoundTypes[K] {
@@ -52,6 +153,7 @@ export class BindingManager<
   }
 
   constructClass<ARGS extends unknown[] = unknown[]>(ctype: ConstructorType<WASM>, ...args: ARGS) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const cls = this.getBoundClass(ctype.ownerType) as any
     const ptr = ctype.construct(...args)
     return new cls(this.wasm, ptr, this, ctype.ownerType)

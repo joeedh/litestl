@@ -63,8 +63,32 @@ macro(lt_add_library target src lib lib_type)
   endforeach()
 endmacro()
 
-define_property(GLOBAL PROPERTY WASM_SYMBOLS)
-macro(wasm_add_symbols symbols)
-get_property(existing GLOBAL PROPERTY WASM_SYMBOLS)
-set_property(GLOBAL PROPERTY WASM_SYMBOLS "${existing}\n${symbols}")
+define_property(GLOBAL PROPERTY LT_WASM_SYMBOLS)
+
+macro(lt_wasm_add_symbols symbols)
+  get_property(existing GLOBAL PROPERTY LT_WASM_SYMBOLS)
+  set_property(GLOBAL PROPERTY LT_WASM_SYMBOLS "${existing}\n${symbols}")
+endmacro()
+
+macro(build_wasm_post target src lib symbols)
+  # build final symbol list
+	string(REPLACE " " "" wasmsym "${symbols}")
+	string(REGEX REPLACE "\n\n+" "\n" wasmsym "${wasmsym}")
+	string(STRIP "${wasmsym}" wasmsym)
+	string(REPLACE "\n" ",_"  wasmsym "${wasmsym}")
+	set(wasmsym "_${wasmsym}")
+	message("${target} SYMBOLS1 = ${wasmsym}")
+
+  target_link_libraries(${target} ${lib})
+    
+  target_link_options(${target} PRIVATE "-sMODULARIZE=1")
+  target_link_options(${target} PRIVATE "-sEXPORTED_RUNTIME_METHODS=HEAPU8")
+  
+  target_link_options(${target} PRIVATE "-sEXPORTED_FUNCTIONS=${wasmsym}")
+  target_link_options(${target} PRIVATE "--bind")  
+endmacro()
+
+macro(build_wasm target src lib symbols)
+  add_executable(${target} "${src}")
+  build_wasm_post(${target} "${src}" "${lib}" "${symbols}")
 endmacro()

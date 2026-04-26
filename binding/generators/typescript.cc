@@ -1,11 +1,25 @@
 #include "typescript.h"
 #include "../../path/path.h"
 #include "../binding.h"
+#include "binding_types.h"
 #include "util/function.h"
 #include "util/set.h"
 #include <algorithm>
 #include <regex>
 #include <string>
+
+static constexpr const char *header = R"(/** Auto-generated file */
+type float = number;
+type pointer<T=any> = number;
+type int = number;
+type uint = number;
+type double = number;
+type short = number;
+type ushort = number;
+type char = number;
+type uchar = number;
+
+)";
 
 namespace litestl::binding::generators {
 using util::function_ref;
@@ -18,9 +32,35 @@ struct TypescriptType {
   Vector<TypescriptType *> typeParams;
 };
 
+static bool isSpecialStruct(const BindingBase *type)
+{
+  using namespace litestl::binding::types;
+  if (type->type == BindingType::Struct) {
+    const types::Struct<void> *st = static_cast<const types::Struct<void> *>(type);
+    if (st->buildFullName().starts_with("litestl::util::Vector<")) {
+      return true;
+    }
+    if (st->buildFullName().starts_with("litestl::util::String")) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static string formatType(const BindingBase *type)
 {
   using namespace litestl::binding::types;
+  if (type->type == BindingType::Struct) {
+    const types::Struct<void> *st = static_cast<const types::Struct<void> *>(type);
+    if (st->buildFullName().starts_with("litestl::util::Vector<")) {
+      // We have special support for Vectors
+      return formatType(st->templateParams[0].type) + "[]";
+    }
+    if (st->buildFullName().starts_with("litestl::util::String")) {
+      // We have special support for Strings
+      return "string";
+    }
+  }
   if (type->type == BindingType::Array) {
     const Array<BindingBase> *array = static_cast<const Array<BindingBase> *>(type);
     return string(formatType(array->arrayType)) + "[]";
@@ -147,10 +187,39 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
     return s;
   };
 
-  auto formatTemplate = [&formatImport](const BindingBase *type,
-                                        Set<string> &imports,
-                                        string &filename,
-                                        bool isDecl = false) {
+  /** recursively adds imports */
+  std::function<void(const BindingBase *type, Set<string> &imports, string &filename)>
+      addImport = [&formatImport, &addImport](
+                      const BindingBase *type, Set<string> &imports, string &filename) {
+        if (type->type == BindingType::Struct) {
+          imports.add(formatImport(type, filename));
+        } else if (type->type == BindingType::Reference) {
+          addImport(
+              static_cast<const types::Reference *>(type)->refType, imports, filename);
+        } else if (type->type == BindingType::Pointer) {
+          addImport(
+              static_cast<const types::Pointer *>(type)->ptrType, imports, filename);
+        } else if (type->type == BindingType::Array) {
+          addImport(
+              static_cast<const types::Array<const BindingBase *> *>(type)->arrayType,
+              imports,
+              filename);
+        }
+      };
+
+  auto formatTemplate = [&formatImport, &addImport](const BindingBase *type,
+                                                    Set<string> &imports,
+                                                    string &filename,
+                                                    bool isDecl = false) -> string {
+    // check if we are one of the specially handled object types
+    if (isSpecialStruct(type)) {
+      const _StructBase *st = static_cast<const _StructBase *>(type);
+      if (st->buildFullName().starts_with("litestl::util::Vector<")) {
+        addImport(st->templateParams[0].type, imports, filename);
+      }
+      return "";
+    }
+
     if (type->type == BindingType::Struct) {
       const _StructBase *st = static_cast<const _StructBase *>(type);
       if (st->templateParams.size() == 0) {
@@ -224,7 +293,7 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
     }
     const types::Struct<void> *st = static_cast<const types::Struct<void> *>(type);
 
-    string s = "";
+    string s = header;
     string filename = getFileName(type->name);
     Set<string> imports;
     Set<string> enums;
@@ -247,7 +316,10 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
              false});
 
         s2 += formatTemplate(member.type, imports, filename, false);
-        imports.add(formatImport(member.type, filename));
+
+        if (!isSpecialStruct(member.type)) {
+          imports.add(formatImport(member.type, filename));
+        }
       } else if (member.type->type == BindingType::Enum) {
         enums.add(buildEnum(static_cast<const types::Enum *>(member.type)));
       }

@@ -22,6 +22,20 @@ add_subdirectory(platform)
 add_subdirectory(util)
 add_subdirectory(math)
 add_subdirectory(extern)
-add_subdirectory(tests)
 add_subdirectory(binding)
 add_subdirectory(path)
+add_subdirectory(tests)
+
+# build a target that's just litestl
+if (BUILD_WASM)
+    set(LITESTL_LIB 
+        platform
+        util
+        math
+        binding
+        binding_generators
+    )
+
+    get_property(LtWasmSymbols GLOBAL PROPERTY LT_WASM_SYMBOLS)
+    build_wasm(litestl "" "${LITESTL_LIB}" "${LtWasmSymbols}")
+endif()

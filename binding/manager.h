@@ -13,7 +13,7 @@ struct BindingManager {
       return;
     }
     
-    bindings.add(binding->name, binding);
+    bindings.add(binding->buildFullName(), binding);
 
     if (binding->type == BindingType::Struct) {
       const types::_StructBase *st = static_cast<const types::_StructBase *>(binding);

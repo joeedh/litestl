@@ -1,29 +1,52 @@
-export enum termColorMap {
-  black = 30,
-  red = 31,
-  green = 32,
-  yellow = 33,
-  blue = 34,
-  magenta = 35,
-  cyan = 36,
-  teal = 36,
-  white = 37,
-  reset = 0,
-  grey = 2,
-  gray = 2,
-  orange = 202,
-  pink = 198,
-  brown = 314,
-  lightred = 91,
-  peach = 210,
+export const termColorMap = {
+  0: 'reset',
+  2: 'gray',
+  30: 'black',
+  31: 'red',
+  32: 'green',
+  33: 'yellow',
+  34: 'blue',
+  35: 'magenta',
+  36: 'teal',
+  37: 'white',
+  91: 'lightred',
+  198: 'pink',
+  202: 'orange',
+  210: 'peach',
+  314: 'brown',
+  black: 30,
+  red: 31,
+  green: 32,
+  yellow: 33,
+  blue: 34,
+  magenta: 35,
+  cyan: 36,
+  teal: 36,
+  white: 37,
+  reset: 0,
+  grey: 2,
+  gray: 2,
+  orange: 202,
+  pink: 198,
+  brown: 314,
+  lightred: 91,
+  peach: 210,
 }
 
-export function termColor(str: string, c: keyof typeof termColorMap | number, d: number = 0): string {
-  let code: number
+export function termColor(str, c, d = 0) {
+  let isTTY = true
+  if (typeof globalThis.process?.stdout?.isTTY === 'boolean') {
+    isTTY = process.stdout.isTTY
+  }
+  if (!isTTY) {
+    return str
+  }
+
+  let code
   if (typeof c === 'string' && c in termColorMap) {
-    code = termColorMap[c as keyof typeof termColorMap]
+    code = termColorMap[c]
   } else {
-    code = c as number
+    code = c
   }
 
   if (code > 107) {
@@ -34,7 +57,7 @@ export function termColor(str: string, c: keyof typeof termColorMap | number, d:
   return '\u001b[' + code + 'm' + str + '\u001b[39m'
 }
 
-export function termPrint(...args: unknown[]): string {
+export function termPrint(...args) {
   const s = args.join(' ')
 
   const re1a = /\u001b\[[1-9][0-9]?m/
@@ -43,19 +66,20 @@ export function termPrint(...args: unknown[]): string {
 
   const endtag = '\u001b[39m'
 
-  interface Token {
+  /*interface Token {
     type: string
     value: string
-  }
+  }*/
 
-  function tok(s2: string, type: string): Token {
+  function tok(s2, type) {
     return {
       type: type,
       value: s2,
     }
   }
 
-  const tokdef: [RegExp, string][] = [
+  const tokdef = [
+    //: [RegExp, string][] = [
     [re1a, 'start'],
     [re1b, 'start'],
     [re2, 'end'],
@@ -64,21 +88,21 @@ export function termPrint(...args: unknown[]): string {
   let s2 = s
 
   const i = 0
-  const tokens: Token[] = []
+  const tokens = [] //: Token[] = []
 
   while (s2.length > 0) {
     let ok = false
 
-    let mintk: [RegExp, string] | undefined = undefined
-    let mini: number | undefined = undefined
-    let minslice: string | undefined = undefined
-    let mintype: string | undefined = undefined
+    let mintk //: [RegExp, string] | undefined = undefined
+    let mini //: number | undefined = undefined
+    let minslice //: string | undefined = undefined
+    let mintype //: string | undefined = undefined
 
     for (const tk of tokdef) {
       const idx = s2.search(tk[0])
 
       if (idx >= 0 && (mini === undefined || idx < mini)) {
-        minslice = s2.slice(idx, s2.length).match(tk[0])![0]
+        minslice = s2.slice(idx, s2.length).match(tk[0])[0]
         mini = idx
         mintype = tk[1]
         mintk = tk
@@ -90,13 +114,13 @@ export function termPrint(...args: unknown[]): string {
       break
     }
 
-    if (mini! > 0) {
+    if (mini > 0) {
       const chunk = s2.slice(0, mini)
       tokens.push(tok(chunk, 'chunk'))
     }
 
-    s2 = s2.slice(mini! + minslice!.length, s2.length)
-    const t = tok(minslice!, mintype!)
+    s2 = s2.slice(mini + minslice.length, s2.length)
+    const t = tok(minslice, mintype)
 
     tokens.push(t)
   }
@@ -105,9 +129,8 @@ export function termPrint(...args: unknown[]): string {
     tokens.push(tok(s2, 'chunk'))
   }
 
-  const stack: (string | undefined)[] = []
-  let cur: string | undefined
-
+  const stack = [] //: (string | undefined)[] = []
+  let cur //: string | undefined
   let out = ''
 
   for (const t of tokens) {

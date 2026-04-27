@@ -12,7 +12,7 @@ import {
   NumberSubtype,
   NumberFlags,
 } from './binding'
-import {createBoundType} from './bind'
+import {createBoundType, IBoundWasmConstructor} from './bind'
 import {BoundArray, BoundVector} from './boundVector'
 
 export class NotStructError extends Error {}
@@ -21,7 +21,7 @@ export class UnknownConstructorError extends Error {}
 
 export class BindingManager<
   WASM extends INeededWasm = INeededWasm,
-  AllBoundTypes extends {[k: string]: unknown} = {},
+  AllBoundTypes extends {[k: string]: unknown} = {[k: string]: unknown},
 > extends WasmBase<WASM> {
   types = new Map<string, BindingBase>()
   boundClasses = new Map<string, unknown>()
@@ -33,15 +33,16 @@ export class BindingManager<
     Object.defineProperty(this, 'wasm', {enumerable: false, configurable: true})
   }
 
-  getBoundClass(type: StructType<WASM>) {
+  getBoundClass<S extends StructType>(type: S): IBoundWasmConstructor<S['boundType']> {
+    type CLS = IBoundWasmConstructor<S['boundType']>
     let cls = this.boundClasses.get(type.name)
     if (cls) {
-      return cls
+      return cls as CLS
     }
 
-    cls = createBoundType(this, this.wasm, type)
+    cls = createBoundType<this>(this, this.wasm, type)
     this.boundClasses.set(type.name, cls)
-    return cls
+    return cls as CLS
   }
 
   getBoundArray(arrayTypeName: string, ptr: pointer) {
@@ -60,7 +61,8 @@ export class BindingManager<
     return new BoundVector(this.wasm, ptr, vecType as StructType, this)
   }
 
-  getBoundPointer(typeName: string, ptr: pointer): number | WasmBase<WASM> | undefined
+  getBoundPointer<K extends keyof AllBoundTypes>(typeName: K, ptr: pointer): AllBoundTypes[K] | undefined
+  getBoundPointer(typeName: string | Binding, ptr: pointer): number | WasmBase<WASM> | undefined
   getBoundPointer(typeName: string | Binding, ptr: pointer) {
     const binding = typeof typeName === 'string' ? this.get(typeName) : typeName
     if (binding === undefined) {
@@ -171,7 +173,7 @@ export class BindingManager<
     return this.types.get(typeName as string) as Binding | undefined
   }
 
-  getStruct<K extends keyof AllBoundTypes>(typeName: K): StructType
+  getStruct<K extends keyof AllBoundTypes>(typeName: K): StructType<WASM, AllBoundTypes[K]>
   getStruct<K extends keyof AllBoundTypes | string>(typeName: K): StructType | undefined {
     const type = this.types.get(typeName as string) as StructType | undefined
     if (type !== undefined && type.type !== BindingType.Struct) {
@@ -201,7 +203,7 @@ export class BindingManager<
     const resultPtr = methodType.invoke(ptr, ...args)
     const returnType = methodType.returnType
 
-    if (returnType === undefined) {
+    if (returnType === undefined || resultPtr === undefined) {
       return undefined
     }
 
@@ -286,3 +288,5 @@ export class BindingManager<
     return files
   }
 }
+
+export type BindingManagerAny = BindingManager<any, any>

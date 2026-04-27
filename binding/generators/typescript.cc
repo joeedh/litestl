@@ -1,3 +1,5 @@
+/** TODO: clean up this rather messy file. */
+
 #include "typescript.h"
 #include "../../path/path.h"
 #include "../binding.h"
@@ -8,10 +10,7 @@
 #include <regex>
 #include <string>
 
-static constexpr const char *header = R"(/** Auto-generated file */
-/* eslint-disable @typescript-eslint/no-misused-new */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-
+static const litestl::util::string basicTSTypeDefs = R"(
 type float = number;
 type pointer<T=any> = number;
 type int = number;
@@ -21,8 +20,12 @@ type short = number;
 type ushort = number;
 type char = number;
 type uchar = number;
-
 )";
+
+static const litestl::util::string header = R"(/** Auto-generated file */
+/* eslint-disable @typescript-eslint/no-misused-new */
+/* eslint-disable @typescript-eslint/no-unused-vars */
+)" + basicTSTypeDefs;
 
 namespace litestl::binding::generators {
 using util::function_ref;
@@ -35,17 +38,23 @@ struct TypescriptType {
   Vector<TypescriptType *> typeParams;
 };
 
+static bool isSpecialStruct(const litestl::util::string s)
+{
+  if (s.starts_with("litestl::util::Vector<")) {
+    return true;
+  }
+  if (s.starts_with("litestl::util::String")) {
+    return true;
+  }
+  return false;
+}
+
 static bool isSpecialStruct(const BindingBase *type)
 {
   using namespace litestl::binding::types;
   if (type->type == BindingType::Struct) {
     const types::Struct<void> *st = static_cast<const types::Struct<void> *>(type);
-    if (st->buildFullName().starts_with("litestl::util::Vector<")) {
-      return true;
-    }
-    if (st->buildFullName().starts_with("litestl::util::String")) {
-      return true;
-    }
+    return isSpecialStruct(st->buildFullName());
   }
   return false;
 }
@@ -195,7 +204,9 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
       addImport = [&formatImport, &addImport](
                       const BindingBase *type, Set<string> &imports, string &filename) {
         if (type->type == BindingType::Struct) {
-          imports.add(formatImport(type, filename));
+          if (!isSpecialStruct(type)) {
+            imports.add(formatImport(type, filename));
+          }
         } else if (type->type == BindingType::Reference) {
           addImport(
               static_cast<const types::Reference *>(type)->refType, imports, filename);
@@ -275,7 +286,7 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
           }
         } else {
           s += isDecl ? param.name : formatType(param.type);
-          if (param.type->type == BindingType::Struct) {
+          if (param.type->type == BindingType::Struct && !isSpecialStruct(param.type)) {
             imports.add(formatImport(param.type, filename));
           }
         }
@@ -292,6 +303,9 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
 
   for (auto type : typeMap.values()) {
     if (type->type != BindingType::Struct) {
+      continue;
+    }
+    if (isSpecialStruct(type)) {
       continue;
     }
     const types::Struct<void> *st = static_cast<const types::Struct<void> *>(type);
@@ -345,13 +359,16 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
         s += pname + ": " + formatType(p.type);
         if (p.type->type == BindingType::Struct) {
           s += formatTemplate(p.type, imports, filename, false);
-          imports.add(formatImport(p.type, filename));
+          if (!isSpecialStruct(p.type)) {
+            imports.add(formatImport(p.type, filename));
+          }
         }
       }
       s += "): ";
       if (m->returnType) {
         s += formatType(m->returnType);
-        if (m->returnType->type == BindingType::Struct) {
+        if (m->returnType->type == BindingType::Struct && !isSpecialStruct(m->returnType))
+        {
           imports.add(formatImport(m->returnType, filename));
         }
       } else {
@@ -375,7 +392,9 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
         s += pname + ": " + formatType(p.type);
         if (p.type->type == BindingType::Struct) {
           s += formatTemplate(p.type, imports, filename, false);
-          imports.add(formatImport(p.type, filename));
+          if (!isSpecialStruct(p.type)) {
+            imports.add(formatImport(p.type, filename));
+          }
         }
       }
       s += "): " + formatType(type) + formatTemplate(type, imports, filename, false) +
@@ -385,6 +404,10 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
 
     string importString = "";
     for (auto &import : imports) {
+      // XXX track down where this happens
+      if (import.contains("[")) {
+        continue;
+      }
       importString += import + "\n";
     }
     s = importString + "\n" + s;
@@ -399,9 +422,13 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
   }
 
   auto buildHelpers = [&classRefs, &escapeString, &classRefImports]() -> string {
-    string helpers = "";
+    string helpers = header + "\n";
     Set<string> importSet;
     Set<string> exportSet;
+
+    classRefs = classRefs.filter([](const ClassRef &ref) -> bool { //
+      return !isSpecialStruct(ref.fullName);
+    });
 
     // build imports
     for (auto &ref : classRefs) {
@@ -420,12 +447,20 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
 
     // imports
     for (auto &str : importSet) {
+      // XXX track down where this happens
+      if (str.contains("[")) {
+        continue;
+      }
       helpers += str + "\n";
     }
 
     // exports
     helpers += "\n";
     for (auto &str : exportSet) {
+      // XXX track down where this happens
+      if (str.contains("[")) {
+        continue;
+      }
       helpers += str + "\n";
     }
 

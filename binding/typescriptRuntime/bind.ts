@@ -10,7 +10,7 @@ import {
 } from './binding'
 import type {INeededWasm} from './wasmInterface'
 import {WasmBase} from './wasmBase'
-import type {BindingManager} from './manager'
+import type {BindingManager, BindingManagerAny} from './manager'
 import {specialGenerators} from './specials'
 
 interface IBoundClass {
@@ -21,6 +21,10 @@ interface IBoundClass {
   manager: BindingManager
   bindType: Binding
   [Symbol.dispose](): void
+}
+
+export interface IBoundWasmConstructor<T> {
+  new (wasm: INeededWasm, ptr: number, manager: BindingManager, bindType: Binding<INeededWasm>): T
 }
 
 class BoundClass extends WasmBase implements IBoundClass {
@@ -132,7 +136,7 @@ export function createBoundCode(
   }
 }
 
-export function createBoundType(manager: BindingManager, wasm: INeededWasm, st: StructType) {
+export function createBoundType<T extends BindingManagerAny>(manager: T, wasm: INeededWasm, st: StructType) {
   const name = st.name.replace(/::/g, '_')
   let s =
     `

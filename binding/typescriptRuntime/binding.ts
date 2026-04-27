@@ -77,7 +77,7 @@ export class EnumBinding<WASM extends INeededWasm = INeededWasm> extends Binding
 
     this._items = new WasmVector(wasm, ptr + o.items, wasm.bindingInfo.Sizes.Enum.EnumItem)
     this.baseSize = wasm.HEAP32[(ptr + o.baseSize) >> wasm.INT32SHIFT]
-    this.isBitMask = wasm.HEAP8[(ptr + o.isBitMask) >> wasm.INT8SHIFT] !== 0
+    this.isBitMask = wasm.HEAP8[ptr + o.isBitMask] !== 0
 
     for (const itemPtr of this._items) {
       const name = readLiteStlString(wasm, itemPtr)
@@ -133,7 +133,13 @@ export interface StructMember {
   offset: number
 }
 
-export class StructType<WASM extends INeededWasm = INeededWasm> extends BindingBase<WASM, BindingType.Struct> {
+export class StructType<WASM extends INeededWasm = INeededWasm, BoundType = any> extends BindingBase<
+  WASM,
+  BindingType.Struct
+> {
+  /** note: type alias, this is never written to or read at runtime */
+  declare boundType: BoundType
+
   _members: WasmVector<WASM>
   members: StructMember[] = []
   _methods: WasmVector<WASM>

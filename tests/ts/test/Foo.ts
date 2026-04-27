@@ -13,7 +13,6 @@ type short = number;
 type ushort = number;
 type char = number;
 type uchar = number;
-
 export interface Foo {
   [Symbol.dispose](): void;
   add(arg0: int, arg1: int): int

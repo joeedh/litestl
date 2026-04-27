@@ -71,24 +71,34 @@ macro(lt_wasm_add_symbols symbols)
 endmacro()
 
 macro(build_wasm_post target src lib symbols)
-  # build final symbol list
-	string(REPLACE " " "" wasmsym "${symbols}")
-	string(REGEX REPLACE "\n\n+" "\n" wasmsym "${wasmsym}")
-	string(STRIP "${wasmsym}" wasmsym)
-	string(REPLACE "\n" ",_"  wasmsym "${wasmsym}")
-	set(wasmsym "_${wasmsym}")
-	message("${target} SYMBOLS1 = ${wasmsym}")
+  block()
+    # build final symbol list
+    string(REPLACE " " "" wasmsym "${symbols}")
+    string(REGEX REPLACE "\n\n+" "\n" wasmsym "${wasmsym}")
+    string(STRIP "${wasmsym}" wasmsym)
+    string(REPLACE "\n" ",_"  wasmsym "${wasmsym}")
+    set(wasmsym "_${wasmsym}")
+    message("${target} SYMBOLS1 = ${wasmsym}")
 
-  target_link_libraries(${target} ${lib})
+    target_link_libraries(${target} ${lib})
+      
+    target_link_options(${target} PRIVATE "-sEXPORT_ES6=1")
+    target_link_options(${target} PRIVATE "-sMODULARIZE=1")
+    target_link_options(${target} PRIVATE "-sEXPORTED_RUNTIME_METHODS=HEAPU8")
     
-  target_link_options(${target} PRIVATE "-sMODULARIZE=1")
-  target_link_options(${target} PRIVATE "-sEXPORTED_RUNTIME_METHODS=HEAPU8")
-  
-  target_link_options(${target} PRIVATE "-sEXPORTED_FUNCTIONS=${wasmsym}")
-  target_link_options(${target} PRIVATE "--bind")  
+    target_link_options(${target} PRIVATE "-sEXPORTED_FUNCTIONS=${wasmsym}")
+    target_link_options(${target} PRIVATE "--bind")  
+  endblock()
 endmacro()
 
 macro(build_wasm target src lib symbols)
   add_executable(${target} "${src}")
+  build_wasm_post(${target} "${src}" "${lib}" "${symbols}")
+endmacro()
+
+macro(build_wasm_browser target src lib symbols)
+  add_executable(${target} "${src}")
+  target_link_options(${target} PRIVATE "-sENVIRONMENT=web")
+  target_link_options(${target} PRIVATE "-sALLOW_MEMORY_GROWTH=1")
   build_wasm_post(${target} "${src}" "${lib}" "${symbols}")
 endmacro()

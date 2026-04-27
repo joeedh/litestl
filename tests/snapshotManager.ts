@@ -1,6 +1,6 @@
 import fs from 'fs'
 import {createPatch} from 'diff'
-import {termColor, termColorMap} from './termColor'
+import {termColor, termColorMap} from './termColor.js'
 
 interface ISnapShot {
   name: string

@@ -5,7 +5,7 @@ export type bool = number
 export type size_t = number
 export type cstring = pointer<number>
 
-interface IWasmBase {
+export interface IWasmBase {
   LSTL_GetBindingInfo(): pointer
   LSTL_FreeBindingInfo(info: pointer): void
   HEAPU8: Uint8Array
@@ -195,6 +195,7 @@ export interface INeededWasm extends IWasmBase {
 export function createWasmViews(wasmBase: IWasmBase) {
   const array = wasmBase.HEAPU8.buffer
   return {
+    HEAP8: new Int8Array(array),
     HEAP16: new Int16Array(array),
     HEAP32: new Int32Array(array),
     HEAP64: new BigInt64Array(array),
@@ -208,7 +209,7 @@ export function createWasmViews(wasmBase: IWasmBase) {
   }
 }
 
-function unprefixWasm(wasmBase: IWasmBase): IWasmBase {
+function unprefixWasm<T extends IWasmBase>(wasmBase: T): T {
   const wasmAny = wasmBase as unknown as any
   for (let k in wasmAny) {
     if (typeof k !== 'string' || k[0] !== '_') {
@@ -220,7 +221,7 @@ function unprefixWasm(wasmBase: IWasmBase): IWasmBase {
   return wasmBase
 }
 
-export function createWasmHelpers(wasmBase: IWasmBase) {
+export function createWasmHelpers<T extends IWasmBase>(wasmBase: T) {
   wasmBase = unprefixWasm(wasmBase)
 
   const wasm = createWasmViews(wasmBase)
@@ -358,7 +359,7 @@ export function createWasmHelpers(wasmBase: IWasmBase) {
       return ptr
     },
     jsString(ptr: pointer) {
-      const data = this.HEAPU8
+      const data = wasm.HEAPU8
       let s = ''
       while (data[ptr]) {
         s += String.fromCharCode(data[ptr])
@@ -384,5 +385,5 @@ export function createWasmHelpers(wasmBase: IWasmBase) {
     SIZET_SIZE: 4,
     SIZET_SHIFT: 2,
     bindingInfo,
-  }
+  } as unknown as T & INeededWasm
 }

@@ -829,6 +829,16 @@ public:
     return *this;
   }
 
+  Vector filter(const std::function<bool(const T &)> &func) {
+    Vector result;
+    for (int i = 0; i < size(); i++) {
+      if (func(data_[i])) {
+        result.append(data_[i]);
+      }
+    }
+    return result;
+  }
+  
 private:
   flatten_inline void deconstruct_all()
   {

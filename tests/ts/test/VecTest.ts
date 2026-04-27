@@ -14,7 +14,6 @@ type short = number;
 type ushort = number;
 type char = number;
 type uchar = number;
-
 export interface VecTest {
   [Symbol.dispose](): void;
   pos: float3[]

@@ -5,6 +5,7 @@
 #include <compare>
 #include <cstring>
 #include <iterator>
+#include <regex>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -503,7 +504,7 @@ public:
     operator+=(String(b.c_str()));
     return *this;
   }
-  
+
   String &operator+=(const Char *b)
   {
     operator+=(String(b));
@@ -632,6 +633,34 @@ public:
   const_iterator end() const
   {
     return const_iterator(this, size_);
+  }
+
+  size_t search(std::regex re) const
+  {
+    std::match_results<const_iterator> m;
+    bool result = std::regex_search(begin(), end(), m, re);
+
+    if (!result) {
+      return -1;
+    }
+
+    return size_t(m[0].first - data_);
+  }
+
+  bool contains(const String &b) const
+  {
+    size_t j = 0;
+    for (size_t i = 0; i < size_t(size_); i++) {
+      if (data_[i] == b[j]) {
+        j++;
+        if (j == b.size()) {
+          return true;
+        }
+      } else {
+        j = 0;
+      }
+    }
+    return false;
   }
 
 private:

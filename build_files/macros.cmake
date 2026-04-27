@@ -78,7 +78,8 @@ macro(build_wasm_post target src lib symbols)
     string(STRIP "${wasmsym}" wasmsym)
     string(REPLACE "\n" ",_"  wasmsym "${wasmsym}")
     set(wasmsym "_${wasmsym}")
-    message("${target} SYMBOLS1 = ${wasmsym}")
+   
+    #message("${target} SYMBOLS1 = ${wasmsym}")
 
     target_link_libraries(${target} ${lib})
       

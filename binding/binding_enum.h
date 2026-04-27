@@ -17,9 +17,10 @@ struct Enum : public BindingBase {
   }
   Enum(const Enum &b) = default;
 
-  void addItem(const string name, int value)
+  template<typename T>
+  void addItem(const string name, T value)
   {
-    items.append({name, value});
+    items.append({name, int(value)});
   }
 
   size_t getSize() const override

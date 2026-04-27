@@ -135,6 +135,7 @@ static void recurse(const BindingBase *type,
     break;
   }
   case BindingType::Array: {
+    typeMap.add(type->name, type);
     recurse(static_cast<const types::Array<void> *>(type)->arrayType, typeMap);
     break;
   }
@@ -144,7 +145,12 @@ static void recurse(const BindingBase *type,
     break;
   }
   case BindingType::Reference: {
+    typeMap.add(type->name, type);
     recurse(static_cast<const types::Reference *>(type)->refType, typeMap);
+    break;
+  }
+  case BindingType::Enum: {
+    typeMap.add(type->name, type);
     break;
   }
   default:
@@ -302,6 +308,15 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
   };
 
   for (auto type : typeMap.values()) {
+    if (type->type == BindingType::Enum) {
+      const types::Enum *enumType = static_cast<const types::Enum *>(type);
+      string s = header;
+      string filename = getFileName(type->name);
+      s += buildEnum(enumType);
+      files->add(filename, s);
+    }
+  }
+  for (auto type : typeMap.values()) {
     if (type->type != BindingType::Struct) {
       continue;
     }
@@ -313,7 +328,6 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
     string s = header;
     string filename = getFileName(type->name);
     Set<string> imports;
-    Set<string> enums;
 
     classRefs.append_once({formatType(type),
                            getModuleName(type->name),
@@ -339,7 +353,7 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
           imports.add(formatImport(member.type, filename));
         }
       } else if (member.type->type == BindingType::Enum) {
-        enums.add(buildEnum(static_cast<const types::Enum *>(member.type)));
+        imports.add(formatImport(member.type, filename));
       }
       s += s2 + "\n";
     }
@@ -362,6 +376,8 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
           if (!isSpecialStruct(p.type)) {
             imports.add(formatImport(p.type, filename));
           }
+        } else if (p.type->type == BindingType::Enum) {
+          imports.add(formatImport(p.type, filename));
         }
       }
       s += "): ";
@@ -395,6 +411,8 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
           if (!isSpecialStruct(p.type)) {
             imports.add(formatImport(p.type, filename));
           }
+        } else if (p.type->type == BindingType::Enum) {
+          imports.add(formatImport(p.type, filename));
         }
       }
       s += "): " + formatType(type) + formatTemplate(type, imports, filename, false) +
@@ -411,12 +429,6 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
       importString += import + "\n";
     }
     s = importString + "\n" + s;
-
-    string enumDeclString = "";
-    for (auto &enumDecl : enums) {
-      enumDeclString += enumDecl + "\n";
-    }
-    s = enumDeclString + "\n" + s;
 
     files->add(filename, s);
   }

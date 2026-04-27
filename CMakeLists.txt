@@ -10,8 +10,6 @@ option(BUILD_WASM "Build wasm library" OFF)
 set(EMSDK_PATH "" CACHE PATH "Path to emsdk")
 set(EMCC_PATH "" CACHE PATH "Path to emcc")
 
-message("BUILD_WASM" ${BUILD_WASM})
-
 enable_testing()
 
 set(CMAKE_OPTIMIZE_DEPENDENCIES true)

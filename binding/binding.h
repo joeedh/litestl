@@ -1,9 +1,9 @@
 #pragma once
 
 #include "binding_base.h"
-#include "binding_constructor.h"
 #include "binding_enum.h"
 #include "binding_literal.h"
+#include "binding_constructor.h"
 #include "binding_method.h"
 #include "binding_number.h"
 #include "binding_struct.h"
@@ -17,6 +17,14 @@
 // XXX vector binding utility, find where to put it other then this file!
 namespace litestl::binding {
 using litestl::util::Vector;
+
+template <std::same_as<void *> T> const BindingBase *Bind()
+{
+  return new types::Number<unsigned char>(sizeof(void *) == 4 ? NumberType::Int32
+                                                              : NumberType::Int64,
+                                          "pointer",
+                                          NumberFlags::Unsigned);
+}
 
 template <typename T>
 concept IsVector = requires(T v) {
@@ -42,3 +50,5 @@ template <std::same_as<litestl::util::string> S> const BindingBase *Bind()
   return st;
 }
 } // namespace litestl::binding
+
+#include "binding_constructor_builder.h"

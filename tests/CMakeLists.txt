@@ -36,7 +36,7 @@ test(test_vector.cc "")
 test(test_shared_ptr.cc "")
 test(test_binding_method.cc "binding")
 test(test_binding_constructor.cc "binding")
-test(test_string "")
+test(test_string.cc "")
 
 include(../build_files/macros.cmake)
 if (BUILD_WASM)

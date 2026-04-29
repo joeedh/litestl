@@ -35,9 +35,9 @@ struct Foo {
 
     using binding::types::Struct;
     Struct<Foo> *st = new Struct<Foo>("test::Foo", sizeof(Foo));
-    BIND_STRUCT_METHOD(st, add);
-    BIND_STRUCT_METHOD(st, sum);
-    BIND_STRUCT_METHOD(st, bump);
+    BIND_STRUCT_METHOD(st, add, MARGS("a", "b"));
+    BIND_STRUCT_METHOD(st, sum, MARGS());
+    BIND_STRUCT_METHOD(st, bump, MARGS("n"));
     return st;
   }
 };

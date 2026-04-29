@@ -14,7 +14,7 @@ struct ParentTemplateParam : public BindingBase {
   }
   ParentTemplateParam(const ParentTemplateParam &b) = default;
 
-  virtual BindingBase *clone() override
+  virtual BindingBase *clone() const override
   {
     return new ParentTemplateParam(*this);
   }

@@ -77,9 +77,9 @@ struct Foo {
 
     BIND_STRUCT_DEFAULT_CONSTRUCTOR(st);
 
-    BIND_STRUCT_METHOD(st, add);
-    BIND_STRUCT_METHOD(st, sum);
-    BIND_STRUCT_METHOD(st, bump);
+    BIND_STRUCT_METHOD(st, add, MARGS("a", "b"));
+    BIND_STRUCT_METHOD(st, sum, MARGS());
+    BIND_STRUCT_METHOD(st, bump, MARGS("n"));
     return st;
   }
 };
@@ -128,7 +128,7 @@ struct VecTest {
     BIND_STRUCT_DEFAULT_CONSTRUCTOR(st);
     BIND_STRUCT_CONSTRUCTOR(st, "main", int, double, float, bool, bool);
 
-    BIND_STRUCT_METHOD(st, print);
+    BIND_STRUCT_METHOD(st, print, MARGS());
 
     BIND_STRUCT_MEMBER(st, pos);
     BIND_STRUCT_MEMBER(st, f);

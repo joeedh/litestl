@@ -48,7 +48,7 @@ struct BindingBase {
   BindingBase(const BindingBase &b) : type(b.type), name(b.name)
   {
   }
-  virtual BindingBase *clone()
+  virtual BindingBase *clone() const
   {
     return nullptr;
   }

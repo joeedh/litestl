@@ -17,8 +17,7 @@ struct Enum : public BindingBase {
   }
   Enum(const Enum &b) = default;
 
-  template<typename T>
-  void addItem(const string name, T value)
+  template <typename T> void addItem(const string name, T value)
   {
     items.append({name, int(value)});
   }
@@ -33,7 +32,7 @@ struct Enum : public BindingBase {
     return name;
   }
 
-  BindingBase *clone() override
+  BindingBase *clone() const override
   {
     return new Enum(*this);
   }

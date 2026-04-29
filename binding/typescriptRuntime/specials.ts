@@ -13,6 +13,19 @@ export interface ISpecialGenerator {
   ): {get: string; set: string; codePre?: string} | undefined
 }
 
+const StringBinding: ISpecialGenerator = {
+  onBind(manager, wasm, type, ptrCode, propKey) {
+    if (type.type !== BindingType.Struct || !type.buildFullName().startsWith('litestl::util::String')) {
+      return
+    }
+    return {
+      get: `this.manager.readLiteStlString(${ptrCode})`,
+      set: '',
+    }
+  }
+
+};
+
 const VectorBinding: ISpecialGenerator = {
   onBind(manager, wasm, type, ptrCode, propKey) {
     if (type.type == BindingType.Struct && type.name.startsWith('litestl::util::Vector')) {
@@ -64,4 +77,4 @@ function _getBoundArray(obj, key, typeName, ptr) {
   },
 }
 
-export const specialGenerators: ISpecialGenerator[] = [VectorBinding, ArrayBinding]
+export const specialGenerators: ISpecialGenerator[] = [StringBinding, VectorBinding, ArrayBinding]

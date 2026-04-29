@@ -1,18 +1,18 @@
 #pragma once
 
+#include "util/alloc.h"
+#include "util/compiler_util.h"
+#include "util/vector.h"
 #include <algorithm>
 #include <atomic>
 #include <compare>
 #include <cstring>
+#include <format>
 #include <iterator>
 #include <regex>
 #include <string>
 #include <string_view>
 #include <utility>
-
-#include "util/alloc.h"
-#include "util/compiler_util.h"
-#include "util/vector.h"
 
 namespace litestl::util {
 // reserve enough space for a guid
@@ -712,3 +712,13 @@ static_assert(std::random_access_iterator<detail::StringIter<const string, const
 // static_assert(std::random_access_iterator<detail::StringIter<const char, const char>>);
 
 } // namespace litestl::util
+
+template <typename T>
+struct std::formatter<litestl::util::String<T>, T> : std::formatter<T> {
+  auto format(litestl::util::String<T> const &s, format_context &ctx) const
+  {
+    auto str = std::basic_string<T>(s.begin(), s.end());
+    const auto formatter = std::formatter<std::basic_string<T>>();
+    return formatter.format(str, ctx);
+  }
+};

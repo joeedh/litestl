@@ -330,7 +330,17 @@ function buildArgs(wasm: INeededWasm, argTypes: ConstructArg[], ...args: unknown
         if (argPtr2 === null || argPtr2 === undefined) {
           argPtr2 = 0
         }
-        wasm.HEAPPTR[argPtr >> wasm.PTRSHIFT] = argPtr2
+        if (type.type === BindingType.Reference) {
+          // note: C++ doesn't allow us to take pointerrs to references
+          // in the binding C++ code, which boils down to us having
+          // to feed the ref ptr directly in the parameter list
+          // here
+          //
+          // see invokeImpl in binding_mesh.h
+          wasm.HEAPPTR[(ptrList >> wasm.PTRSHIFT) + index] = argPtr2
+        } else {
+          wasm.HEAPPTR[argPtr >> wasm.PTRSHIFT] = argPtr2
+        }
       }
     }
     index++
@@ -512,6 +522,10 @@ export function getBinding<WASM extends INeededWasm = INeededWasm>(wasm: WASM, p
       return new MethodType(wasm, ptr)
     case BindingType.Union:
       return new UnionType(wasm, ptr)
+    case BindingType.Pointer:
+      return new PointerType(wasm, ptr)
+    case BindingType.Reference:
+      return new ReferenceType(wasm, ptr)
     case BindingType.ParentTemplateParam:
       return new ParentTemplateParamType(wasm, ptr)
     default:
@@ -608,10 +622,13 @@ abstract class PointerTypeBase<
 export class PointerType<WASM extends INeededWasm = INeededWasm> //
   extends PointerTypeBase<WASM, BindingType.Pointer>
 {
+  isNonNull: boolean
+
   constructor(wasm: WASM, ptr: pointer) {
     super(wasm, ptr)
     const o = wasm.bindingInfo.Offsets.Pointer
-    this.ptrType = getBinding(wasm, ptr + o.ptrType)
+    this.ptrType = getBinding(wasm, wasm.HEAPPTR[(ptr + o.ptrType) >> wasm.PTRSHIFT])
+    this.isNonNull = Boolean(wasm.HEAPU8[ptr + o.isNonNull])
   }
 }
 export class ReferenceType<WASM extends INeededWasm = INeededWasm> //
@@ -620,7 +637,7 @@ export class ReferenceType<WASM extends INeededWasm = INeededWasm> //
   constructor(wasm: WASM, ptr: pointer) {
     super(wasm, ptr)
     const o = wasm.bindingInfo.Offsets.Reference
-    this.ptrType = getBinding(wasm, ptr + o.refType)
+    this.ptrType = getBinding(wasm, wasm.HEAPPTR[(ptr + o.refType) >> wasm.PTRSHIFT])
   }
 }
 

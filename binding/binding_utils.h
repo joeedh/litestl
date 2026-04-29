@@ -8,7 +8,6 @@
 #include "type_traits"
 #include <cstdint>
 
-
 namespace litestl::binding {
 
 template <std::same_as<bool> T> static types::Boolean *Bind()
@@ -22,6 +21,14 @@ static types::Pointer *Bind()
 {
   using P = std::remove_pointer_t<T>;
   return new types::Pointer(Bind<P>());
+}
+
+template <typename T>
+  requires std::is_reference_v<T>
+static types::Reference *Bind()
+{
+  using P = std::remove_reference_t<T>;
+  return new types::Reference(Bind<P>());
 }
 
 } // namespace litestl::binding

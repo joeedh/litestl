@@ -44,7 +44,7 @@ struct NumLitType : public LiteralType {
   {
   }
 
-  virtual BindingBase *clone() override
+  virtual BindingBase *clone() const override
   {
     return static_cast<BindingBase *>(new NumLitType(*this));
   }
@@ -68,7 +68,7 @@ struct BoolLitType : public LiteralType {
   {
   }
 
-  virtual BindingBase *clone() override
+  virtual BindingBase *clone() const override
   {
     return static_cast<BindingBase *>(new BoolLitType(*this));
   }
@@ -90,7 +90,7 @@ struct StrLitType : public LiteralType {
   {
   }
 
-  virtual BindingBase *clone() override
+  virtual BindingBase *clone() const override
   {
     return static_cast<BindingBase *>(new StrLitType(*this));
   }

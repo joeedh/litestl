@@ -55,6 +55,7 @@ struct [[gnu::packed]] WasmOffsets {
   } StrLit;
   struct {
     int ptrType;
+    int isNonNull;
   } Pointer;
   struct {
     int refType;
@@ -181,6 +182,7 @@ BindingInfo *LSTL_GetBindingInfo()
   info->offsets.StrLit.data = offsetof(StrLitType, data);
 
   info->offsets.Pointer.ptrType = offsetof(Pointer, ptrType);
+  info->offsets.Pointer.isNonNull = offsetof(Pointer, isNonNull);
   info->offsets.Reference.refType = offsetof(Reference, refType);
 
   info->offsets.EnumItem.name = offsetof(EnumItem, name);

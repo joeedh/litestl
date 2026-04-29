@@ -12,6 +12,7 @@ set(SRC
   PUBLIC matrix.h
   PUBLIC bspline.h
   PUBLIC mix.h
+  PRIVATE tri_aabb_isect.h
   color.cc
 )
 

@@ -45,7 +45,7 @@ export class BoundArray<T = any, MANAGER extends BindingManager = BindingManager
           boundCache.set(itemPtr, bound)
           return bound
         } else {
-          return this.manager.getBoundPointer(typeFullName, itemPtr)
+          return this.manager.getBoundPointer(type, itemPtr)
         }
       },
     })
@@ -102,7 +102,7 @@ export class BoundVector<T = any, MANAGER extends BindingManager = BindingManage
           boundCache.set(itemPtr, bound)
           return bound
         }
-        return this.manager.getBoundPointer(typeFullName, itemPtr)
+        return this.manager.getBoundPointer(type, itemPtr)
       },
     })
   }

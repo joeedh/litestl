@@ -8,7 +8,7 @@ struct UnionPair {
   string name;
   const _StructBase *type;
   // we use a fixed size value to
-  // prevent template instantiation from 
+  // prevent template instantiation from
   // producing different class layouts.
   char typeValue[8];
 };
@@ -52,7 +52,7 @@ template <typename T> struct Union : public BindingBase {
     return names.join("|");
   }
 
-  BindingBase *clone() override
+  virtual BindingBase *clone() const override
   {
     return new Union(*this);
   }

@@ -5,6 +5,7 @@
 #include "binding_utils.h"
 #include "util/vector.h"
 
+#include <format>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -35,11 +36,68 @@ struct Method : public BindingBase {
         isConst(b.isConst), isStatic(b.isStatic)
   {
   }
+  Method &isNeverNull()
+  {
+    if (returnType->type == BindingType::Pointer) {
+      // I suppose I could just const_cast here...
+      Pointer *p = static_cast<Pointer *>(returnType->clone());
+      delete returnType;
+      p->isNonNull = true;
+      returnType = p;
+    } else {
+      printf("%s", std::format("return type not a pointer in method {}", name).c_str());
+      abort();
+    }
+    return *this;
+  }
+
+  Method &argIsNullable(string argName)
+  {
+    for (auto &param : params) {
+      if (param.name == argName && param.type->type == BindingType::Pointer) {
+        // I suppose I could just const_cast here...
+        Pointer *p = static_cast<Pointer *>(param.type->clone());
+        delete param.type;
+        p->isNonNull = false;
+        param.type = p;
+        return *this;
+      } else if (param.name == argName) {
+        printf("%s",
+               std::format("arg {} not a pointer in method {}", argName, name).c_str());
+        abort();
+      }
+    }
+
+    printf("%s", std::format("arg {} not found in method {}", argName, name).c_str());
+    abort();
+  }
+
+  // we are passing argNames by value here on purpose
+  // to support temporaries (i.e. st->addMethodArgNames("foo", {"a", "b"});
+  template <int N> Method &setArgNames(Vector<const char *, N> argNames)
+  {
+    if (argNames.size() != params.size()) {
+      printf(
+          "%s\n",
+          std::format(
+              "number of argNames ({}) does not match number of args ({}) in method {}",
+              argNames.size(),
+              params.size(),
+              name)
+              .c_str());
+      abort();
+    }
+    for (int i = 0; i < argNames.size(); i++) {
+      params[i].name = argNames[i];
+    }
+    return *this;
+  }
+
   virtual size_t getSize() const override
   {
     return 0;
   }
-  virtual BindingBase *clone() override
+  virtual BindingBase *clone() const override
   {
     return static_cast<BindingBase *>(new Method(*this));
   }
@@ -84,6 +142,15 @@ template <auto Mfp> struct MethodBuilder {
   static void fillParams(Vector<MethodParam> &out)
   {
     fillParamsImpl(out, std::make_index_sequence<arity>{});
+    for (auto &param : out) {
+      // set all pointers to non-null
+      if (param.type->type == BindingType::Pointer) {
+        Pointer *p = static_cast<Pointer *>(param.type->clone());
+        delete param.type;
+        p->isNonNull = true;
+        param.type = p;
+      }
+    }
   }
 
   static void thunk(void *self, void **args, void *ret)
@@ -98,7 +165,9 @@ private:
   template <size_t... I>
   static void fillParamsImpl(Vector<MethodParam> &out, std::index_sequence<I...>)
   {
-    (out.append(MethodParam{string(""), Bind<std::remove_cvref_t<arg_t<I>>>()}), ...);
+    (out.append(MethodParam{string(std::format("arg{}", I + 1).c_str()),
+                            Bind<std::remove_cv_t<arg_t<I>>>()}),
+     ...);
   }
 
   template <size_t... I>
@@ -107,6 +176,8 @@ private:
   {
     (void)args;
     (void)ret;
+    // note: we have to use remove_cvref_t becuase c++ doesn't allow us
+    // to take pointers of references.
     if constexpr (std::is_void_v<return_type>) {
       (self->*Mfp)(*static_cast<std::remove_cvref_t<arg_t<I>> *>(args[I])...);
     } else {
@@ -118,19 +189,16 @@ private:
 
 } // namespace litestl::binding::types
 
-#define BIND_STRUCT_METHOD(def, mname)                                                   \
-  do {                                                                                   \
-    using _BSM_C = std::remove_reference_t<decltype(*(def)->type_null)>;                 \
-    using _BSM_MB = ::litestl::binding::types::MethodBuilder<&_BSM_C::mname>;            \
-    auto *_BSM_m = new ::litestl::binding::types::Method(#mname);                        \
-    _BSM_m->returnType = _BSM_MB::returnType();                                          \
-    _BSM_MB::fillParams(_BSM_m->params);                                                 \
-    _BSM_m->thunk = &_BSM_MB::thunk;                                                     \
-    _BSM_m->isConst = _BSM_MB::is_const;                                                 \
-    (def)->addMethod(_BSM_m);                                                            \
-  } while (0)
+#define MARGS(...) litestl::util::Vector<const char *, 8>({__VA_ARGS__})
+/**
+ * To set argument names, do e.g. BIND_STRUCT_METHOD(st, foo, MARGS("arg1", "arg2"));
+ */
+#define BIND_STRUCT_METHOD(def, mname, ARGNAMES)                                         \
+  def->_addMethod<&std::remove_reference_t<decltype(*(def)->type_null)>::mname>(#mname)  \
+      ->setArgNames(ARGNAMES)
 
-#define BIND_STRUCT_METHOD_SIG(def, mname, RET, ARGS)                                    \
+/** Note: see Struct.setMethodArgNames */
+#define BIND_STRUCT_METHOD_SIG(def, mname, RET, ARGNAMES, ARGS)                          \
   do {                                                                                   \
     using _BSM_C = std::remove_reference_t<decltype(*(def)->type_null)>;                 \
     constexpr auto _BSM_FP = static_cast<RET(_BSM_C::*) ARGS>(&_BSM_C::mname);           \
@@ -141,4 +209,5 @@ private:
     _BSM_m->thunk = &_BSM_MB::thunk;                                                     \
     _BSM_m->isConst = _BSM_MB::is_const;                                                 \
     (def)->addMethod(_BSM_m);                                                            \
+    _BSM_m->setArgNames(ARGNAMES);                                                       \
   } while (0)

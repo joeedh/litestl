@@ -7,11 +7,13 @@ import {
   NumberFlags,
   PointerType,
   ReferenceType,
+  MethodType,
 } from './binding'
 import type {INeededWasm} from './wasmInterface'
 import {WasmBase} from './wasmBase'
 import type {BindingManager, BindingManagerAny} from './manager'
 import {specialGenerators} from './specials'
+import {hashString} from './utils'
 
 interface IBoundClass {
   wasm: INeededWasm
@@ -76,7 +78,7 @@ export function createBoundCode(
     case BindingType.Struct:
       // TODO: Implement struct binding
       return {
-        get: `this.manager.getBoundPointer('${type.name}', ${ptrCode})`,
+        get: `this.manager.getBoundPointer('${type.buildFullName()}', ${ptrCode})`,
         set: `throw new Error("Setting embedded struct values is not supported")`,
       }
     case BindingType.Pointer:
@@ -86,7 +88,7 @@ export function createBoundCode(
           get: `
             !this.wasm.HEAPPTR[${ptrCode} >> ${wasm.PTRSHIFT}] ? 
             undefined : 
-            this.getBoundPointer('${type.ptrType.name}', this.wasm.HEAPPTR[${ptrCode} >> ${wasm.PTRSHIFT}])
+            this.getBoundPointer('${type.ptrType.buildFullName()}', this.wasm.HEAPPTR[${ptrCode} >> ${wasm.PTRSHIFT}])
           `,
           set: `
             this.wasm.HEAPPTR[${ptrCode} >> ${wasm.PTRSHIFT}] = value ? value.ptr : 0;
@@ -144,18 +146,24 @@ class ${name} extends BoundClass {
   bindType = structType; 
 `.trim() + '\n'
 
-  let codePreSet = new Set<string>()
+  const codePreSet = new Set<string>()
 
-  const methodTypeKey = (s2: string) => `__${s2}Type`
+  const methodTypeKey = (m: MethodType) => {
+    let key = `__${m.name}Type`
+
+    key += hashString(m.methodArgs.map((arg) => arg.name).join(',')).toString(16)
+
+    return key
+  }
   let index = 0
 
   for (const method of st.methods) {
     const args = method.methodArgs.map((arg) => arg.name)
 
-    codePreSet.add(`const ${methodTypeKey(method.name)} = structType.methods[${index}]`)
+    codePreSet.add(`const ${methodTypeKey(method)} = structType.methods[${index}]`)
     s += `
   ${method.name}(${args.join(', ')}) {
-    return this.manager.invokeMethod(this, structType, ${methodTypeKey(method.name)}, ${args.join(', ')});
+    return this.manager.invokeMethod(this, structType, ${methodTypeKey(method)}, ${args.join(', ')});
   }
     `
     index++
@@ -198,5 +206,14 @@ class ${name} extends BoundClass {
   })
   `
 
-  return (0, eval)(s)(BoundClass, st)
+  try {
+    return (0, eval)(s)(BoundClass, st)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } catch (error: any) {
+    console.log(s)
+    console.log(error.stack)
+    console.log(error.message)
+    console.log('complication failed')
+    throw error
+  }
 }

@@ -41,7 +41,7 @@ template <typename Key, int static_size = 4> struct OrderedSet {
     {
       i_++;
 
-      while (i_ < set_->idx_to_val_.size() && !set_->freemap_[i_]) {
+      while (i_ < set_->idx_to_val_.size() && set_->freemap_[i_]) {
         i_++;
       }
 

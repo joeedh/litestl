@@ -5,6 +5,7 @@
 #include "binding_types.h"
 #include "util/vector.h"
 #include <functional>
+#include <type_traits>
 
 namespace litestl::binding::types {
 using util::Vector;
@@ -24,8 +25,8 @@ struct StructMember {
 
 struct _StructBase : public BindingBase {
   Vector<StructMember> members;
-  Vector<const Method *> methods;
-  Vector<const Constructor *> constructors;
+  Vector<Method *> methods;
+  Vector<Constructor *> constructors;
   Vector<StructTemplate> templateParams;
 
   size_t structSize;
@@ -119,7 +120,7 @@ template <typename CLS> struct Struct : public _StructBase {
     }
   }
 
-  virtual BindingBase *clone() override
+  virtual BindingBase *clone() const override
   {
     return static_cast<BindingBase *>(new Struct(*this));
   }
@@ -128,11 +129,27 @@ template <typename CLS> struct Struct : public _StructBase {
     members.append({name, offset, type});
     return type;
   }
-  void addMethod(const Method *m)
+  void addMethod(Method *m)
   {
     methods.append(m);
   }
-  void addConstructor(const Constructor *c)
+
+  // used by BIND_STRUCT_METHOD macro
+  template <auto Mfg> Method *_addMethod(const char *mname)
+  {
+    auto *method = new ::litestl::binding::types::Method(mname);
+    using Builder = MethodBuilder<Mfg>;
+
+    method->returnType = Builder::returnType();
+    Builder::fillParams(method->params);
+    method->thunk = &Builder::thunk;
+    method->isConst = Builder::is_const;
+
+    addMethod(method);
+
+    return method;
+  }
+  void addConstructor(Constructor *c)
   {
     constructors.append(c);
   }
@@ -148,6 +165,7 @@ namespace litestl::binding {
 template <typename CLS>
 concept ClassBindingReq = requires(types::Struct<CLS> *def) {
   { CLS::defineBindings() } -> std::convertible_to<const types::Struct<CLS> *>;
+  std::is_reference_v<CLS> == false;
 };
 
 template <typename CLS>
@@ -163,4 +181,3 @@ const BindingBase *Bind()
            offsetof(std::remove_reference_t<decltype(*def->type_null)>, field),          \
            binding::Bind<                                                                \
                decltype(std::remove_reference_t<decltype(*def->type_null)>::field)>())
-

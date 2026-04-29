@@ -11,9 +11,12 @@ import {
   MethodType,
   NumberSubtype,
   NumberFlags,
+  PointerType,
+  ReferenceType,
 } from './binding'
 import {createBoundType, IBoundWasmConstructor} from './bind'
 import {BoundArray, BoundVector} from './boundVector'
+import { readLiteStlString } from './string';
 
 export class NotStructError extends Error {}
 export class UnknownTypeError extends Error {}
@@ -213,7 +216,7 @@ export class BindingManager<
   invokeMethod(instance: WasmBase<WASM>, structType: StructType, methodType: MethodType, ...args: any[]) {
     const ptr = instance.ptr
     const resultPtr = methodType.invoke(ptr, ...args)
-    const returnType = methodType.returnType
+    let returnType = methodType.returnType
 
     if (returnType === undefined || resultPtr === undefined) {
       return undefined
@@ -241,6 +244,10 @@ export class BindingManager<
     wasm.memRelease(instance.ptr)
   }
 
+  readLiteStlString(ptr: pointer) {
+    return readLiteStlString(this.wasm, ptr)
+  }
+  
   load() {
     const wasm = this.wasm
     const keysPtr = wasm.LSTL_Binding_GetKeys(this.ptr)

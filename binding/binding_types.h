@@ -13,11 +13,11 @@ struct Boolean : public BindingBase {
   {
     //
   }
-  virtual BindingBase *clone()
+  virtual BindingBase *clone() const override
   {
     return static_cast<BindingBase *>(new Boolean(*this));
   }
-  virtual size_t getSize() const
+  virtual size_t getSize() const override
   {
     return sizeof(bool);
   }
@@ -38,11 +38,11 @@ template <typename T> struct Number : public BindingBase {
     //
   }
 
-  virtual BindingBase *clone()
+  virtual BindingBase *clone() const override
   {
     return static_cast<BindingBase *>(new Number(*this));
   }
-  virtual size_t getSize() const
+  virtual size_t getSize() const override
   {
     switch (subtype) {
     case NumberType::Int8:
@@ -74,7 +74,7 @@ template <typename T> struct Array : public BindingBase {
   Array(const Array &b) : BindingBase(b), arrayType(b.arrayType), arraySize(b.arraySize)
   {
   }
-  virtual BindingBase *clone() override
+  virtual BindingBase *clone() const override
   {
     return static_cast<BindingBase *>(new Array(*this));
   }
@@ -90,22 +90,28 @@ template <typename T> struct Array : public BindingBase {
 
 struct Pointer : public BindingBase {
   const BindingBase *ptrType;
+  bool isNonNull = false;
+
   Pointer(const BindingBase *ptrType, string name = "pointer")
       : ptrType(ptrType), BindingBase(BindingType::Pointer, name)
   {
     //
   }
-  Pointer(const Pointer &p) : BindingBase(p), ptrType(p.ptrType)
+
+  Pointer(const Pointer &b) : BindingBase(b), ptrType(b.ptrType), isNonNull(b.isNonNull)
   {
     //
   }
-  virtual BindingBase *clone()
+  virtual BindingBase *clone() const override
   {
     return static_cast<BindingBase *>(new Pointer(*this));
   }
-  virtual size_t getSize() const
+  virtual size_t getSize() const override
   {
     return sizeof(void *);
+  }
+  virtual string buildFullName() const override {
+    return ptrType->buildFullName() + "*";
   }
 };
 
@@ -120,13 +126,16 @@ struct Reference : public BindingBase {
   {
     //
   }
-  virtual BindingBase *clone()
+  virtual BindingBase *clone() const override
   {
     return static_cast<BindingBase *>(new Reference(*this));
   }
-  virtual size_t getSize() const
+  virtual size_t getSize() const override
   {
     return sizeof(void *);
+  }
+  virtual string buildFullName() const override {
+    return refType->buildFullName() + "&";
   }
 };
 

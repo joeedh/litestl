@@ -59,9 +59,19 @@ static bool isSpecialStruct(const BindingBase *type)
   return false;
 }
 
+// XXX this file needs to be refactored into a class (instead of a large series of lambda
+// an utility functions)
 static string formatType(const BindingBase *type, bool addTemplateSuffix = false)
 {
   using namespace litestl::binding::types;
+  if (type->type == BindingType::Pointer) {
+    string s = formatType(static_cast<const Pointer *>(type)->ptrType, addTemplateSuffix);
+    if (!static_cast<const Pointer *>(type)->isNonNull) {
+      s += " | undefined";
+    }
+    return s;
+  }
+
   if (type->type == BindingType::Struct) {
     const types::Struct<void> *st = static_cast<const types::Struct<void> *>(type);
     if (st->buildFullName().starts_with("litestl::util::Vector<")) {

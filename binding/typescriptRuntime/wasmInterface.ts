@@ -70,6 +70,7 @@ export interface IBindingInfo {
     }
     Pointer: {
       ptrType: number
+      isNonNull: number
     }
     Reference: {
       refType: number
@@ -303,7 +304,8 @@ export function createWasmHelpers<T extends IWasmBase>(wasmBase: T) {
       data: data[i++],
     },
     Pointer: {
-      ptrType: data[i++],
+      ptrType  : data[i++],
+      isNonNull: data[i++],
     },
     Reference: {
       refType: data[i++],

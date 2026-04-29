@@ -92,6 +92,10 @@ struct [[gnu::packed]] WasmOffsets {
     int type;
     int typeValue;
   } UnionPair;
+  struct {
+    int templParamName;
+    int parentDepth;
+  } ParentTemplateParam;
 };
 
 struct [[gnu::packed]] TypeSizes {
@@ -126,6 +130,9 @@ struct [[gnu::packed]] TypeSizes {
     int UnionPair;
     int typeValue;
   } Union;
+  struct {
+    int ParentTemplateParam;
+  } ParentTemplateParam;
 };
 
 struct BindingInfo {
@@ -200,6 +207,11 @@ BindingInfo *LSTL_GetBindingInfo()
   info->offsets.UnionPair.type = offsetof(UnionPair, type);
   info->offsets.UnionPair.typeValue = offsetof(UnionPair, typeValue);
 
+  info->offsets.ParentTemplateParam.templParamName =
+      offsetof(ParentTemplateParam, templParamName);
+  info->offsets.ParentTemplateParam.parentDepth =
+      offsetof(ParentTemplateParam, parentDepth);
+
   info->sizes.Struct.StructMember = sizeof(StructMember);
   info->sizes.Struct.StructBase = sizeof(_StructBase);
   info->sizes.Struct.TemplateParam = sizeof(StructTemplate);
@@ -224,6 +236,8 @@ BindingInfo *LSTL_GetBindingInfo()
   info->sizes.Union.UnionPair = sizeof(UnionPair);
   info->sizes.Union.typeValue = sizeof(UnionPair::typeValue);
 
+  info->sizes.ParentTemplateParam.ParentTemplateParam = sizeof(ParentTemplateParam);
+
   return info;
 }
 void LSTL_FreeBindingInfo(BindingInfo *info)
@@ -238,8 +252,8 @@ extern "C" {
 const char *LSTL_Binding_GetKeys(BindingManager *m)
 {
   string s = "";
-  for (auto &key : m->bindings.keys()) {
-    s += key + "|";
+  for (auto &key : m->getBindings().keys()) {
+    s += key + "\\";
   }
 
   char *r = static_cast<char *>(alloc::alloc("LSTL_Binding_GetKeys", s.size() + 1));
@@ -253,8 +267,8 @@ void LSTL_Binding_FreeKeys(const char *keys)
 }
 const BindingBase *LSTL_Binding_Get(BindingManager *m, const char *key)
 {
-  if (m->bindings.contains(key)) {
-    return m->bindings[key];
+  if (m->getBindings().contains(key)) {
+    return m->getBindings().lookup(key);
   }
   return nullptr;
 }
@@ -362,7 +376,7 @@ int LSTL_GetBindTypeSize(BindingBase *b)
 unsigned char *LSTL_GenerateTypescript(BindingManager *manager, int *size_out)
 {
   util::Vector<const BindingBase *> types;
-  for (auto *type : manager->bindings.values()) {
+  for (auto *type : manager->getBindings().values()) {
     types.append(type);
   }
   int count = 0;

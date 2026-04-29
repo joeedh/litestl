@@ -123,9 +123,10 @@ template <typename CLS> struct Struct : public _StructBase {
   {
     return static_cast<BindingBase *>(new Struct(*this));
   }
-  void add(string name, size_t offset, const BindingBase *type)
+  const BindingBase *add(string name, size_t offset, const BindingBase *type)
   {
     members.append({name, offset, type});
+    return type;
   }
   void addMethod(const Method *m)
   {
@@ -162,3 +163,4 @@ const BindingBase *Bind()
            offsetof(std::remove_reference_t<decltype(*def->type_null)>, field),          \
            binding::Bind<                                                                \
                decltype(std::remove_reference_t<decltype(*def->type_null)>::field)>())
+

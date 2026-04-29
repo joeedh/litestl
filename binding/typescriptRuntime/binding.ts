@@ -14,6 +14,8 @@ export enum BindingType {
   Literal = 1 << 7, //128
   Constructor = 1 << 8, //256
   Enum = 1 << 9, //512
+  Union = 1 << 10, //1024
+  ParentTemplateParam = 1 << 11, //2048
 }
 
 export enum NumberSubtype {
@@ -65,7 +67,23 @@ export class BindingBase<
   }
 }
 
-export class EnumBinding<WASM extends INeededWasm = INeededWasm> extends BindingBase<WASM, BindingType.Enum> {
+/** Represents a template parameter of a nested struct that's inherited from a parent. */
+export class ParentTemplateParamType<WASM extends INeededWasm = INeededWasm> extends BindingBase<
+  WASM,
+  BindingType.ParentTemplateParam
+> {
+  templParamName: string
+  /** how far up the parent template is in the type hierarchy, almost always 0 (first parent) */
+  parentDepth: number
+
+  constructor(wasm: WASM, ptr: pointer) {
+    super(wasm, ptr)
+    this.templParamName = readLiteStlString(wasm, ptr + wasm.bindingInfo.Offsets.ParentTemplateParam.templParamName)
+    this.parentDepth = wasm.HEAP32[(ptr + wasm.bindingInfo.Offsets.ParentTemplateParam.parentDepth) >> wasm.INT32SHIFT]
+  }
+}
+
+export class EnumType<WASM extends INeededWasm = INeededWasm> extends BindingBase<WASM, BindingType.Enum> {
   _items: WasmVector<WASM>
   items = new Map<string, number | bigint>()
   baseSize: number
@@ -258,7 +276,7 @@ function buildArgs(wasm: INeededWasm, argTypes: ConstructArg[], ...args: unknown
   const ptrList = wasm.memAlloc(wasm.cstring('constructor arguments'), wasm.PTRSIZE * argTypes.length)
   const ptrs = [] as pointer[]
 
-  let heap = wasm.HEAPU8
+  const heap = wasm.HEAPU8
   let index = 0
   for (const {name, type} of argTypes) {
     // XXX calc size properly
@@ -489,14 +507,93 @@ export function getBinding<WASM extends INeededWasm = INeededWasm>(wasm: WASM, p
       }
     }
     case BindingType.Enum:
-      return new EnumBinding(wasm, ptr)
+      return new EnumType(wasm, ptr)
     case BindingType.Method:
       return new MethodType(wasm, ptr)
+    case BindingType.Union:
+      return new UnionType(wasm, ptr)
+    case BindingType.ParentTemplateParam:
+      return new ParentTemplateParamType(wasm, ptr)
     default:
       return new BindingBase(wasm, ptr)
   }
 }
 
+interface IUnionStruct {
+  name: string
+  struct: StructType
+  typeValue: any
+}
+
+export class UnionType<WASM extends INeededWasm> extends BindingBase<WASM, BindingType.Union> {
+  _structs: WasmVector<WASM>
+  structs: IUnionStruct[] = []
+  /** Disambiguation property name. */
+  disPropName: string
+  disPropType: Binding<WASM>
+
+  constructor(wasm: WASM, ptr: pointer) {
+    super(wasm, ptr)
+
+    const o = wasm.bindingInfo.Offsets.Union
+    const sz = wasm.bindingInfo.Sizes.Union
+
+    this.disPropName = readLiteStlString(wasm, ptr + o.disPropName)
+    this.disPropType = getBinding(wasm, wasm.HEAPPTR[(ptr + o.disPropType) >> wasm.PTRSHIFT]) as Binding<WASM>
+
+    this._structs = new WasmVector(wasm, ptr + o.structs, sz.UnionPair)
+    for (const sPtr of this._structs) {
+      const name = readLiteStlString(wasm, sPtr + wasm.bindingInfo.Offsets.UnionPair.name)
+      const structPtr = sPtr + wasm.bindingInfo.Offsets.UnionPair.type
+      const struct = getBinding(wasm, wasm.HEAPPTR[structPtr >> wasm.PTRSHIFT]) as StructType<WASM>
+
+      let typeValue: any | undefined
+      const typePtr = sPtr + wasm.bindingInfo.Offsets.UnionPair.typeValue
+
+      const disPropType = this.disPropType
+      switch (disPropType.type) {
+        case BindingType.Boolean:
+          typeValue = wasm.HEAPU8[typePtr]
+          break
+        case BindingType.Number:
+          typeValue = wasm.getNumHeap(disPropType.subtype, Boolean(disPropType.flags & NumberFlags.Unsigned))[
+            typePtr >> wasm.getNumShift(disPropType.subtype)
+          ]
+          break
+        case BindingType.Enum:
+          let numType: number
+          switch (disPropType.baseSize) {
+            case 1:
+              numType = NumberSubtype.Int8
+              break
+            case 2:
+              numType = NumberSubtype.Int16
+              break
+            case 4:
+              numType = NumberSubtype.Int32
+              break
+            case 8:
+              numType = NumberSubtype.Int64
+              break
+            default:
+              throw new Error('unknown enum base size ' + disPropType.baseSize)
+          }
+          typeValue = wasm.getNumHeap(numType, false)[typePtr >> wasm.getNumShift(numType)]
+          break
+        case BindingType.Struct:
+          if (disPropType.name.startsWith('litestl::util::string')) {
+            typeValue = readLiteStlString(wasm, typePtr)
+          }
+          break
+      }
+
+      if (typeValue === undefined) {
+        throw new Error('could not load discriminated union property of type ' + BindingType[disPropType.type])
+      }
+      this.structs.push({name, struct, typeValue})
+    }
+  }
+}
 abstract class PointerTypeBase<
   WASM extends INeededWasm = INeededWasm,
   TYPE extends BindingType = BindingType,
@@ -538,3 +635,5 @@ export type Binding<WASM extends INeededWasm = INeededWasm> =
   | StrLitType<WASM>
   | PointerType<WASM>
   | ReferenceType<WASM>
+  | UnionType<WASM>
+  | EnumType<WASM>

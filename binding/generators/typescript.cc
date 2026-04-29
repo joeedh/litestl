@@ -59,14 +59,14 @@ static bool isSpecialStruct(const BindingBase *type)
   return false;
 }
 
-static string formatType(const BindingBase *type)
+static string formatType(const BindingBase *type, bool addTemplateSuffix = false)
 {
   using namespace litestl::binding::types;
   if (type->type == BindingType::Struct) {
     const types::Struct<void> *st = static_cast<const types::Struct<void> *>(type);
     if (st->buildFullName().starts_with("litestl::util::Vector<")) {
       // We have special support for Vectors
-      return formatType(st->templateParams[0].type) + "[]";
+      return formatType(st->templateParams[0].type, true) + "[]";
     }
     if (st->buildFullName().starts_with("litestl::util::String")) {
       // We have special support for Strings
@@ -75,9 +75,16 @@ static string formatType(const BindingBase *type)
   }
   if (type->type == BindingType::Array) {
     const Array<BindingBase> *array = static_cast<const Array<BindingBase> *>(type);
-    return string(formatType(array->arrayType)) + "[]";
+    return string(formatType(array->arrayType, true)) + "[]";
+  }
+  if (type->type == BindingType::Union) {
+    /* TODO: emit a proper discriminated union of the constituent struct types. */
+    return "unknown";
   }
   std::string filename = type->name.c_str();
+  if (addTemplateSuffix && type->type == BindingType::Struct) {
+    filename = static_cast<const _StructBase *>(type)->buildFullName();
+  }
   int i = filename.find_last_of(':');
   if (i >= 0) {
     return string(filename.substr(i + 1, filename.size() - i - 1).c_str());
@@ -153,6 +160,15 @@ static void recurse(const BindingBase *type,
     typeMap.add(type->name, type);
     break;
   }
+  case BindingType::Union: {
+    const types::Union<int> *u = static_cast<const types::Union<int> *>(type);
+    typeMap.add(type->name, type);
+    recurse(u->disPropType, typeMap);
+    for (auto &pair : u->structs) {
+      recurse(pair.type, typeMap);
+    }
+    break;
+  }
   default:
     break;
   }
@@ -173,14 +189,18 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
   struct ClassRef {
     string name;
     string modulePath;
-    /** full name including namespace */
+    /** full name including namespace (C++-style — used as unique key) */
     string fullName;
+    /** TS-formatted template suffix (e.g. `<float3,"positions">`), empty for
+     * non-templates */
+    string tsTemplateSuffix;
     bool isTemplate;
 
     bool operator==(const ClassRef &other) const
     {
       return name == other.name && modulePath == other.modulePath &&
-             isTemplate == other.isTemplate && fullName == other.fullName;
+             isTemplate == other.isTemplate && fullName == other.fullName &&
+             tsTemplateSuffix == other.tsTemplateSuffix;
     }
   };
   Set<string> classRefImports;
@@ -331,7 +351,8 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
 
     classRefs.append_once({formatType(type),
                            getModuleName(type->name),
-                           type->name,
+                           st->buildFullName(),
+                           formatTemplate(type, classRefImports, classRefFilename, false),
                            st->templateParams.size() > 0});
 
     s += string("export interface ") + formatType(type) +
@@ -343,8 +364,8 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
         classRefs.append_once(
             {formatType(member.type),
              getModuleName(member.type->name),
-             member.type->name +
-                 formatTemplate(member.type, classRefImports, classRefFilename, false),
+             member.type->buildFullName(),
+             formatTemplate(member.type, classRefImports, classRefFilename, false),
              false});
 
         s2 += formatTemplate(member.type, imports, filename, false);
@@ -480,18 +501,8 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
     helpers += "export type AllBoundTypes = {\n";
     for (auto &ref : classRefs) {
       if (!ref.isTemplate) {
-        helpers += "  \"" + escapeString(ref.fullName) + "\": " + ref.name;
-
-        // append template parameters as ts generics if they exist
-        string test = "<";
-        int i = std::find_first_of(
-                    ref.fullName.begin(), ref.fullName.end(), test.begin(), test.end())
-                    .i;
-
-        if (i >= 0 && i < ref.fullName.size()) {
-          helpers += ref.fullName.substr(i);
-        }
-        helpers += ",\n";
+        helpers += "  \"" + escapeString(ref.fullName) + "\": " + ref.name +
+                   ref.tsTemplateSuffix + ",\n";
       }
     }
     helpers += "};\n";

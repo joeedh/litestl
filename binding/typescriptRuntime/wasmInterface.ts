@@ -1,3 +1,5 @@
+import {NumberSubtype} from './binding'
+
 export type pointer<T = any> = number
 export type int = number
 export type float = number
@@ -105,6 +107,10 @@ export interface IBindingInfo {
       type: number
       typeValue: number
     }
+    ParentTemplateParam: {
+      templParamName: number
+      parentDepth: number
+    }
   }
   Sizes: {
     Struct: {
@@ -137,6 +143,9 @@ export interface IBindingInfo {
       Union: number
       UnionPair: number
       typeValue: number
+    }
+    ParentTemplateParam: {
+      ParentTemplateParam: number
     }
   }
 }
@@ -205,6 +214,9 @@ export interface INeededWasm extends IWasmBase {
   F64SHIFT: number
   SIZET_SIZE: number
   SIZET_SHIFT: number
+
+  getNumHeap(num: NumberSubtype, unsigned: boolean): ArrayLike<number>
+  getNumShift(num: NumberSubtype): number
 }
 
 export function createWasmViews(wasmBase: IWasmBase) {
@@ -329,6 +341,10 @@ export function createWasmHelpers<T extends IWasmBase>(wasmBase: T) {
       type     : data[i++],
       typeValue: data[i++],
     },
+    ParentTemplateParam: {
+      templParamName: data[i++],
+      parentDepth   : data[i++],
+    },
   }
 
   const Sizes = {
@@ -363,6 +379,9 @@ export function createWasmHelpers<T extends IWasmBase>(wasmBase: T) {
       UnionPair: data[i++],
       typeValue: data[i++],
     },
+    ParentTemplateParam: {
+      ParentTemplateParam: data[i++],
+    },
   }
 
   const bindingInfo: IBindingInfo = {Offsets, Sizes}
@@ -396,6 +415,40 @@ export function createWasmHelpers<T extends IWasmBase>(wasmBase: T) {
         ptr++
       }
       return s
+    },
+    getNumHeap(num: NumberSubtype, unsigned: boolean): ArrayLike<number> | BigUint64Array | BigInt64Array {
+      switch (num) {
+        case NumberSubtype.Int8:
+          return unsigned ? wasm.HEAPU8 : wasm.HEAP8
+        case NumberSubtype.Int16:
+          return unsigned ? wasm.HEAPU16 : wasm.HEAP16
+        case NumberSubtype.Int32:
+          return unsigned ? wasm.HEAPU32 : wasm.HEAP32
+        case NumberSubtype.Int64:
+          return unsigned ? wasm.HEAPU64 : wasm.HEAP64
+        case NumberSubtype.Float32:
+          return wasm.HEAPF32
+        case NumberSubtype.Float64:
+          return wasm.HEAPF64
+      }
+      throw new Error('unknown number type ' + num)
+    },
+    getNumShift(num: NumberSubtype) {
+      switch (num) {
+        case NumberSubtype.Int8:
+          return 0
+        case NumberSubtype.Int16:
+          return 1
+        case NumberSubtype.Int32:
+          return 2
+        case NumberSubtype.Int64:
+          return 3
+        case NumberSubtype.Float32:
+          return 2
+        case NumberSubtype.Float64:
+          return 3
+      }
+      throw new Error('unknown number type ' + num)
     },
     HEAPPTR    : wasm.HEAPU32,
     INT8SIZE   : 1,

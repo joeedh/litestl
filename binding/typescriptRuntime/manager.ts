@@ -104,6 +104,18 @@ export class BindingManager<
         const cls = this.getBoundClass(this.get(name) as StructType<WASM>) as any
         return new cls(this.wasm, ptr, this)
       }
+      case BindingType.Pointer:
+      case BindingType.Reference: {
+        const indirect = wasm.HEAPPTR[ptr >> wasm.PTRSHIFT]
+        if (!indirect) {
+          return undefined
+        }
+        const inner = (binding as any).ptrType as Binding | undefined
+        if (inner === undefined) {
+          return indirect
+        }
+        return this.getBoundPointer(inner, indirect)
+      }
     }
 
     throw new Error('unknown binding type in getBoundPointer: ' + binding.type)
@@ -236,10 +248,13 @@ export class BindingManager<
 
     wasm.LSTL_Binding_FreeKeys(keysPtr)
 
-    const types = keys.split('|').filter((k) => k.length > 0)
-
+    const types = keys.split('\\').filter((k) => k.length > 0)
+    console.log(types)
     for (const key of types) {
       const ptr = wasm.LSTL_Binding_Get(this.ptr, wasm.cstring(key))
+      if (ptr === 0) {
+        throw new Error(`binding ${key} not found`)
+      }
       const type = getBinding(wasm, ptr)
       this.types.set(key, type)
     }

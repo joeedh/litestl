@@ -7,12 +7,14 @@
 
 namespace litestl::binding {
 struct BindingManager {
-  litestl::util::Map<litestl::util::string, const BindingBase *> bindings;
-  void add(const BindingBase *binding) {
+  using binding_map = litestl::util::Map<litestl::util::string, const BindingBase *>;
+
+  void add(const BindingBase *binding)
+  {
     if (bindings.contains(binding->name)) {
       return;
     }
-    
+
     bindings.add(binding->buildFullName(), binding);
 
     if (binding->type == BindingType::Struct) {
@@ -35,6 +37,9 @@ struct BindingManager {
       }
     }
   }
+
+  const binding_map &getBindings() const { return bindings; }
+private:
+  binding_map bindings;
 };
 } // namespace litestl::binding
-

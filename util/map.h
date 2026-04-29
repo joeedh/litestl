@@ -393,14 +393,14 @@ public:
   }
 
   /** Returns true if @p key is present in the map. */
-  bool contains(const Key &key)
+  bool contains(const Key &key) const
   {
-    int i = find_pair<true, false>(key);
+    int i = const_cast<Map *>(this)->find_pair<true, false>(key);
     return i != -1;
   }
-  bool contains(const Key &&key)
+  bool contains(const Key &&key) const
   {
-    int i = find_pair<true, false>(key);
+    int i = const_cast<Map *>(this)->find_pair<true, false>(key);
     return i != -1;
   }
 
@@ -490,6 +490,12 @@ public:
   Value &lookup(const Key &key)
   {
     int i = find_pair<true, false>(key);
+    return table_[i].value;
+  }
+  
+  const Value &lookup(const Key &key) const
+  {
+    int i = const_cast<Map *>(this)->find_pair<true, false>(key);
     return table_[i].value;
   }
 

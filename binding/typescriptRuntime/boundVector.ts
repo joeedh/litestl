@@ -72,12 +72,19 @@ export class BoundVector<T = any, MANAGER extends BindingManager = BindingManage
 
     const boundCache = new Map<number, T>()
     const typeFullName = type.buildFullName()
-    const elemSize = type.size
 
     return new Proxy(this, {
       get: (target, prop) => {
         if (prop === 'length') {
           return _vec.length
+        }
+        if (prop === Symbol.iterator) {
+          const len = _vec.length
+          return function* () {
+            for (let i = 0; i < len; i++) {
+              yield (target as any)[i]
+            }
+          }
         }
         const i = parseInt(prop as string)
         if (isNaN(i)) {
@@ -95,6 +102,7 @@ export class BoundVector<T = any, MANAGER extends BindingManager = BindingManage
           boundCache.set(itemPtr, bound)
           return bound
         }
+        return this.manager.getBoundPointer(typeFullName, itemPtr)
       },
     })
   }

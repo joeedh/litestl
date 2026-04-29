@@ -82,6 +82,16 @@ struct [[gnu::packed]] WasmOffsets {
     int name;
     int type;
   } MethodParam;
+  struct {
+    int structs;
+    int disPropName;
+    int disPropType;
+  } Union;
+  struct UnionPair {
+    int name;
+    int type;
+    int typeValue;
+  } UnionPair;
 };
 
 struct [[gnu::packed]] TypeSizes {
@@ -111,6 +121,11 @@ struct [[gnu::packed]] TypeSizes {
     int Method;
     int MethodParam;
   } Method;
+  struct {
+    int Union;
+    int UnionPair;
+    int typeValue;
+  } Union;
 };
 
 struct BindingInfo {
@@ -178,6 +193,13 @@ BindingInfo *LSTL_GetBindingInfo()
   info->offsets.MethodParam.name = offsetof(MethodParam, name);
   info->offsets.MethodParam.type = offsetof(MethodParam, type);
 
+  info->offsets.Union.structs = offsetof(Union<int>, structs);
+  info->offsets.Union.disPropName = offsetof(Union<int>, disPropName);
+  info->offsets.Union.disPropType = offsetof(Union<int>, disPropType);
+  info->offsets.UnionPair.name = offsetof(UnionPair, name);
+  info->offsets.UnionPair.type = offsetof(UnionPair, type);
+  info->offsets.UnionPair.typeValue = offsetof(UnionPair, typeValue);
+
   info->sizes.Struct.StructMember = sizeof(StructMember);
   info->sizes.Struct.StructBase = sizeof(_StructBase);
   info->sizes.Struct.TemplateParam = sizeof(StructTemplate);
@@ -197,6 +219,10 @@ BindingInfo *LSTL_GetBindingInfo()
 
   info->sizes.Method.MethodParam = sizeof(MethodParam);
   info->sizes.Method.Method = sizeof(Method);
+
+  info->sizes.Union.Union = sizeof(Union<int>);
+  info->sizes.Union.UnionPair = sizeof(UnionPair);
+  info->sizes.Union.typeValue = sizeof(UnionPair::typeValue);
 
   return info;
 }
@@ -392,7 +418,7 @@ const char *LSTL_Binding_GetFullName(const BindingBase *type)
 {
   string s = type->buildFullName();
   char *s2 = static_cast<char *>(alloc::alloc("LSTL_Binding_GetFullName", s.size() + 1));
- 
+
   memcpy(s2, s.c_str(), s.size());
   // explicitly null-terminate
   s2[s.size()] = 0;

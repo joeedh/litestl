@@ -17,6 +17,7 @@ enum class BindingType {
   Literal = 1 << 7,
   Constructor = 1 << 8,
   Enum = 1 << 9,
+  Union = 1 << 10,
 };
 FlagOperators(BindingType);
 

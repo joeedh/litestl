@@ -10,6 +10,8 @@
 #include "binding_types.h"
 #include "binding_utils.h"
 
+#include "binding_constructor_builder.h"
+
 #include "../math/math_bindings.h"
 
 #include "generators/typescript.h"
@@ -51,4 +53,4 @@ template <std::same_as<litestl::util::string> S> const BindingBase *Bind()
 }
 } // namespace litestl::binding
 
-#include "binding_constructor_builder.h"
+#include "binding_union.h"

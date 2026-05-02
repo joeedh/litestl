@@ -27,7 +27,12 @@ public:
   using value_type = T;
   using is_math_vector = std::true_type;
 
-  static const int size = vec_size;
+  static constexpr T negative_limit = std::numeric_limits<T>::lowest();
+  static constexpr T positive_limit = std::numeric_limits<T>::max();
+  /** smallest possible positive value */
+  static constexpr T smallest_limit = std::numeric_limits<T>::min();
+
+  static constexpr int size = vec_size;
 
   /** Default constructor. Initializes all components to zero. */
   constexpr Vec()
@@ -125,6 +130,15 @@ public:
     return vec_[idx];
   }
 
+  inline constexpr Vec &cross(const Vec &b)
+  {
+    if constexpr (vec_size > 2) {
+      this[0] = this[1] * b[2] - this[2] * b[1];
+      this[1] = this[2] * b[0] - this[0] * b[2];
+      this[2] = this[0] * b[1] - this[1] * b[0];
+    }
+    return *this;
+  }
 /**
  * Defines component-wise arithmetic operators for a given operator symbol.
  *
@@ -274,6 +288,13 @@ public:
     return len;
   }
 
+  constexpr Vec normalized() const
+  {
+    Vec cpy = *this;
+    cpy.normalize();
+    return cpy;
+  }
+
   /** Returns the Euclidean length (L2 norm) of the vector. */
   constexpr T length() const
   {
@@ -366,6 +387,13 @@ private:
 #ifdef DEF_VECS
 #undef DEF_VECS
 #endif
+
+// default template parameter is to help intellisense
+template <typename T = Vec<float, 3>>
+concept isMathVec = requires(T vec) { //
+  typename T::is_math_vector;
+};
+
 } // namespace litestl::math
 
 /**

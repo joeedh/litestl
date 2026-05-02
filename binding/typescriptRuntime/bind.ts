@@ -99,6 +99,33 @@ export function createBoundCode(
         return createBoundCode(manager, wasm, type.ptrType as Binding, ptrCode2, propKey)
       }
     }
+    case BindingType.Enum: {
+      switch (type.baseSize) {
+        case 1:
+          return {
+            get: `this.wasm.HEAPU8[${ptrCode}]`,
+            set: `this.wasm.HEAPU8[${ptrCode}] = value`,
+          }
+        case 2:
+          return {
+            get: `this.wasm.HEAPU16[${ptrCode} >> ${wasm.INT16SHIFT}]`,
+            set: `this.wasm.HEAPU16[${ptrCode} >> ${wasm.INT16SHIFT}] = value`,
+          }
+        case 4:
+          return {
+            get: `this.wasm.HEAPU32[${ptrCode} >> ${wasm.INT32SHIFT}]`,
+            set: `this.wasm.HEAPU32[${ptrCode} >> ${wasm.INT32SHIFT}] = value`,
+          }
+        case 8:
+          return {
+            get: `this.wasm.HEAPU64[${ptrCode} >> ${wasm.INT64SHIFT}]`,
+            set: `this.wasm.HEAPU64[${ptrCode} >> ${wasm.INT64SHIFT}] = value`,
+          }
+        default:
+          throw new Error(`Unsupported enum size: ${type.baseSize}`)
+      }
+      break
+    }
     case BindingType.Number: {
       const s = type.flags & NumberFlags.Unsigned ? 'U' : ''
 
@@ -208,7 +235,7 @@ class ${name} extends BoundClass {
 
   try {
     return (0, eval)(s)(BoundClass, st)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     console.log(s)
     console.log(error.stack)

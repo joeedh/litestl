@@ -33,6 +33,26 @@ struct Constructor : public BindingBase {
       : BindingBase(b), ownerType(b.ownerType), params(b.params), thunk(b.thunk)
   {
   }
+  Constructor &argIsNullable(string argName)
+  {
+    for (auto &param : params) {
+      if (param.name == argName && param.type->type == BindingType::Pointer) {
+        // I suppose I could just const_cast here...
+        Pointer *p = static_cast<Pointer *>(param.type->clone());
+        delete param.type;
+        p->isNonNull = false;
+        param.type = p;
+        return *this;
+      } else if (param.name == argName) {
+        printf("%s",
+               std::format("arg {} not a pointer in method {}", argName, name).c_str());
+        abort();
+      }
+    }
+
+    printf("%s", std::format("arg {} not found in method {}", argName, name).c_str());
+    abort();
+  }
   virtual size_t getSize() const override
   {
     return 0;

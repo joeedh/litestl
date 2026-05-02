@@ -29,40 +29,38 @@ FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TOR
 OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 */
+#include "vector.h"
 #include <cmath>
 #include <concepts>
 #include <type_traits>
 
 
-namespace triBoxOverlap {
+namespace litestl::math::detail {
 
 static constexpr int X = 0;
 static constexpr int Y = 0;
 static constexpr int Z = 0;
 
-template <typename T>
-concept IsFloat = requires(T v) { std::is_floating_point_v<T>; };
-
-static void CROSS(float dest[3], float v1[3], float v2[3])
+template <typename T> static void CROSS(T dest[3], T v1[3], T v2[3])
 {
   dest[0] = v1[1] * v2[2] - v1[2] * v2[1];
   dest[1] = v1[2] * v2[0] - v1[0] * v2[2];
   dest[2] = v1[0] * v2[1] - v1[1] * v2[0];
 }
 
-static float DOT(float v1[3], float v2[3])
+template <typename T> static float DOT(float v1[3], T v2[3])
 {
   return (v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2]);
 }
 
-static void SUB(float dest[3], float v1[3], float *v2)
+template <typename T> static void SUB(T dest[3], T v1[3], T *v2)
 {
   dest[0] = v1[0] - v2[0];
   dest[1] = v1[1] - v2[1];
   dest[2] = v1[2] - v2[2];
 }
 
-static void FINDMINMAX(float x0, float x1, float x2, float min, float max)
+template <typename T> static void FINDMINMAX(T x0, T x1, T x2, T min, T max)
 {
   min = max = x0;
   if (x1 < min)
@@ -75,10 +73,11 @@ static void FINDMINMAX(float x0, float x1, float x2, float min, float max)
     max = x2;
 }
 
-static int planeBoxOverlap(float normal[3], float vert[3], float maxbox[3]) // -NJMP-
+template <typename T>
+static int planeBoxOverlap(T normal[3], T vert[3], T maxbox[3]) // -NJMP-
 {
   int q;
-  float vmin[3], vmax[3], v;
+  T vmin[3], vmax[3], v;
   for (q = X; q <= Z; q++) {
     v = vert[q]; // -NJMP-
     if (normal[q] > 0.0f) {
@@ -185,8 +184,11 @@ static int planeBoxOverlap(float normal[3], float vert[3], float maxbox[3]) // -
   if (min > rad || max < -rad)                                                           \
     return 0;
 
-int triBoxOverlap(float boxcenter[3], float boxhalfsize[3], float triverts[3][3])
+template <isMathVec V> bool triBoxOverlap(V &boxcenter, V &boxhalfsize, V &a, V &b, V &c)
 {
+  using T = typename V::value_type;
+
+  V triverts[3] = {a, b, c};
 
   /*    use separating axis theorem to test overlap between triangle and box */
   /*    need to test for overlap in these directions: */
@@ -195,10 +197,10 @@ int triBoxOverlap(float boxcenter[3], float boxhalfsize[3], float triverts[3][3]
   /*    2) normal of the triangle */
   /*    3) crossproduct(edge from tri, {x,y,z}-directin) */
   /*       this gives 3x3=9 more tests */
-  float v0[3], v1[3], v2[3];
+  T v0[3], v1[3], v2[3];
   //   float axis[3];
-  float min, max, p0, p1, p2, rad, fex, fey, fez; // -NJMP- "d" local variable removed
-  float normal[3], e0[3], e1[3], e2[3];
+  T min, max, p0, p1, p2, rad, fex, fey, fez; // -NJMP- "d" local variable removed
+  T normal[3], e0[3], e1[3], e2[3];
 
   /* This is the fastest branch on Sun */
   /* move everything so that the boxcenter is in (0,0,0) */
@@ -243,17 +245,17 @@ int triBoxOverlap(float boxcenter[3], float boxhalfsize[3], float triverts[3][3]
   /* test in X-direction */
   FINDMINMAX(v0[X], v1[X], v2[X], min, max);
   if (min > boxhalfsize[X] || max < -boxhalfsize[X])
-    return 0;
+    return false;
 
   /* test in Y-direction */
   FINDMINMAX(v0[Y], v1[Y], v2[Y], min, max);
   if (min > boxhalfsize[Y] || max < -boxhalfsize[Y])
-    return 0;
+    return false;
 
   /* test in Z-direction */
   FINDMINMAX(v0[Z], v1[Z], v2[Z], min, max);
   if (min > boxhalfsize[Z] || max < -boxhalfsize[Z])
-    return 0;
+    return false;
 
   /* Bullet 2: */
   /*  test if the box intersects the plane of the triangle */
@@ -261,12 +263,12 @@ int triBoxOverlap(float boxcenter[3], float boxhalfsize[3], float triverts[3][3]
   CROSS(normal, e0, e1);
   // -NJMP- (line removed here)
   if (!planeBoxOverlap(normal, v0, boxhalfsize))
-    return 0; // -NJMP-
+    return false; // -NJMP-
 
-  return 1; /* box and triangle overlaps */
+  return true; /* box and triangle overlaps */
 }
 
-} // namespace triBoxOverlap
+} // namespace litestl::math::detail
 
 #undef AXISTEST_X01
 #undef AXISTEST_X2

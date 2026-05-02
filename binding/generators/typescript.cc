@@ -243,6 +243,8 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
           if (!isSpecialStruct(type)) {
             imports.add(formatImport(type, filename));
           }
+        } else if (type->type == BindingType::Enum) {
+          imports.add(formatImport(type, filename));
         } else if (type->type == BindingType::Reference) {
           addImport(
               static_cast<const types::Reference *>(type)->refType, imports, filename);
@@ -379,13 +381,9 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
              false});
 
         s2 += formatTemplate(member.type, imports, filename, false);
-
-        if (!isSpecialStruct(member.type)) {
-          imports.add(formatImport(member.type, filename));
-        }
-      } else if (member.type->type == BindingType::Enum) {
-        imports.add(formatImport(member.type, filename));
       }
+
+      addImport(member.type, imports, filename);
       s += s2 + "\n";
     }
     for (const types::Method *m : st->methods) {
@@ -404,20 +402,13 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
         s += pname + ": " + formatType(p.type);
         if (p.type->type == BindingType::Struct) {
           s += formatTemplate(p.type, imports, filename, false);
-          if (!isSpecialStruct(p.type)) {
-            imports.add(formatImport(p.type, filename));
-          }
-        } else if (p.type->type == BindingType::Enum) {
-          imports.add(formatImport(p.type, filename));
         }
+        addImport(p.type, imports, filename);
       }
       s += "): ";
       if (m->returnType) {
         s += formatType(m->returnType);
-        if (m->returnType->type == BindingType::Struct && !isSpecialStruct(m->returnType))
-        {
-          imports.add(formatImport(m->returnType, filename));
-        }
+        addImport(m->returnType, imports, filename);
       } else {
         s += "void";
       }
@@ -439,12 +430,8 @@ util::Map<string, string> *generateTypescript(Vector<const BindingBase *> &types
         s += pname + ": " + formatType(p.type);
         if (p.type->type == BindingType::Struct) {
           s += formatTemplate(p.type, imports, filename, false);
-          if (!isSpecialStruct(p.type)) {
-            imports.add(formatImport(p.type, filename));
-          }
-        } else if (p.type->type == BindingType::Enum) {
-          imports.add(formatImport(p.type, filename));
         }
+        addImport(p.type, imports, filename);
       }
       s += "): " + formatType(type) + formatTemplate(type, imports, filename, false) +
            "\n";

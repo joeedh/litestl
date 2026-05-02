@@ -3,6 +3,13 @@
 #include <utility>
 #include <cstddef>
 
+#define NO_DEBUG_ALLOC
+
+#ifdef NO_DEBUG_ALLOC
+#include <cstdio>
+#include <cstdlib>
+#endif
+
 /*
  * Leak debugger allocator.
  *
@@ -63,7 +70,8 @@ template<typename T> static const char *getMemoryTag(T *mem) {
   return nullptr;
 }
 
-static bool print_blocks() {
+static bool print_blocks(bool printPermanent) {
+  return false;
 }
 
 static void print_block(const void *mem) {

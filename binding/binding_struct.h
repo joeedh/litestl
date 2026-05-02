@@ -104,6 +104,21 @@ template <typename CLS> struct Struct : public _StructBase {
     destructorThunk = b.destructorThunk;
   }
 
+  Struct &setNonNull(string memberName)
+  {
+    for (auto &member : members) {
+      if (member.name == memberName) {
+        Pointer *ptr = static_cast<Pointer *>(member.type->clone());
+        ptr->isNonNull = true;
+        member.type = ptr;
+        return *this;
+      }
+    }
+
+    printf("setNonNull: unknown member: %s\n", memberName.c_str());
+    abort();
+  }
+
   void inherit(_StructBase *parent)
   {
     for (auto &member : parent->members) {

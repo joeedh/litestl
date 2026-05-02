@@ -12,11 +12,32 @@ using uint = unsigned int;
 
 #include "type_tags.h"
 
-// Note: we cannot rely on pointer members forcibly 
+#if __cplusplus < 202302L
+// bring in std::forward_like from c++23
+namespace std {
+template <class T, class U> constexpr auto &&forward_like(U &&x) noexcept
+{
+  constexpr bool is_adding_const = std::is_const_v<std::remove_reference_t<T>>;
+  if constexpr (std::is_lvalue_reference_v<T &&>) {
+    if constexpr (is_adding_const)
+      return std::as_const(x);
+    else
+      return static_cast<U &>(x);
+  } else {
+    if constexpr (is_adding_const)
+      return std::move(std::as_const(x));
+    else
+      return std::move(x);
+  }
+}
+} // namespace std
+#endif
+
+// Note: we cannot rely on pointer members forcibly
 // aligning container types to 8 because of wasm
-template<typename T>
-static consteval size_t ContainerAlign() {
-  return sizeof(T) < 8 ? sizeof(void*) : 8;
+template <typename T> static consteval size_t ContainerAlign()
+{
+  return sizeof(T) < 8 ? sizeof(void *) : 8;
 }
 #define CONTAINER_ALIGN(T) alignas(ContainerAlign<T>())
 
@@ -78,7 +99,7 @@ static inline const void *pointer_offset(const void *ptr, int n)
 #define force_inline [[clang::always_inline]]
 #endif
 
-// TODO: remove this, this is duplicative with MAKE_FLAGS_CLASS. 
+// TODO: remove this, this is duplicative with MAKE_FLAGS_CLASS.
 // It's less intrusive but also less effective, there
 // are some operator cases it doesn't support.
 #define FlagOperators(T)                                                                 \
@@ -230,7 +251,7 @@ static inline const void *pointer_offset(const void *ptr, int n)
   }                                                                                      \
   // struct _##Name##Semi_Placeholder {}
 
-/** 
+/**
  * Creates a somewhat nicer wrapper class for enum classes.
  *
  * Example:
@@ -291,10 +312,10 @@ template <typename T> static constexpr bool is_simple(T *)
 } // namespace detail
 
 /**
- * Tests whether a type is 'simple', i.e. an integral (int), floating point, pointer, 
+ * Tests whether a type is 'simple', i.e. an integral (int), floating point, pointer,
  * or the type has a `is_simple_override` tag (see force_type_is_simple macro).
  *
- * Note: This is mostly used to detect if a type has no constructors/destructors, 
+ * Note: This is mostly used to detect if a type has no constructors/destructors,
  *       thus can be safely allocated (and especially deallocated) in blocks
  *       without having to call placemenet new/delete on individual elements.
  */
@@ -309,7 +330,6 @@ static constexpr char unsigned_char__test = -127;
 #define HAVE_UNSIGNED_CHAR (int(unsigned_char__test) != = -127)
 
 namespace litestl::util {
-
 
 /**
  * Swaps two bit positions (or bit groups) within an integer value.

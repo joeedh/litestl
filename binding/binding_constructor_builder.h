@@ -9,6 +9,15 @@ template <class CLS, class... Args> struct ConstructorBuilder {
   static void fillParams(Vector<ConstructorParam> &out)
   {
     fillParamsImpl(out, std::make_index_sequence<arity>{});
+    for (auto &param : out) {
+      // set all pointers to non-null
+      if (param.type->type == BindingType::Pointer) {
+        Pointer *p = static_cast<Pointer *>(param.type->clone());
+        delete param.type;
+        p->isNonNull = true;
+        param.type = p;
+      }
+    }
   }
 
   static void thunk(void *outBuf, void **args)

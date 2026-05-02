@@ -28,14 +28,18 @@ public:
 
   BoolVector(const BoolVector &b)
   {
-    vector_ = static_storage_;
-    size_ = static_size;
-    vector_size_ = std::max(static_size >> block_shift, 1);
-    resize(b.size_);
+    vector_size_ = b.vector_size_;
+    used_ = b.used_;
+    size_ = b.size_;
 
-    int ilen = std::min(vector_size_, b.vector_size_);
+    if (size_ <= static_size) {
+      vector_ = static_storage_;
+    } else {
+      vector_ = static_cast<BlockInt *>(
+          alloc::alloc("BitVector data", sizeof(BlockInt) * vector_size_));
+    }
 
-    for (int i = 0; i < ilen; i++) {
+    for (int i = 0; i < vector_size_; i++) {
       vector_[i] = b.vector_[i];
     }
   }
@@ -124,6 +128,7 @@ public:
     }
 
     realloc((newsize * 2) >> block_shift);
+    used_ = newsize;
   }
 
   void append(bool val)

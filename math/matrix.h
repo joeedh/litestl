@@ -1,4 +1,3 @@
-
 #pragma once
 
 #include "eigen/include/eigen3/Eigen/Core"

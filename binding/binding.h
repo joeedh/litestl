@@ -1,16 +1,17 @@
 #pragma once
 
 #include "binding_base.h"
+#include "binding_constructor.h"
+#include "binding_constructor_builder.h"
 #include "binding_enum.h"
 #include "binding_literal.h"
-#include "binding_constructor.h"
 #include "binding_method.h"
 #include "binding_number.h"
 #include "binding_struct.h"
+#include "binding_template.h"
 #include "binding_types.h"
 #include "binding_utils.h"
-#include "binding_template.h"
-#include "binding_constructor_builder.h"
+
 
 #include "../math/math_bindings.h"
 
@@ -38,7 +39,17 @@ concept IsVector = requires(T v) {
 template <IsVector VEC> const BindingBase *Bind()
 {
   types::Struct<VEC> *st = new types::Struct<VEC>("litestl::util::Vector", sizeof(VEC));
-  st->addTemplateParam(Bind<typename VEC::value_type>(), "T");
+  const BindingBase *bindT = Bind<typename VEC::value_type>();
+
+  if (bindT->type == BindingType::Pointer) {
+    // do not allow null for vector elements
+    types::Pointer *p = static_cast<types::Pointer *>(
+        static_cast<const types::Pointer *>(bindT)->clone());
+    p->isNonNull = true;
+    bindT = p;
+  }
+
+  st->addTemplateParam(bindT, "T");
   st->addTemplateParam(new types::NumLitType(VEC::staticSize, "static_size", Bind<int>()),
                        "static_size");
 

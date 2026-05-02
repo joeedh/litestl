@@ -96,6 +96,11 @@ template <typename Char, int static_size = 32> struct ConstStr {
     return data_[idx];
   }
 
+  const Char *data()
+  {
+    return data_;
+  }
+
 private:
   constexpr void zero_data()
   {

@@ -1,4 +1,7 @@
 #pragma once
+
+#include <ranges>
+
 namespace litestl::util {
 /**
  * Represents a contiguous range starting from index 0 up to `start + size`.
@@ -16,61 +19,104 @@ struct IndexRange {
   int start, size;
 
   /** Default constructs an empty range. */
-  IndexRange() : start(0), size(0)
+  constexpr IndexRange() : start(0), size(0)
   {
   }
 
   /** Constructs a range of `count` indices starting from 0. */
-  IndexRange(int count) : start(0), size(count)
+  constexpr IndexRange(int count) : start(0), size(count)
   {
   }
 
   /** Constructs a range with the given start offset and size. */
-  IndexRange(int a, int b) : start(a), size(b)
+  constexpr IndexRange(int a, int b) : start(a), size(b)
   {
   }
 
   /** Forward iterator that yields sequential integer values. */
   struct iterator {
-    iterator(int i) : i_(i)
+    using value_type = int;
+    using difference_type = int;
+
+    constexpr iterator() : i_(0)
     {
     }
-    iterator(const iterator &b) : i_(b.i_)
+    constexpr iterator(int i) : i_(i)
+    {
+    }
+    constexpr iterator(const iterator &b) : i_(b.i_)
     {
     }
 
-    bool operator==(const iterator &b) const
+    constexpr bool operator==(const iterator &b) const
     {
       return b.i_ == i_;
     }
-    bool operator!=(const iterator &b) const
+    constexpr bool operator!=(const iterator &b) const
     {
       return !operator==(b);
     }
 
-    int operator*() const
+    constexpr int operator*() const
     {
       return i_;
     }
-    iterator &operator++()
+    constexpr iterator &operator++()
     {
       i_++;
 
       return *this;
+    }
+    constexpr iterator operator++(int)
+    {
+      iterator cpy = *this;
+      i_++;
+      return cpy;
+    }
+    constexpr iterator &operator--()
+    {
+      i_--;
+
+      return *this;
+    }
+    constexpr iterator operator--(int)
+    {
+      iterator cpy = *this;
+      i_--;
+      return cpy;
+    }
+
+    constexpr difference_type operator-(const iterator &b) const
+    {
+      return i_ - b.i_;
     }
 
   private:
     int i_;
   };
 
+  using const_iterator = iterator;
+
   /** Returns an iterator to index 0. */
-  iterator begin() const
+  constexpr const_iterator begin() const
   {
-    return iterator(0);
+    return const_iterator(start);
   }
 
   /** Returns an iterator past the last index (`start + size`). */
-  iterator end() const
+  constexpr const_iterator end() const
+  {
+    return const_iterator(start + size);
+  }
+
+  /** Returns an iterator to index 0. */
+  constexpr iterator begin()
+  {
+    return iterator(start);
+  }
+
+  /** Returns an iterator past the last index (`start + size`). */
+  constexpr iterator end()
   {
     return iterator(start + size);
   }

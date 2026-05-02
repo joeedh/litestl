@@ -1,16 +1,12 @@
 #pragma once
 #include "../binding/binding_types.h"
 #include "../binding/binding_struct.h"
+#include "./vector.h"
 #include <type_traits>
 
 namespace litestl::binding {
 
-template <typename T>
-concept isMathVec = requires(T vec) { //
-  typename T::is_math_vector;
-};
-
-template <isMathVec T> static BindingBase *Bind()
+template <math::isMathVec T> static BindingBase *Bind()
 {
   int n = T::size;
   using value_type = typename T::value_type;

@@ -420,6 +420,10 @@ unsigned char *LSTL_GenerateTypescript(BindingManager *manager, int *size_out)
     }
   }
 
+  if (s - result > count) {
+    printf("ERROR: generated typescript string is larger than expected\n");
+    abort();
+  }
   *size_out = count;
   return result;
 }

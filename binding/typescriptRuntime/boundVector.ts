@@ -73,16 +73,17 @@ export class BoundVector<T = any, MANAGER extends BindingManager = BindingManage
     const boundCache = new Map<number, T>()
     const typeFullName = type.buildFullName()
 
-    return new Proxy(this, {
+    const proxy = new Proxy(this, {
       get: (target, prop) => {
         if (prop === 'length') {
           return _vec.length
         }
         if (prop === Symbol.iterator) {
           const len = _vec.length
+          const this2 = this as any
           return function* () {
             for (let i = 0; i < len; i++) {
-              yield (target as any)[i]
+              yield (proxy as any)[i as any]
             }
           }
         }
@@ -105,5 +106,6 @@ export class BoundVector<T = any, MANAGER extends BindingManager = BindingManage
         return this.manager.getBoundPointer(type, itemPtr)
       },
     })
+    return proxy
   }
 }

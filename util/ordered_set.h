@@ -72,6 +72,7 @@ template <typename Key, int static_size = 4> struct OrderedSet {
       }
 
       size_++;
+      freemap_.resize(size_);
     }
 
     return false;

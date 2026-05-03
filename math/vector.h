@@ -25,6 +25,7 @@ namespace litestl::math {
 template <typename T, int vec_size> class Vec {
 public:
   using value_type = T;
+  /** type tag */
   using is_math_vector = std::true_type;
 
   static constexpr T negative_limit = std::numeric_limits<T>::lowest();
@@ -133,9 +134,12 @@ public:
   inline constexpr Vec &cross(const Vec &b)
   {
     if constexpr (vec_size > 2) {
-      this[0] = this[1] * b[2] - this[2] * b[1];
-      this[1] = this[2] * b[0] - this[0] * b[2];
-      this[2] = this[0] * b[1] - this[1] * b[0];
+      T x = vec_[1] * b.vec_[2] - vec_[2] * b.vec_[1];
+      T y = vec_[2] * b.vec_[0] - vec_[0] * b.vec_[2];
+      T z = vec_[0] * b.vec_[1] - vec_[1] * b.vec_[0];
+      vec_[0] = x;
+      vec_[1] = y;
+      vec_[2] = z;
     }
     return *this;
   }

@@ -1,10 +1,21 @@
+#pragma once
+
 #include "vector.h"
 #include <cfloat>
 
 namespace litestl::math {
+// default template parameter is to help intellisense
+template <typename T = Vec<float, 3>>
+concept isMathAABB = requires(T vec) { //
+  typename T::is_math_aabb;
+};
+
 template <isMathVec T> struct AABB {
+  using value_type = T;
   T min;
   T max;
+  /** type tag */
+  using is_math_aabb = int;
 
   AABB() : min(T::negative_limit), max(T::negative_limit)
   {
@@ -18,6 +29,13 @@ template <isMathVec T> struct AABB {
   }
   AABB(const AABB &aabb) = default;
   AABB &operator=(const AABB &aabb) = default;
+
+  AABB &reset()
+  {
+    min = {T::positive_limit};
+    max = {T::negative_limit};
+    return *this;
+  }
 
   bool isEmpty()
   {

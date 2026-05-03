@@ -1,6 +1,9 @@
+/** note: we keep bindings code out of the main math headers. */
+
 #pragma once
-#include "../binding/binding_types.h"
 #include "../binding/binding_struct.h"
+#include "../binding/binding_types.h"
+#include "./aabb.h"
 #include "./vector.h"
 #include <type_traits>
 
@@ -31,6 +34,19 @@ template <math::isMathVec T> static BindingBase *Bind()
 
   types::Struct<T> *st = new types::Struct<T>("litestl::math::" + name, sizeof(T));
   st->add("vec", 0, new types::Array(Bind<typename T::value_type>(), n));
+  return st;
+}
+
+template <math::isMathAABB T> //
+static types::Struct<T> *Bind()
+{
+  types::Struct<T> *st = new types::Struct<T>("litestl::math::AABB", sizeof(T));
+
+  st->addTemplateParam(Bind<typename T::value_type>(), "T");
+  BIND_STRUCT_MEMBER(st, min);
+  BIND_STRUCT_MEMBER(st, max);
+  BIND_STRUCT_DEFAULT_CONSTRUCTOR(st);
+
   return st;
 }
 } // namespace litestl::binding

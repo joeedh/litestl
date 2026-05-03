@@ -34,12 +34,11 @@ DEALINGS IN THE SOFTWARE.
 #include <concepts>
 #include <type_traits>
 
-
 namespace litestl::math::detail {
 
 static constexpr int X = 0;
-static constexpr int Y = 0;
-static constexpr int Z = 0;
+static constexpr int Y = 1;
+static constexpr int Z = 2;
 
 template <typename T> static void CROSS(T dest[3], T v1[3], T v2[3])
 {
@@ -53,14 +52,14 @@ template <typename T> static float DOT(float v1[3], T v2[3])
   return (v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2]);
 }
 
-template <typename T> static void SUB(T dest[3], T v1[3], T *v2)
+template <typename T> static void SUB(T dest[3], T v1[3], T v2[3])
 {
   dest[0] = v1[0] - v2[0];
   dest[1] = v1[1] - v2[1];
   dest[2] = v1[2] - v2[2];
 }
 
-template <typename T> static void FINDMINMAX(T x0, T x1, T x2, T min, T max)
+template <typename T> static void FINDMINMAX(T x0, T x1, T x2, T &min, T &max)
 {
   min = max = x0;
   if (x1 < min)
@@ -184,11 +183,13 @@ static int planeBoxOverlap(T normal[3], T vert[3], T maxbox[3]) // -NJMP-
   if (min > rad || max < -rad)                                                           \
     return 0;
 
-template <isMathVec V> bool triBoxOverlap(V &boxcenter, V &boxhalfsize, V &a, V &b, V &c)
+template <isMathVec V>
+bool triBoxOverlap(V &_boxcenter, V &_boxhalfsize, V &a, V &b, V &c)
 {
   using T = typename V::value_type;
-
-  V triverts[3] = {a, b, c};
+  T boxcenter[3] = {_boxcenter[0], _boxcenter[1], _boxcenter[2]};
+  T boxhalfsize[3] = {_boxhalfsize[0], _boxhalfsize[1], _boxhalfsize[2]};
+  T triverts[3][3] = {{a[0], a[1], a[2]}, {b[0], b[1], b[2]}, {c[0], c[1], c[2]}};
 
   /*    use separating axis theorem to test overlap between triangle and box */
   /*    need to test for overlap in these directions: */

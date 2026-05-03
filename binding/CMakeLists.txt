@@ -9,7 +9,9 @@ set(SRC
   PUBLIC binding_types.h
   PUBLIC binding_utils.h
   PUBLIC binding_method.h
+  PUBLIC binding_method_builder.h
   PUBLIC binding_constructor.h
+  PUBLIC binding_constructor_builder.h
   binding.cc
 )
 

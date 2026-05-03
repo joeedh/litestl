@@ -8,6 +8,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(DTL dtl)
 
 macro(test file extra_lib)
+
 set(target "${file}_out")
 add_executable(${target} "${file}")
 add_dependencies(${target} dtl)
@@ -18,6 +19,7 @@ target_link_libraries(${target} PUBLIC dtl util ${extra_lib} math platform)
 
 target_include_directories(${target} PUBLIC util)
 target_include_directories(${target} PUBLIC math)
+target_include_directories(${target} PUBLIC io)
 target_include_directories(${target} PUBLIC mesh)
 target_include_directories(${target} PUBLIC platform)
 target_include_directories(${target} PUBLIC binding_generators)
@@ -37,6 +39,7 @@ test(test_shared_ptr.cc "")
 test(test_binding_method.cc "binding")
 test(test_binding_constructor.cc "binding")
 test(test_string.cc "")
+test(test_binfile.cc "io")
 
 include(../build_files/macros.cmake)
 if (BUILD_WASM)

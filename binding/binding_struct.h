@@ -3,6 +3,7 @@
 #include "binding_base.h"
 #include "binding_method.h"
 #include "binding_types.h"
+#include "binding_method_builder.h"
 #include "util/vector.h"
 #include <functional>
 #include <type_traits>
@@ -164,6 +165,14 @@ template <typename CLS> struct Struct : public _StructBase {
 
     return method;
   }
+  Constructor *findConstrutor(const char *name) {
+    for (auto *ctor : constructors) {
+      if (strcmp(ctor->name.c_str(), name) == 0) {
+        return ctor;
+      }
+    }
+    return nullptr;
+  }
   void addConstructor(Constructor *c)
   {
     constructors.append(c);
@@ -175,21 +184,6 @@ template <typename CLS> struct Struct : public _StructBase {
 };
 
 } // namespace litestl::binding::types
-namespace litestl::binding {
-
-template <typename CLS>
-concept ClassBindingReq = requires(types::Struct<CLS> *def) {
-  { CLS::defineBindings() } -> std::convertible_to<const types::Struct<CLS> *>;
-  std::is_reference_v<CLS> == false;
-};
-
-template <typename CLS>
-const BindingBase *Bind()
-  requires ClassBindingReq<CLS>
-{
-  return CLS::defineBindings();
-}
-} // namespace litestl::binding
 
 #define BIND_STRUCT_MEMBER(def, field)                                                   \
   def->add(#field,                                                                       \

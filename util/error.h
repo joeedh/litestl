@@ -5,8 +5,8 @@
 
 namespace litestl::util {
 template <StrLiteral typeName, StrLiteral msg> struct Error {
-  static const StrLiteral message = msg;
-  static const StrLiteral type = typeName;
+  static inline const StrLiteral message = msg;
+  static inline const StrLiteral type = typeName;
 };
 
 template <typename... types> struct ErrorUnion {

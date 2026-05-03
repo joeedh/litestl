@@ -32,10 +32,6 @@ int test_remove()
     }
   }
 
-  if (int ret = test_remove()) {
-    return ret;
-  }
-
   return retval;
 }
 

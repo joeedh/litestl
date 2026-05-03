@@ -283,13 +283,9 @@ static inline const void *pointer_offset(const void *ptr, int n)
     constexpr Name(const Name &b) : val_(b.val_)                                         \
     {                                                                                    \
     }                                                                                    \
-    constexpr operator bool() const                                                      \
+    constexpr explicit operator Storage() const                                          \
     {                                                                                    \
-      return bool(int(val_));                                                            \
-    }                                                                                    \
-    constexpr explicit operator int() const                                              \
-    {                                                                                    \
-      return int(val_);                                                                  \
+      return Storage(val_);                                                              \
     }                                                                                    \
     constexpr bool operator==(Name b) const                                              \
     {                                                                                    \

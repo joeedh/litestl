@@ -7,6 +7,7 @@
 #include "concepts"
 #include "type_traits"
 #include <cstdint>
+#include <type_traits>
 
 namespace litestl::binding {
 
@@ -19,8 +20,8 @@ template <typename T>
   requires std::is_pointer_v<T> && (!std::same_as<T, void *>)
 static types::Pointer *Bind()
 {
-  using P = std::remove_pointer_t<T>;
-  return new types::Pointer(Bind<P>());
+  using P = std::remove_cv_t<std::remove_pointer_t<T>>;
+  return new types::Pointer(ClsBind<P>());
 }
 
 template <typename T>

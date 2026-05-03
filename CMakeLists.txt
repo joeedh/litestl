@@ -22,6 +22,7 @@ add_subdirectory(math)
 add_subdirectory(extern)
 add_subdirectory(binding)
 add_subdirectory(path)
+add_subdirectory(io)
 add_subdirectory(tests)
 
 # build a target that's just litestl

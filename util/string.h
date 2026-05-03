@@ -716,6 +716,25 @@ static_assert(std::random_access_iterator<detail::StringIter<string, char>>);
 static_assert(std::random_access_iterator<detail::StringIter<const string, const char>>);
 // static_assert(std::random_access_iterator<detail::StringIter<const char, const char>>);
 
+namespace cstring {
+/** A 'safe' version of strncpy for when you really need it. */
+
+template <typename T, typename E>
+concept isArray = requires(T a, E b) {
+  { *a } -> std::same_as<E>;
+  std::is_array_v<T>;
+};
+
+template <isArray<char> T> inline size_t strNcpy(T dst, const char *src)
+{
+  size_t i = 0;
+  for (; *src && i < sizeof(T) - 1; i++) {
+    *dst++ = *src++;
+  }
+  *dst = 0;
+  return i;
+}
+} // namespace cstring
 } // namespace litestl::util
 
 template <typename T>

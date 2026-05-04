@@ -1,7 +1,7 @@
 import fs from 'fs'
 import Path from 'path'
 import {fileURLToPath, pathToFileURL} from 'url'
-import {BindingManager, createWasmHelpers, cstring, INeededWasm, pointer} from '@litestl/typescript-runtime'
+import {BindingManager, createWasmHelpers, createWasmMemory, cstring, INeededWasm, pointer} from '@litestl/typescript-runtime'
 import type * as TSTypes from './ts'
 import {SnapShotManager} from './snapshotManager'
 
@@ -29,9 +29,9 @@ async function loadWasm() {
   const wasmPath = fs.readFileSync(pathFile, 'utf8').trim()
 
   const mod = await import(pathToFileURL(wasmPath).href)
-  const _wasm = await mod.default()
+  const _wasm = await mod.default({wasmMemory: createWasmMemory()})
 
-  const wasmBase = createWasmHelpers(_wasm) as unknown as MyWasmExtra
+  const wasmBase = createWasmHelpers(_wasm, mod.default) as unknown as MyWasmExtra
   wasmBase.manager = new BindingManager(wasmBase, wasmBase.getBindingManager())
   wasmBase.manager.load()
   __wasm = wasmBase

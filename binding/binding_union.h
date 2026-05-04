@@ -15,7 +15,7 @@ struct UnionPair {
 
 /** This is a TS-style type union with a disambiguation property, not an actual C-type
  * union */
-template <typename T> struct Union : public BindingBase {
+struct Union : public BindingBase {
   Vector<UnionPair> structs;
   // type disambiguation (key) property name
   string disPropName;
@@ -29,7 +29,7 @@ template <typename T> struct Union : public BindingBase {
   Union(const Union &u) = default;
   Union &operator=(const Union &u) = default;
 
-  void add(string name, T typeValue, const _StructBase *type)
+  template <typename T> void add(string name, T typeValue, const _StructBase *type)
   {
     UnionPair pair = {name, type, {}};
     T *ptr = reinterpret_cast<T *>(pair.typeValue);

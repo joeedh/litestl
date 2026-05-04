@@ -16,7 +16,7 @@ import {
 } from './binding'
 import {createBoundType, IBoundWasmConstructor} from './bind'
 import {BoundArray, BoundVector} from './boundVector'
-import { readLiteStlString } from './string';
+import {readLiteStlString} from './string'
 
 export class NotStructError extends Error {}
 export class UnknownTypeError extends Error {}
@@ -247,7 +247,7 @@ export class BindingManager<
   readLiteStlString(ptr: pointer) {
     return readLiteStlString(this.wasm, ptr)
   }
-  
+
   load() {
     const wasm = this.wasm
     const keysPtr = wasm.LSTL_Binding_GetKeys(this.ptr)
@@ -256,7 +256,7 @@ export class BindingManager<
     wasm.LSTL_Binding_FreeKeys(keysPtr)
 
     const types = keys.split('\\').filter((k) => k.length > 0)
-    console.log(types)
+
     for (const key of types) {
       const ptr = wasm.LSTL_Binding_Get(this.ptr, wasm.cstring(key))
       if (ptr === 0) {

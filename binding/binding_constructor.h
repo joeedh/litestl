@@ -62,4 +62,14 @@ struct Constructor : public BindingBase {
     return static_cast<BindingBase *>(new Constructor(*this));
   }
 };
+
+inline const Constructor *_StructBase::findConstructor(const string &name) const
+{
+  for (const Constructor *c : constructors) {
+    if (c->name == name) {
+      return c;
+    }
+  }
+  return nullptr;
+}
 } // namespace litestl::binding::types

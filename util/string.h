@@ -712,6 +712,26 @@ using StringKey = int;
 /* Get a unique integer key for str. */
 StringKey get_stringkey(const stringref str);
 
+namespace cstring {
+/**
+ * Copy at most N-1 bytes from src into dst and null-terminate. dst is
+ * always null-terminated, and the rest of the buffer (past the copied
+ * bytes) is zero-filled to avoid leaking junk into binary file fields.
+ */
+template <size_t N> inline void strNcpy(char (&dst)[N], const char *src)
+{
+  size_t i = 0;
+  if (src) {
+    for (; i < N - 1 && src[i] != 0; i++) {
+      dst[i] = src[i];
+    }
+  }
+  for (; i < N; i++) {
+    dst[i] = 0;
+  }
+}
+} // namespace cstring
+
 static_assert(std::random_access_iterator<detail::StringIter<string, char>>);
 static_assert(std::random_access_iterator<detail::StringIter<const string, const char>>);
 // static_assert(std::random_access_iterator<detail::StringIter<const char, const char>>);

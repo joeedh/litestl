@@ -251,6 +251,7 @@ public:
     }
   }
 
+  DEFAULT_COPY_ASSIGNMENT(Map)
   DEFAULT_MOVE_ASSIGNMENT(Map)
 
   Map(std::initializer_list<Pair> list)

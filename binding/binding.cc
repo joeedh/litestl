@@ -202,9 +202,9 @@ BindingInfo *LSTL_GetBindingInfo()
   info->offsets.MethodParam.name = offsetof(MethodParam, name);
   info->offsets.MethodParam.type = offsetof(MethodParam, type);
 
-  info->offsets.Union.structs = offsetof(Union<int>, structs);
-  info->offsets.Union.disPropName = offsetof(Union<int>, disPropName);
-  info->offsets.Union.disPropType = offsetof(Union<int>, disPropType);
+  info->offsets.Union.structs = offsetof(Union, structs);
+  info->offsets.Union.disPropName = offsetof(Union, disPropName);
+  info->offsets.Union.disPropType = offsetof(Union, disPropType);
   info->offsets.UnionPair.name = offsetof(UnionPair, name);
   info->offsets.UnionPair.type = offsetof(UnionPair, type);
   info->offsets.UnionPair.typeValue = offsetof(UnionPair, typeValue);
@@ -234,7 +234,7 @@ BindingInfo *LSTL_GetBindingInfo()
   info->sizes.Method.MethodParam = sizeof(MethodParam);
   info->sizes.Method.Method = sizeof(Method);
 
-  info->sizes.Union.Union = sizeof(Union<int>);
+  info->sizes.Union.Union = sizeof(Union);
   info->sizes.Union.UnionPair = sizeof(UnionPair);
   info->sizes.Union.typeValue = sizeof(UnionPair::typeValue);
 

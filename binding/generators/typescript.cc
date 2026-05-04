@@ -88,8 +88,15 @@ static string formatType(const BindingBase *type, bool addTemplateSuffix = false
     return string(formatType(array->arrayType, true)) + "[]";
   }
   if (type->type == BindingType::Union) {
-    /* TODO: emit a proper discriminated union of the constituent struct types. */
-    return "unknown";
+    const Union *u = static_cast<const Union *>(type);
+    // TODO: emit a proper discriminated union of the constituent struct types
+    Vector<string> types;
+    for (auto &pair : u->structs) {
+      types.append(formatType(pair.type, true));
+      // TODO: emit a proper discriminated union of the constituent struct types
+    }
+
+    return types.join("|");
   }
   std::string filename = type->name.c_str();
   if (addTemplateSuffix && type->type == BindingType::Struct) {
@@ -171,7 +178,7 @@ static void recurse(const BindingBase *type,
     break;
   }
   case BindingType::Union: {
-    const types::Union<int> *u = static_cast<const types::Union<int> *>(type);
+    const types::Union *u = static_cast<const types::Union *>(type);
     typeMap.add(type->name, type);
     recurse(u->disPropType, typeMap);
     for (auto &pair : u->structs) {

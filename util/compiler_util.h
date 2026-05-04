@@ -267,7 +267,7 @@ static inline const void *pointer_offset(const void *ptr, int n)
 #define MAKE_ENUM_CLASS(Name, Enum, Storage)                                             \
   struct Name {                                                                          \
     using enum Enum;                                                                     \
-    constexpr operator Enum()                                                            \
+    constexpr operator Enum() const                                                      \
     {                                                                                    \
       return Enum(val_);                                                                 \
     }                                                                                    \
@@ -283,10 +283,6 @@ static inline const void *pointer_offset(const void *ptr, int n)
     constexpr Name(const Name &b) : val_(b.val_)                                         \
     {                                                                                    \
     }                                                                                    \
-    constexpr operator bool() const                                                      \
-    {                                                                                    \
-      return bool(int(val_));                                                            \
-    }                                                                                    \
     constexpr explicit operator int() const                                              \
     {                                                                                    \
       return int(val_);                                                                  \
@@ -298,6 +294,14 @@ static inline const void *pointer_offset(const void *ptr, int n)
     constexpr bool operator!=(Name b) const                                              \
     {                                                                                    \
       return val_ != b.val_;                                                             \
+    }                                                                                    \
+    constexpr bool operator==(Enum b) const                                              \
+    {                                                                                    \
+      return Enum(val_) == b;                                                            \
+    }                                                                                    \
+    constexpr bool operator!=(Enum b) const                                              \
+    {                                                                                    \
+      return Enum(val_) != b;                                                            \
     }                                                                                    \
     Storage val_;                                                                        \
   }

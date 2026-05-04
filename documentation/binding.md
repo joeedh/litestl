@@ -58,6 +58,11 @@ C++ type. Which overload fires depends on what `T` is:
 If no overload matches, compilation fails cleanly — a type that cannot be
 described is caught the moment someone tries to bind it, not at runtime.
 
+### Use of new
+Binding types are all created using new() instead of the litestl allocator, 
+and are currently never deleted.  Since they are only created once this 
+isn't a problem.
+
 ## Describing a struct
 
 A class opts in by exposing a static `defineBindings()` method that returns a

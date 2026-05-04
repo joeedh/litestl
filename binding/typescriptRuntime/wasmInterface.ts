@@ -19,6 +19,8 @@ export interface IWasmBase {
   // non-tagged
   _rawAlloc(size: number): pointer
   _rawRelease(ptr: pointer): void
+
+  wasmMemory: WebAssembly.Memory
 }
 
 export interface IBindingInfo {
@@ -151,7 +153,21 @@ export interface IBindingInfo {
   }
 }
 
-export interface INeededWasm extends IWasmBase {
+export interface IWasmViews {
+  HEAPU16: Uint16Array
+  HEAPU32: Uint32Array
+  HEAPU64: BigUint64Array
+  HEAP8: Int8Array
+  HEAP16: Int16Array
+  HEAP32: Int32Array
+  HEAP64: BigInt64Array
+  HEAPF32: Float32Array
+  HEAPF64: Float64Array
+  DATAVIEW: DataView
+  HEAPPTR: Uint32Array
+}
+
+export interface INeededWasm extends IWasmBase, IWasmViews {
   // convert js string to cstring, might want to use a string pool for this
   cstring(s: string): cstring
 
@@ -188,18 +204,6 @@ export interface INeededWasm extends IWasmBase {
   // various helper stuff, create with createWasmHelpers() below
   bindingInfo: IBindingInfo
 
-  HEAPU16: Uint16Array
-  HEAPU32: Uint32Array
-  HEAPU64: BigUint64Array
-  HEAP8: Int8Array
-  HEAP16: Int16Array
-  HEAP32: Int32Array
-  HEAP64: BigInt64Array
-  HEAPF32: Float64Array
-  HEAPF64: Float64Array
-  DATAVIEW: DataView
-  HEAPPTR: Uint32Array
-
   INT8SIZE: number
   INT8SHIFT: number
   INT16SIZE: number
@@ -220,21 +224,22 @@ export interface INeededWasm extends IWasmBase {
   getNumShift(num: NumberSubtype): number
 }
 
+export function updateWasmViews(wasmBase: IWasmBase & Partial<IWasmViews>, buffer: ArrayBufferLike) {
+  wasmBase.HEAP8 = new Int8Array(buffer)
+  wasmBase.HEAP16 = new Int16Array(buffer)
+  wasmBase.HEAP32 = new Int32Array(buffer)
+  wasmBase.HEAP64 = new BigInt64Array(buffer)
+  wasmBase.HEAPU16 = new Uint16Array(buffer)
+  wasmBase.HEAPU32 = new Uint32Array(buffer)
+  wasmBase.HEAPU64 = new BigUint64Array(buffer)
+  wasmBase.HEAPPTR = new Uint32Array(buffer)
+  wasmBase.HEAPF32 = new Float32Array(buffer)
+  wasmBase.HEAPF64 = new Float64Array(buffer)
+  return wasmBase as IWasmBase & IWasmViews
+}
+
 export function createWasmViews(wasmBase: IWasmBase) {
-  const array = wasmBase.HEAPU8.buffer
-  return {
-    HEAP8  : new Int8Array(array),
-    HEAP16 : new Int16Array(array),
-    HEAP32 : new Int32Array(array),
-    HEAP64 : new BigInt64Array(array),
-    HEAPU16: new Uint16Array(array),
-    HEAPU32: new Uint32Array(array),
-    HEAPU64: new BigUint64Array(array),
-    HEAPPTR: new Uint32Array(array),
-    HEAPF32: new Float32Array(array),
-    HEAPF64: new Float64Array(array),
-    ...wasmBase,
-  }
+  return updateWasmViews({...wasmBase}, wasmBase.HEAPU8.buffer)
 }
 
 function unprefixWasm<T extends IWasmBase>(wasmBase: T): T {
@@ -249,7 +254,8 @@ function unprefixWasm<T extends IWasmBase>(wasmBase: T): T {
   return wasmBase
 }
 
-export function createWasmHelpers<T extends IWasmBase>(wasmBase: T) {
+/** wasmMod: the exported wasm module (usually the es6 default slot)*/
+export function createWasmHelpers<T extends IWasmBase>(wasmBase: T, wasmMod: unknown) {
   wasmBase = unprefixWasm(wasmBase)
 
   const wasm = createWasmViews(wasmBase)
@@ -391,7 +397,7 @@ export function createWasmHelpers<T extends IWasmBase>(wasmBase: T) {
 
   const strPool = new Map<string, pointer>()
 
-  return {
+  const result = {
     ...wasm,
     cstring(s: string) {
       let ptr = strPool.get(s)
@@ -471,4 +477,23 @@ export function createWasmHelpers<T extends IWasmBase>(wasmBase: T) {
     SIZET_SHIFT: 2,
     bindingInfo,
   } as unknown as T & INeededWasm
+
+  // patch .grow on the wasm memory to update views
+  const grow = result.wasmMemory.grow
+  result.wasmMemory.grow = function (this: WebAssembly.Memory, ...args: Parameters<typeof grow>) {
+    const result2 = grow.apply(result.wasmMemory, args)
+    updateWasmViews(result, this.buffer)
+    return result2
+  }
+
+  /*
+  Reflect.ownKeys(result)
+    .sort((a, b) => ('' + a).toLowerCase().localeCompare(('' + b).toLowerCase()))
+    .forEach((a) => console.log(a))
+  //*/
+  return result
+}
+
+export const createWasmMemory = (pages = 6400, maximumPages = 32768, shared = true) => {
+  return new WebAssembly.Memory({initial: pages, maximum: maximumPages, shared})
 }

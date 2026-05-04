@@ -85,11 +85,11 @@ export function createBoundCode(
     case BindingType.Reference: {
       if (type.ptrType?.type === BindingType.Struct) {
         return {
-          get: `
+          get: `(
             !this.wasm.HEAPPTR[${ptrCode} >> ${wasm.PTRSHIFT}] ? 
-            undefined : 
+            null : 
             this.getBoundPointer('${type.ptrType.buildFullName()}', this.wasm.HEAPPTR[${ptrCode} >> ${wasm.PTRSHIFT}])
-          `,
+            )`,
           set: `
             this.wasm.HEAPPTR[${ptrCode} >> ${wasm.PTRSHIFT}] = value ? value.ptr : 0;
           `,

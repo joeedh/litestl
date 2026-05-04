@@ -69,6 +69,13 @@ struct _StructBase : public BindingBase {
     }
     return s;
   }
+
+  /**
+   * Look up a constructor registered on this struct by name (e.g. "main",
+   * "io"). Returns nullptr if no match. Defined out-of-line in
+   * binding_constructor.h since Constructor is only forward-declared here.
+   */
+  const Constructor *findConstructor(const string &name) const;
 };
 
 template <typename T> struct DestructorThunk {

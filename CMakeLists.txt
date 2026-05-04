@@ -1,10 +1,15 @@
 cmake_minimum_required(VERSION 3.15)
 project(LiteStl C CXX)
 
+if (NOT BUILD_WASM) 
+	include(CTest)
+endif()
+
 set(CMAKE_CXX_STANDARD_REQUIRED true)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_SOURCE_FILE_EXTENSIONS .cc)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE BOOL "Export compile commands")
+
 
 option(BUILD_WASM "Build wasm library" OFF)
 set(EMSDK_PATH "" CACHE PATH "Path to emsdk")
@@ -23,6 +28,7 @@ add_subdirectory(extern)
 add_subdirectory(binding)
 add_subdirectory(path)
 add_subdirectory(tests)
+add_subdirectory(io)
 
 # build a target that's just litestl
 if (BUILD_WASM)

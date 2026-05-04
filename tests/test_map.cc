@@ -31,11 +31,7 @@ int test_remove()
       keys.remove_at(r, true);
     }
   }
-
-  if (int ret = test_remove()) {
-    return ret;
-  }
-
+  
   return retval;
 }
 

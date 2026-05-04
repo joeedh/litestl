@@ -1,6 +1,10 @@
 include(ExternalProject)
 include(FetchContent)
 
+if (NOT BUILD_WASM) 
+	include(CTest)
+endif()
+
 FetchContent_Declare(
 	DTL
 	GIT_REPOSITORY https://github.com/joeedh/dtl.git
@@ -37,6 +41,7 @@ test(test_shared_ptr.cc "")
 test(test_binding_method.cc "binding")
 test(test_binding_constructor.cc "binding")
 test(test_string.cc "")
+test(test_binfile.cc "")
 
 include(../build_files/macros.cmake)
 if (BUILD_WASM)

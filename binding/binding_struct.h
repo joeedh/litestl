@@ -2,8 +2,8 @@
 
 #include "binding_base.h"
 #include "binding_method.h"
-#include "binding_types.h"
 #include "binding_method_builder.h"
+#include "binding_types.h"
 #include "util/vector.h"
 #include <functional>
 #include <type_traits>
@@ -165,7 +165,8 @@ template <typename CLS> struct Struct : public _StructBase {
 
     return method;
   }
-  Constructor *findConstrutor(const char *name) {
+  Constructor *findConstrutor(const char *name)
+  {
     for (auto *ctor : constructors) {
       if (strcmp(ctor->name.c_str(), name) == 0) {
         return ctor;
@@ -186,7 +187,12 @@ template <typename CLS> struct Struct : public _StructBase {
 } // namespace litestl::binding::types
 
 #define BIND_STRUCT_MEMBER(def, field)                                                   \
-  def->add(#field,                                                                       \
-           offsetof(std::remove_reference_t<decltype(*def->type_null)>, field),          \
-           binding::Bind<                                                                \
-               decltype(std::remove_reference_t<decltype(*def->type_null)>::field)>())
+  def->add(                                                                              \
+      #field,                                                                            \
+      offsetof(std::remove_reference_t<decltype(*def->type_null)>, field),               \
+      binding::Bind(                                                                     \
+          reinterpret_cast<                                                              \
+              decltype(std::remove_reference_t<decltype(*def->type_null)>::field) *>(    \
+              10000ULL)))
+
+// decltype(std::remove_reference_t<decltype(*def->type_null)>::field)

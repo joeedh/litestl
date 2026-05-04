@@ -9,7 +9,7 @@
 
 namespace litestl::binding {
 
-template <math::isMathVec T> static BindingBase *Bind()
+template <math::isMathVec T> static BindingBase *Bind(T *)
 {
   int n = T::size;
   using value_type = typename T::value_type;
@@ -33,16 +33,16 @@ template <math::isMathVec T> static BindingBase *Bind()
   name += string(size);
 
   types::Struct<T> *st = new types::Struct<T>("litestl::math::" + name, sizeof(T));
-  st->add("vec", 0, new types::Array(Bind<typename T::value_type>(), n));
+  st->add("vec", 0, new types::Array(Bind((typename T::value_type *)nullptr), n));
   return st;
 }
 
 template <math::isMathAABB T> //
-static types::Struct<T> *Bind()
+static types::Struct<T> *Bind(T *)
 {
   types::Struct<T> *st = new types::Struct<T>("litestl::math::AABB", sizeof(T));
 
-  st->addTemplateParam(Bind<typename T::value_type>(), "T");
+  st->addTemplateParam(Bind((typename T::value_type *)nullptr), "T");
   BIND_STRUCT_MEMBER(st, min);
   BIND_STRUCT_MEMBER(st, max);
   BIND_STRUCT_DEFAULT_CONSTRUCTOR(st);

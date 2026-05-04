@@ -12,13 +12,25 @@
 #include "binding_number.h"
 #include "binding_struct.h"
 
+#define FORWARD_CLS_BINDING(CLS)                                                         \
+  static const litestl::binding::BindingBase *Bind(CLS *)                                \
+  {                                                                                      \
+    return CLS::defineBindings();                                                        \
+  }                                                                                      \
+  static const litestl::binding::BindingBase *Bind(CLS **)                               \
+  {                                                                                      \
+    return new litestl::binding::types::Pointer(CLS::defineBindings());                  \
+  }
+
 namespace litestl::binding {
 // string binding
-template <std::same_as<litestl::util::string> S> const BindingBase *Bind(S *)
+static const BindingBase *Bind(litestl::util::string *)
 {
-  types::Struct<S> *st = new types::Struct<S>("litestl::util::String", sizeof(S));
+  types::Struct<litestl::util::string> *st = new types::Struct<litestl::util::string>(
+      "litestl::util::String", sizeof(litestl::util::string));
   return st;
 }
+
 template <typename CLS>
 concept ClassBindingReq = requires(types::Struct<CLS> *def) {
   { CLS::defineBindings() } -> std::convertible_to<const types::Struct<CLS> *>;
@@ -27,13 +39,6 @@ concept ClassBindingReq = requires(types::Struct<CLS> *def) {
 
 template <typename CLS>
 const BindingBase *Bind(CLS *)
-  requires ClassBindingReq<CLS>
-{
-  return CLS::defineBindings();
-}
-
-template <typename CLS>
-const BindingBase *ClsBind()
   requires ClassBindingReq<CLS>
 {
   return CLS::defineBindings();
@@ -53,7 +58,7 @@ const BindingBase *ClsBind()
 namespace litestl::binding {
 using litestl::util::Vector;
 
-template <std::same_as<void *> T> const BindingBase *Bind()
+template <std::same_as<void *> T> const BindingBase *Bind(T *)
 {
   return new types::Number<unsigned char>(sizeof(void *) == 4 ? NumberType::Int32
                                                               : NumberType::Int64,
@@ -63,13 +68,11 @@ template <std::same_as<void *> T> const BindingBase *Bind()
 }
 
 template <typename T>
-concept IsVector = requires(T v) {
-  // { Bind<T::value_type>() } -> std::derived_from<const BindingBase *>;
-  std::same_as<typename T::is_litestl_vector, std::true_type>;
-};
+concept IsVector =
+    requires(T v) { std::same_as<typename T::is_litestl_vector, std::true_type>; };
 
 /** vector binding */
-template <IsVector VEC> const BindingBase *Bind(VEC *t)
+template <IsVector VEC> const BindingBase *Bind(VEC *)
 {
   types::Struct<VEC> *st = new types::Struct<VEC>("litestl::util::Vector", sizeof(VEC));
   const BindingBase *bindT =
@@ -85,7 +88,7 @@ template <IsVector VEC> const BindingBase *Bind(VEC *t)
 
   st->addTemplateParam(bindT, "T");
   st->addTemplateParam(
-      new types::NumLitType(VEC::staticSize, "static_size", Bind<int>(nullptr)),
+      new types::NumLitType(VEC::staticSize, "static_size", Bind((int *)nullptr)),
       "static_size");
 
   return st;

@@ -31,7 +31,8 @@ private:
   template <size_t... I>
   static void fillParamsImpl(Vector<ConstructorParam> &out, std::index_sequence<I...>)
   {
-    (out.append(ConstructorParam{string(""), Bind<std::remove_cvref_t<arg_t<I>>>()}),
+    (out.append(
+         ConstructorParam{string(""), Bind((std::remove_cvref_t<arg_t<I>> *)nullptr)}),
      ...);
   }
 

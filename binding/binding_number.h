@@ -6,12 +6,28 @@
 
 namespace litestl::binding {
 
+template <typename T>
+  requires std::is_pointer_v<T>
+static types::Pointer *Bind(std::remove_cv_t<T> *)
+{
+  using P = std::remove_cv_t<std::remove_pointer_t<T>>;
+  return new types::Pointer(Bind((P *)(nullptr)));
+}
+
+template <typename T>
+  requires std::is_reference_v<T>
+static types::Reference *Bind(std::remove_reference_t<T> *)
+{
+  using R = std::remove_cv_t<std::remove_reference_t<T>>;
+  return new types::Reference(Bind(reinterpret_cast<R *>(nullptr)));
+}
+
 #ifdef _
 #undef _
 #endif
 
 #define _(ctype, type, flags)                                                            \
-  template <std::same_as<ctype> T> types::Number<ctype> *Bind()                          \
+  static types::Number<ctype> *Bind(ctype *)                                             \
   {                                                                                      \
     return new types::Number<ctype>(NumberType::type, #ctype, flags);                    \
   }

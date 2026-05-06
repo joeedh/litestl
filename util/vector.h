@@ -657,6 +657,10 @@ public:
     return result;
   }
 
+  bool isEmpty() const {
+    return size_ == 0;
+  }
+  
   void append(const T &value)
   {
     new (static_cast<void *>(&append_intern())) T(value);

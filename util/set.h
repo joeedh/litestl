@@ -99,7 +99,7 @@ struct alignas(ContainerAlign<Key>()) Set {
       table_ = b.table_;
     }
 
-    b.table_ = nullptr;
+    b.table_ = span<Key>(static_cast<Key *>(nullptr), 0);
     b.size_ = 0;
   }
 
@@ -322,7 +322,7 @@ private:
 
       int first_clearcell = -1;
       int new_i = find_cell(old[i], first_clearcell);
-      new (static_cast<void*>(&table_[new_i])) Key(std::move(old[i]));
+      new (static_cast<void *>(&table_[new_i])) Key(std::move(old[i]));
       usedmap_.set(new_i, true);
 
       if constexpr (!is_simple<Key>()) {

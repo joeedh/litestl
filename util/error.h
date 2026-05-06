@@ -1,3 +1,5 @@
+#pragma once
+
 #include "compiler_util.h"
 #include "string.h"
 #include <cstdio>

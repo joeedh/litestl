@@ -4,7 +4,7 @@
 
 /* TODO: implement assertions properly. */
 namespace litestl::util {
-static bool assert(bool state, const char *msg = "Assertion failed")
+static bool Assert(bool state, const char *msg = "Assertion failed")
 {
   if (!state) {
     fprintf(stderr, "Assertion failed: \"%s\"\n", msg);

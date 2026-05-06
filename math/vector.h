@@ -131,7 +131,21 @@ public:
     return vec_[idx];
   }
 
-  inline constexpr Vec &cross(const Vec &b)
+  inline constexpr Vec cross(const Vec &b) const
+  {
+    Vec result = *this;
+    if constexpr (vec_size > 2) {
+      T x = vec_[1] * b.vec_[2] - vec_[2] * b.vec_[1];
+      T y = vec_[2] * b.vec_[0] - vec_[0] * b.vec_[2];
+      T z = vec_[0] * b.vec_[1] - vec_[1] * b.vec_[0];
+      result.vec_[0] = x;
+      result.vec_[1] = y;
+      result.vec_[2] = z;
+    }
+    return result;
+  }
+
+  inline constexpr Vec &crossSelf(const Vec &b)
   {
     if constexpr (vec_size > 2) {
       T x = vec_[1] * b.vec_[2] - vec_[2] * b.vec_[1];
@@ -143,6 +157,7 @@ public:
     }
     return *this;
   }
+
 /**
  * Defines component-wise arithmetic operators for a given operator symbol.
  *

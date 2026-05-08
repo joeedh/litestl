@@ -27,6 +27,41 @@ export enum NumberSubtype {
   Float64 = 1 << 5, //32
 }
 
+export const NumberShifts = {
+  [NumberSubtype.Int8]   : 0,
+  [NumberSubtype.Int16]  : 1,
+  [NumberSubtype.Int32]  : 2,
+  [NumberSubtype.Int64]  : 3,
+  [NumberSubtype.Float32]: 2,
+  [NumberSubtype.Float64]: 3,
+}
+
+export const NumberSizes = {
+  [NumberSubtype.Int8]   : 0,
+  [NumberSubtype.Int16]  : 1,
+  [NumberSubtype.Int32]  : 2,
+  [NumberSubtype.Int64]  : 3,
+  [NumberSubtype.Float32]: 2,
+  [NumberSubtype.Float64]: 3,
+}
+
+export function getNumberHeap(wasm: INeededWasm, type: NumberSubtype, unsigned: boolean) {
+  switch (type) {
+    case NumberSubtype.Int8:
+      return unsigned ? wasm.HEAPU8 : wasm.HEAP8
+    case NumberSubtype.Int16:
+      return unsigned ? wasm.HEAPU16 : wasm.HEAP16
+    case NumberSubtype.Int32:
+      return unsigned ? wasm.HEAPU32 : wasm.HEAP32
+    case NumberSubtype.Int64:
+      return unsigned ? wasm.HEAPU64 : wasm.HEAP64
+    case NumberSubtype.Float32:
+      return wasm.HEAPF32
+    case NumberSubtype.Float64:
+      return wasm.HEAPF64
+  }
+}
+
 export enum NumberFlags {
   None = 0,
   Unsigned = 1 << 0,
@@ -75,11 +110,15 @@ export class ParentTemplateParamType<WASM extends INeededWasm = INeededWasm> ext
   templParamName: string
   /** how far up the parent template is in the type hierarchy, almost always 0 (first parent) */
   parentDepth: number
+  concreteType: Binding
 
   constructor(wasm: WASM, ptr: pointer) {
     super(wasm, ptr)
     this.templParamName = readLiteStlString(wasm, ptr + wasm.bindingInfo.Offsets.ParentTemplateParam.templParamName)
     this.parentDepth = wasm.HEAP32[(ptr + wasm.bindingInfo.Offsets.ParentTemplateParam.parentDepth) >> wasm.INT32SHIFT]
+
+    const cptr = wasm.HEAPPTR[(ptr + wasm.bindingInfo.Offsets.ParentTemplateParam.concreteType) >> wasm.PTRSHIFT]
+    this.concreteType = getBinding(wasm, cptr) as Binding
   }
 }
 
@@ -129,6 +168,10 @@ export class NumberType<WASM extends INeededWasm = INeededWasm> extends BindingB
     const o = wasm.bindingInfo.Offsets.Number
     this.subtype = wasm.HEAP32[(ptr + o.subtype) >> wasm.INT32SHIFT]
     this.flags = wasm.HEAP32[(ptr + o.flags) >> wasm.INT32SHIFT]
+  }
+
+  get unsigned() {
+    return Boolean(this.flags & NumberFlags.Unsigned)
   }
 }
 
@@ -654,3 +697,4 @@ export type Binding<WASM extends INeededWasm = INeededWasm> =
   | ReferenceType<WASM>
   | UnionType<WASM>
   | EnumType<WASM>
+  | ParentTemplateParamType<WASM>

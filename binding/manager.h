@@ -9,6 +9,42 @@ namespace litestl::binding {
 struct BindingManager {
   using binding_map = litestl::util::Map<litestl::util::string, const BindingBase *>;
 
+  BindingManager()
+  {
+    // add a bunch of numeric types
+    add(Bind<bool>());
+    add(Bind<float>());
+    add(Bind<double>());
+    // not sure why signed char, char and unisgned char seem to be
+    // distinct types in the type system, could be clang bug
+    // TODO: check if this is still the case
+    add(Bind<signed char>());
+    add(Bind<unsigned char>());
+    add(Bind<char>());
+    add(Bind<short>());
+    add(Bind<unsigned short>());
+    add(Bind<int>());
+    add(Bind<unsigned int>());
+    add(Bind<int64_t>());
+    add(Bind<uint64_t>());
+
+    // add a bunch of vectors
+    add(Bind<util::Vector<bool>>());
+    add(Bind<util::Vector<float>>());
+    add(Bind<util::Vector<double>>());
+    add(Bind<util::Vector<char>>());
+    add(Bind<util::Vector<signed char>>());
+    add(Bind<util::Vector<char>>());
+    add(Bind<util::Vector<short>>());
+    add(Bind<util::Vector<unsigned short>>());
+    add(Bind<util::Vector<int>>());
+    add(Bind<util::Vector<unsigned int>>());
+    add(Bind<util::Vector<uint64_t>>());
+    add(Bind<util::Vector<int64_t>>());
+    add(Bind<util::Vector<void *>>());
+    add(Bind<void*>());
+  }
+
   void add(const BindingBase *binding)
   {
     if (bindings.contains(binding->name)) {
@@ -38,7 +74,11 @@ struct BindingManager {
     }
   }
 
-  const binding_map &getBindings() const { return bindings; }
+  const binding_map &getBindings() const
+  {
+    return bindings;
+  }
+
 private:
   binding_map bindings;
 };

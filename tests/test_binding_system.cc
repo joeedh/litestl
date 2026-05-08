@@ -3,8 +3,8 @@
 #include "math/vector.h"
 #include "util/vector.h"
 
-#include <cstdio>
 #include <cstdarg>
+#include <cstdio>
 #include <cstring>
 #include <span>
 
@@ -14,15 +14,18 @@ using namespace litestl::util;
 using namespace litestl::math;
 
 static Vector<char> msgBuf = {0};
-extern "C" const char *GetMessageBuf() {
+extern "C" const char *GetMessageBuf()
+{
   return msgBuf.size() == 0 ? nullptr : msgBuf.data();
 }
-extern "C" void ClearMessageBuf() {
+extern "C" void ClearMessageBuf()
+{
   msgBuf.clear();
   msgBuf.append(0);
 }
 
-void testPrint(const char *fmt, ...) {
+void testPrint(const char *fmt, ...)
+{
   char buf[512];
 
   va_list args;
@@ -31,8 +34,8 @@ void testPrint(const char *fmt, ...) {
   int count = vsnprintf(buf, sizeof(buf), fmt, args);
   count = std::min(count, int(sizeof(buf)) - 1);
 
-  std::span<char> s = {(char*)buf, size_t(count)};
-  
+  std::span<char> s = {(char *)buf, size_t(count)};
+
   msgBuf.pop_back();
   msgBuf.concat(s);
   msgBuf.append(0);
@@ -102,8 +105,10 @@ struct VecTest {
     flag = 42;
     str = "hello";
   }
+  VecTest(const VecTest &b) = default;
 
-  void print() const {
+  void print() const
+  {
     testPrint("pos: (%.2f, %.2f, %.2f)\n", pos[0][0], pos[0][1], pos[0][2]);
     testPrint("f: (");
     for (float v : f) {
@@ -115,8 +120,14 @@ struct VecTest {
     testPrint("\n");
   }
 
-  VecTest(int a, double b, float c, bool d, bool e) {
-    testPrint("a: %d, b: %.2lf, c: %.2f, d: %s, e: %s\n", a, b, c, d ? "true" : "false", e ? "true" : "false");
+  VecTest(int a, double b, float c, bool d, bool e)
+  {
+    testPrint("a: %d, b: %.2lf, c: %.2f, d: %s, e: %s\n",
+              a,
+              b,
+              c,
+              d ? "true" : "false",
+              e ? "true" : "false");
   }
 
   static binding::types::Struct<VecTest> *defineBindings()
@@ -127,6 +138,7 @@ struct VecTest {
     Struct<VecTest> *st = new Struct<VecTest>("test::VecTest", sizeof(VecTest));
     BIND_STRUCT_DEFAULT_CONSTRUCTOR(st);
     BIND_STRUCT_CONSTRUCTOR(st, "main", int, double, float, bool, bool);
+    BIND_STRUCT_CONSTRUCTOR(st, "copy", VecTest &);
 
     BIND_STRUCT_METHOD(st, print, MARGS());
 
@@ -150,6 +162,8 @@ extern "C" BindingManager *getBindingManager()
 
   manager->add(Bind<Foo>());
   manager->add(Bind<VecTest>());
+  manager->add(Bind<util::Vector<void *>>());
+  manager->add(Bind<util::Vector<VecTest>>());
 
   return manager;
 }

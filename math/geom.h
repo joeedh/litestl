@@ -140,4 +140,58 @@ static bool rayTriIsect(const T &orig,
   return true;
 }
 
+template <isMathVec T>
+static bool aabbSphereIsect(const T &p, typename T::value_type r, const AABB<T> &aabb)
+{
+  float3 lp = p;
+  float3 lmin = aabb.min;
+  float3 lmax = aabb.max;
+  float3 cent = (lmin + lmax) * 0.5;
+
+  lp -= cent;
+  lmin -= cent;
+  lmax -= cent;
+  r *= r;
+
+  bool isect = pointInAABB(aabb, p);
+  if (isect) {
+    return true;
+  }
+
+  float3 rect[8];
+  rect[0] = float3(lmin[0], lmin[1], lmin[2]);
+  rect[1] = float3(lmin[0], lmax[1], lmin[2]);
+  rect[2] = float3(lmax[0], lmax[1], lmin[2]);
+  rect[3] = float3(lmax[0], lmin[1], lmin[2]);
+  rect[4] = float3(lmin[0], lmin[1], lmax[2]);
+  rect[5] = float3(lmin[0], lmax[1], lmax[2]);
+  rect[6] = float3(lmax[0], lmax[1], lmax[2]);
+  rect[7] = float3(lmax[0], lmin[1], lmax[2]);
+  for (int i = 0; i < 8; i++) {
+    if (lp.distanceSqr(rect[i]) < r) {
+      return true;
+    }
+  }
+  float3 p2, p2arr, lparr, lminarr, lmaxarr;
+  p2 = lp;
+  p2arr = p2;
+  lparr = lp;
+  lminarr = lmin;
+  lmaxarr = lmax;
+
+  for (int i = 0; i < 3; i++) {
+    p2 = lp;
+    int i2 = ((i + 1) % 3);
+    int i3 = ((i + 2) % 3);
+    p2arr[i] = p2arr[i] < 0.0 ? lminarr[i] : lmaxarr[i];
+    p2arr[i2] = std::min(std::max(p2arr[i2], lminarr[i2]), lmaxarr[i2]);
+    p2arr[i3] = std::min(std::max(p2arr[i3], lminarr[i3]), lmaxarr[i3]);
+    bool isect2 = p2.distanceSqr(lp) <= r;
+    if (isect2) {
+      return true;
+    }
+  }
+  return false;
+}
+
 } // namespace litestl::math

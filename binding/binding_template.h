@@ -1,3 +1,5 @@
+#pragma once
+
 #include "binding_base.h"
 
 namespace litestl::binding::types {
@@ -6,10 +8,19 @@ struct ParentTemplateParam : public BindingBase {
   string templParamName;
   /** how far up the parent template is in the type hierarchy */
   int parentDepth;
+  const BindingBase *concreteType;
 
-  ParentTemplateParam(string templParamName, int parentDepth)
+  /**
+   * used to store the original name of a parent class's template parameter,
+   * wraps the resolved (remember we never bind non-instantiated templates)
+   * concrete type.
+   */
+  ParentTemplateParam(string templParamName,
+                      int parentDepth,
+                      const BindingBase *concreteType)
       : templParamName(templParamName), parentDepth(parentDepth),
-        BindingBase(BindingType::ParentTemplParam, "parent template param")
+        concreteType(concreteType),
+        BindingBase(BindingType::ParentTemplParam, templParamName)
   {
   }
   ParentTemplateParam(const ParentTemplateParam &b) = default;

@@ -96,6 +96,7 @@ struct [[gnu::packed]] WasmOffsets {
   struct {
     int templParamName;
     int parentDepth;
+    int concreteType;
   } ParentTemplateParam;
 };
 
@@ -134,6 +135,7 @@ struct [[gnu::packed]] TypeSizes {
   struct {
     int ParentTemplateParam;
   } ParentTemplateParam;
+  int VectorDefaultStaticSize; /** default litestl::util::vector static storage size. */
 };
 
 struct BindingInfo {
@@ -213,6 +215,8 @@ BindingInfo *LSTL_GetBindingInfo()
       offsetof(ParentTemplateParam, templParamName);
   info->offsets.ParentTemplateParam.parentDepth =
       offsetof(ParentTemplateParam, parentDepth);
+  info->offsets.ParentTemplateParam.concreteType =
+      offsetof(ParentTemplateParam, concreteType);
 
   info->sizes.Struct.StructMember = sizeof(StructMember);
   info->sizes.Struct.StructBase = sizeof(_StructBase);
@@ -239,6 +243,7 @@ BindingInfo *LSTL_GetBindingInfo()
   info->sizes.Union.typeValue = sizeof(UnionPair::typeValue);
 
   info->sizes.ParentTemplateParam.ParentTemplateParam = sizeof(ParentTemplateParam);
+  info->sizes.VectorDefaultStaticSize = litestl::util::VectorDefaultStaticSize;
 
   return info;
 }

@@ -3,6 +3,7 @@
 #include "binding_types.h"
 #include "concepts"
 #include <cstdint>
+#include <type_traits>
 
 namespace litestl::binding {
 
@@ -10,21 +11,32 @@ namespace litestl::binding {
 #undef _
 #endif
 
-#define _(ctype, type, flags)                                                            \
+// there are some weird bugs with how clang handles
+// std::same_as and unsigned integers,
+// so we do a lot of dynamic checking here
+
+#define _(ctype, Name, type)                                                             \
   template <std::same_as<ctype> T> types::Number<ctype> *Bind()                          \
   {                                                                                      \
-    return new types::Number<ctype>(NumberType::type, #ctype, flags);                    \
+    auto *num = new types::Number<ctype>(NumberType::type, (Name), NumberFlags::None);   \
+    if constexpr (std::is_integral_v<T> && std::is_unsigned_v<T>) {                      \
+      num->flags |= NumberFlags::Unsigned;                                               \
+      num->name = "u" + num->name;                                                       \
+    }                                                                                    \
+    return num;                                                                          \
   }
 
-_(signed char, Int8, NumberFlags::None);
-_(unsigned char, Int8, NumberFlags::Unsigned);
-_(short, Int16, NumberFlags::None);
-_(unsigned short, Int16, NumberFlags::Unsigned);
-_(int, Int32, NumberFlags::None);
-_(unsigned int, Int32, NumberFlags::Unsigned);
-_(int64_t, Int64, NumberFlags::None);
-_(uint64_t, Int64, NumberFlags::Unsigned);
-_(float, Float32, NumberFlags::None);
-_(double, Float64, NumberFlags::None);
+// why do we need signed char and char? 
+_(char, "int8", Int8);
+_(signed char, "int8", Int8);
+_(unsigned char, "int8", Int8);
+_(short, "int16", Int16);
+_(unsigned short, "int16", Int16);
+_(int, "int32", Int32);
+_(unsigned int, "int32", Int32);
+_(int64_t, "int64", Int64);
+_(uint64_t, "int64", Int64);
+_(float, "float", Float32);
+_(double, "double", Float64);
 
 } // namespace litestl::binding

@@ -8,15 +8,18 @@
 #include <string>
 
 static const litestl::util::string basicTSTypeDefs = R"(
-type float = number;
 type pointer<T=any> = number;
-type int = number;
-type uint = number;
+type int8 = number;
+type uint8 = number;
+type int16 = number;
+type uint16 = number;
+type int32 = number;
+type uint32 = number;
+type int64 = number;
+type uint64 = number;
+type float = number;
 type double = number;
-type short = number;
-type ushort = number;
-type char = number;
-type uchar = number;
+
 )";
 
 static const litestl::util::string header = R"(/** Auto-generated file */
@@ -32,12 +35,14 @@ using util::Vector;
 namespace {
 
 class TypescriptGenerator {
- public:
-  explicit TypescriptGenerator(Vector<const BindingBase *> &types) : rootTypes(types) {}
+public:
+  explicit TypescriptGenerator(Vector<const BindingBase *> &types) : rootTypes(types)
+  {
+  }
 
   util::Map<string, string> *generate();
 
- private:
+private:
   struct ClassRef {
     string name;
     string modulePath;
@@ -102,7 +107,7 @@ class TypescriptGenerator {
   string buildHelpersFile();
 
   // -- parameter list helper, shared by methods + constructors --
-  template<typename ParamT>
+  template <typename ParamT>
   void emitParamList(const Vector<ParamT> &params,
                      string &out,
                      Set<string> &imports,
@@ -278,7 +283,8 @@ string TypescriptGenerator::formatImport(const BindingBase *type, const string &
   }
   // Use the raw, unqualified TS type name — never the expanded `T[]` form
   // that `transformSpecial=true` would produce for Vector<T>.
-  string typeName = formatType(type, /*addTemplateSuffix=*/false, /*transformSpecial=*/false);
+  string typeName =
+      formatType(type, /*addTemplateSuffix=*/false, /*transformSpecial=*/false);
   return "import type {" + typeName + "} from \"" +
          path::relative(path::dirname(filename), getModuleName(type->name)) + "\";";
 }
@@ -293,6 +299,13 @@ void TypescriptGenerator::addImport(const BindingBase *type,
     string s = formatImport(type, filename);
     if (s.size() > 0) {
       imports.add(s);
+    }
+    break;
+  }
+  case BindingType::Union: {
+    const types::Union *u = static_cast<const types::Union *>(type);
+    for (auto &item : u->structs) {
+      addImport(item.type, imports, filename);
     }
     break;
   }
@@ -355,8 +368,7 @@ string TypescriptGenerator::formatTemplate(const BindingBase *type,
       default:
         s += "unknown";
       }
-    }
-    else if (!isDecl && param.type->type == BindingType::Literal) {
+    } else if (!isDecl && param.type->type == BindingType::Literal) {
       const LiteralType *lit = static_cast<const LiteralType *>(param.type);
       switch (lit->litType) {
       case LitType::Bool: {
@@ -379,8 +391,7 @@ string TypescriptGenerator::formatTemplate(const BindingBase *type,
       default:
         s += "unknown";
       }
-    }
-    else {
+    } else {
       s += isDecl ? param.name : formatType(param.type);
       addImport(param.type, imports, filename);
     }
@@ -403,7 +414,7 @@ string TypescriptGenerator::buildEnumDecl(const types::Enum *e)
   return content;
 }
 
-template<typename ParamT>
+template <typename ParamT>
 void TypescriptGenerator::emitParamList(const Vector<ParamT> &params,
                                         string &out,
                                         Set<string> &imports,
@@ -453,11 +464,12 @@ void TypescriptGenerator::buildStructFile(const types::Struct<void> *st)
     string s2 = "  " + member.name + ": " + formatType(member.type);
     if (member.type->type == BindingType::Struct) {
       if (!isSpecialStruct(member.type)) {
-        classRefs.add({formatType(member.type),
-                       getModuleName(member.type->name),
-                       member.type->buildFullName(),
-                       formatTemplate(member.type, classRefImports, classRefFilename, false),
-                       false});
+        classRefs.add(
+            {formatType(member.type),
+             getModuleName(member.type->name),
+             member.type->buildFullName(),
+             formatTemplate(member.type, classRefImports, classRefFilename, false),
+             false});
       }
       s2 += formatTemplate(member.type, imports, filename, false);
     }
@@ -472,8 +484,7 @@ void TypescriptGenerator::buildStructFile(const types::Struct<void> *st)
     if (m->returnType) {
       s += formatType(m->returnType);
       addImport(m->returnType, imports, filename);
-    }
-    else {
+    } else {
       s += "void";
     }
     s += "\n";

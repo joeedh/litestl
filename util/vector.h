@@ -594,17 +594,19 @@ public:
     }
 
     if (swap_end_only) {
-      data_[i] = std::move(data_[size_ - 1]);
+      if (i != size_ - 1) {
+        data_[i] = std::move(data_[size_ - 1]);
+      }
     } else {
       while (i < size_ - 1) {
         data_[i] = std::move(data_[i + 1]);
         i++;
       }
+    }
 
-      /* Run end's destructor even though we moved its contents. */
-      if constexpr (!is_simple<T>()) {
-        data_[i].~T();
-      }
+    /* Run end's destructor even though we moved its contents. */
+    if constexpr (!is_simple<T>()) {
+      data_[size_ - 1].~T();
     }
 
     size_--;
@@ -657,10 +659,11 @@ public:
     return result;
   }
 
-  bool isEmpty() const {
+  bool isEmpty() const
+  {
     return size_ == 0;
   }
-  
+
   void append(const T &value)
   {
     new (static_cast<void *>(&append_intern())) T(value);
@@ -720,7 +723,7 @@ public:
         if constexpr (!is_simple<T>()) {
           new (&data_[size_ - i - 1]) T;
         } else {
-          data_[size_ - i - 1] = T(0);
+          data_[size_ - i - 1] = T();
         }
       }
     }
@@ -833,7 +836,8 @@ public:
     return *this;
   }
 
-  Vector filter(const std::function<bool(const T &)> &func) {
+  Vector filter(const std::function<bool(const T &)> &func)
+  {
     Vector result;
     for (int i = 0; i < size(); i++) {
       if (func(data_[i])) {
@@ -842,7 +846,7 @@ public:
     }
     return result;
   }
-  
+
 private:
   flatten_inline void deconstruct_all()
   {

@@ -13,10 +13,26 @@ import {
   NumberFlags,
   PointerType,
   ReferenceType,
+  NumLitType,
 } from './binding'
 import {createBoundType, IBoundWasmConstructor} from './bind'
 import {BoundArray, BoundVector} from './boundVector'
 import {readLiteStlString} from './string'
+
+type AllBoundTypesPlusPrim<T extends {[k: string]: unknown}> = T & {
+  float: number
+  double: number
+  int8: number
+  uint8: number
+  int16: number
+  uint16: number
+  int32: number
+  uint32: number
+  int64: number
+  uint64: number
+  pointer: number
+  string: string
+}
 
 export class NotStructError extends Error {}
 export class UnknownTypeError extends Error {}
@@ -29,11 +45,54 @@ export class BindingManager<
   types = new Map<string, BindingBase>()
   boundClasses = new Map<string, unknown>()
   //boundPointers = new Map<string, unknown>()
+  /**
+   * maps types to StructTypes of litestl::util::Vector's that can be
+   * used to construct vectors of them.
+   */
+  typeVecMap = new Map<string, StructType[]>()
+  private VectorDefaultStaticSize!: number
 
   constructor(wasm: WASM, ptr: pointer) {
     super(wasm, ptr)
     // do not enumerate this.wasm in console.log
     Object.defineProperty(this, 'wasm', {enumerable: false, configurable: true})
+  }
+
+  /** Finds the litestl::util::Vecctor class for a given type */
+  findVectorClass<K extends keyof AllBoundTypesPlusPrim<AllBoundTypes>>(
+    type: K,
+    staticSize = this.VectorDefaultStaticSize
+  ): StructType | undefined {
+    if (type === 'void*') {
+      // any pointer vector type will do
+      for (const list of this.typeVecMap.values()) {
+        for (const st of list) {
+          if (st.templateParams[0].type.type !== BindingType.Pointer) {
+            continue
+          }
+          const size = st.templateParams[1].type as NumLitType
+          if (size.data === staticSize) {
+            return st
+          }
+        }
+      }
+    }
+
+    const list = this.typeVecMap.get(type as string)
+    if (list === undefined) {
+      console.warn(`unknown vector binding for ${type as string} with static size ${staticSize}`)
+      return undefined
+    }
+
+    for (const st of list) {
+      const size = st.templateParams[1].type as NumLitType
+      if (size.data === staticSize) {
+        return st
+      }
+    }
+    console.warn(`unknown vector binding for ${type as string} with static size ${staticSize}`)
+    console.warn(`  note that specializations with other static sizes do exist\n  check bindings.`)
+    return undefined
   }
 
   getBoundClass<S extends StructType>(type: S): IBoundWasmConstructor<S['boundType']> {
@@ -253,6 +312,8 @@ export class BindingManager<
     const keysPtr = wasm.LSTL_Binding_GetKeys(this.ptr)
     const keys = wasm.jsString(keysPtr)
 
+    this.VectorDefaultStaticSize = wasm.bindingInfo.Sizes.VectorDefaultStaticSize
+
     wasm.LSTL_Binding_FreeKeys(keysPtr)
 
     const types = keys.split('\\').filter((k) => k.length > 0)
@@ -264,6 +325,24 @@ export class BindingManager<
       }
       const type = getBinding(wasm, ptr)
       this.types.set(key, type)
+    }
+    for (const key of types) {
+      if (key.startsWith('litestl::util::Vector<')) {
+        const type = this.types.get(key) as Binding
+        if (type.type !== BindingType.Struct) {
+          // could be a pointer or reference
+          continue
+        }
+
+        const subtypeKey = type.templateParams[0].type.buildFullName()
+
+        let list = this.typeVecMap.get(subtypeKey)
+        if (list === undefined) {
+          list = []
+          this.typeVecMap.set(subtypeKey, list)
+        }
+        list.push(type)
+      }
     }
   }
 

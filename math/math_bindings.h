@@ -2,6 +2,7 @@
 
 #pragma once
 #include "../binding/binding_struct.h"
+#include "../binding/binding_template.h"
 #include "../binding/binding_types.h"
 #include "./aabb.h"
 #include "./vector.h"
@@ -43,8 +44,11 @@ static types::Struct<T> *Bind()
   types::Struct<T> *st = new types::Struct<T>("litestl::math::AABB", sizeof(T));
 
   st->addTemplateParam(Bind<typename T::value_type>(), "T");
-  BIND_STRUCT_MEMBER(st, min);
-  BIND_STRUCT_MEMBER(st, max);
+
+  types::ParentTemplateParam *p =
+      new types::ParentTemplateParam("T", 0, Bind<typename T::value_type>());
+  st->add("min", offsetof(T, min), p);
+  st->add("max", offsetof(T, max), p);
   BIND_STRUCT_DEFAULT_CONSTRUCTOR(st);
 
   return st;

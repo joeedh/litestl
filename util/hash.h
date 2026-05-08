@@ -6,6 +6,15 @@
 namespace litestl::hash {
 using HashInt = uint64_t;
 
+template <typename T>
+concept HashCls = requires(const T &c) {
+  { c.computeHash() } -> std::integral;
+};
+template <HashCls CLS> inline HashInt hash(const CLS &c)
+{
+  return c.computeHash();
+}
+
 template <typename T> inline HashInt hash(T *ptr)
 {
   HashInt h = reinterpret_cast<HashInt>(ptr);

@@ -70,6 +70,8 @@ export function createBoundCode(
   }
 
   switch (type.type) {
+    case BindingType.ParentTemplateParam:
+      return createBoundCode(manager, wasm, type.concreteType, ptrCode, propKey)
     case BindingType.Boolean:
       return {
         get: `this.wasm.HEAPU8[${ptrCode}] !== 0;`,

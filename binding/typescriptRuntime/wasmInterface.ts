@@ -113,6 +113,7 @@ export interface IBindingInfo {
     ParentTemplateParam: {
       templParamName: number
       parentDepth: number
+      concreteType: number
     }
   }
   Sizes: {
@@ -150,6 +151,7 @@ export interface IBindingInfo {
     ParentTemplateParam: {
       ParentTemplateParam: number
     }
+    VectorDefaultStaticSize: number
   }
 }
 
@@ -352,6 +354,7 @@ export function createWasmHelpers<T extends IWasmBase>(wasmBase: T, wasmMod: unk
     ParentTemplateParam: {
       templParamName: data[i++],
       parentDepth   : data[i++],
+      concreteType  : data[i++],
     },
   }
 
@@ -390,6 +393,7 @@ export function createWasmHelpers<T extends IWasmBase>(wasmBase: T, wasmMod: unk
     ParentTemplateParam: {
       ParentTemplateParam: data[i++],
     },
+    VectorDefaultStaticSize: data[i++],
   }
 
   const bindingInfo: IBindingInfo = {Offsets, Sizes}

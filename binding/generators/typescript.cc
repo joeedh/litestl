@@ -554,6 +554,7 @@ string TypescriptGenerator::buildHelpersFile()
                  ref.tsTemplateSuffix + ",\n";
     }
   }
+
   helpers += "};\n";
   return helpers;
 }

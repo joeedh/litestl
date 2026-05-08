@@ -238,7 +238,7 @@ export class BindingManager<
       }
 
       this.wasm.LSTL_Destructor_Invoke(type.ptr, ptr)
-      cpyCtor.constructTo(ptr, otherPtr)
+      cpyCtor.constructTo(ptr, this, otherPtr)
     }
   }
 
@@ -274,7 +274,7 @@ export class BindingManager<
 
   invokeMethod(instance: WasmBase<WASM>, structType: StructType, methodType: MethodType, ...args: any[]) {
     const ptr = instance.ptr
-    const resultPtr = methodType.invoke(ptr, ...args)
+    const resultPtr = methodType.invoke(ptr, this, ...args)
     let returnType = methodType.returnType
 
     if (returnType === undefined || resultPtr === undefined) {
@@ -286,14 +286,14 @@ export class BindingManager<
 
   constructWith<K extends keyof AllBoundTypes>(ctype: ConstructorType<WASM>, ...args: any[]): AllBoundTypes[K] {
     const cls = this.getBoundClass(ctype.ownerType) as any
-    const ptr = ctype.construct(...args)
+    const ptr = ctype.construct(this, ...args)
     return new cls(this.wasm, ptr, this)
   }
 
   constructClass<ARGS extends unknown[] = unknown[]>(ctype: ConstructorType<WASM>, ...args: ARGS) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const cls = this.getBoundClass(ctype.ownerType) as any
-    const ptr = ctype.construct(...args)
+    const ptr = ctype.construct(this, ...args)
     return new cls(this.wasm, ptr, this, ctype.ownerType)
   }
 

@@ -107,7 +107,7 @@ template <typename CLS> struct Struct : public _StructBase {
       typedObj->~CLS();
     });
   }
-  Struct(const Struct &b) : _StructBase(b.name, b.structSize)
+  Struct(const Struct &b) : _StructBase(b)
   {
     destructorThunk = b.destructorThunk;
   }

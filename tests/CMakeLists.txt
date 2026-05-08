@@ -57,6 +57,8 @@ if (BUILD_WASM)
 	set(MYWASM "getBindingManager\nmain\nClearMessageBuf\nGetMessageBuf")
 
 	add_executable(test_binding_system "test_binding_system.cc")
+	add_link_options(-sINITIAL_MEMORY=943718400)
+	add_link_options(-sALLOW_MEMORY_GROWTH=1)
 	target_link_libraries(test_binding_system PRIVATE ${LIB2})
 	get_target_property(wasm_symbols binding INTERFACE_WASM_SYMBOLS)
 

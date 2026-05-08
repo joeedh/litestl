@@ -2,6 +2,8 @@ import {WasmBase} from './wasmBase'
 import {INeededWasm, pointer} from './wasmInterface'
 import {readLiteStlString} from './string'
 import {WasmVector} from './vector'
+import {BoundVector} from './boundVector'
+import type {BindingManager} from './manager'
 
 export enum BindingType {
   Boolean = 1 << 0, //1
@@ -83,6 +85,8 @@ export class BindingBase<
 
   constructor(wasm: WASM, ptr: number) {
     super(wasm, ptr)
+    bindingCache.set(ptr, this)
+
     const bi = wasm.bindingInfo
 
     Error.stackTraceLimit = 100000
@@ -298,7 +302,7 @@ interface MethodArg<WASM extends INeededWasm = INeededWasm> extends ConstructArg
   type: Binding
 }
 
-function buildArgs(wasm: INeededWasm, argTypes: ConstructArg[], ...args: unknown[]) {
+function buildArgs(wasm: INeededWasm, manager: BindingManager, argTypes: ConstructArg[], ...args: unknown[]) {
   const getHeap = (num: NumberType) => {
     const subtype = num.subtype
     const unsigned = num.flags & NumberFlags.Unsigned
@@ -320,6 +324,7 @@ function buildArgs(wasm: INeededWasm, argTypes: ConstructArg[], ...args: unknown
   const ptrs = [] as pointer[]
 
   const heap = wasm.HEAPU8
+  const disposeVecs = [] as BoundVector[]
   let index = 0
   for (const {name, type} of argTypes) {
     // XXX calc size properly
@@ -363,8 +368,16 @@ function buildArgs(wasm: INeededWasm, argTypes: ConstructArg[], ...args: unknown
       case BindingType.Pointer:
       case BindingType.Reference: {
         let argPtr2: number | undefined | null
+
         if (typeof args[index] === 'object' && 'ptr' in (args[index] as object)) {
           argPtr2 = (args[index] as {ptr: number}).ptr
+        } else if (
+          type.type !== BindingType.Array &&
+          type.ptrType.buildFullName().startsWith('litestl::util::Vector')
+        ) {
+          const boundVec = BoundVector.constructFromItems(wasm, manager, type.ptrType as Binding, args[index] as any[])
+          argPtr2 = boundVec.ptr
+          disposeVecs.push(boundVec)
         } else if (typeof args[index] === 'number') {
           argPtr2 = args[index] as number
         } else {
@@ -388,7 +401,7 @@ function buildArgs(wasm: INeededWasm, argTypes: ConstructArg[], ...args: unknown
     }
     index++
   }
-  return {ptrs, ptrList}
+  return {ptrs, ptrList, disposeVecs}
 }
 
 export class MethodType<WASM extends INeededWasm = INeededWasm> extends BindingBase<WASM, BindingType.Method> {
@@ -413,7 +426,7 @@ export class MethodType<WASM extends INeededWasm = INeededWasm> extends BindingB
     }
   }
 
-  invoke(thisPtr: pointer, ...args: unknown[]) {
+  invoke(thisPtr: pointer, manager: BindingManager, ...args: unknown[]) {
     if (args.length !== this.methodArgs.length) {
       throw new WasmInvokeError(`Expected ${this.methodArgs.length} arguments`)
     }
@@ -421,13 +434,14 @@ export class MethodType<WASM extends INeededWasm = INeededWasm> extends BindingB
     // build argument list
     // TODO: don't use the heap for this, instead have per-thread
     // global scratch buffers
-    const {ptrs, ptrList} = buildArgs(this.wasm, this.methodArgs, ...args)
+    const {ptrs, ptrList, disposeVecs} = buildArgs(this.wasm, manager, this.methodArgs, ...args)
     let retBuf = 0
     if (this.returnType !== undefined) {
       retBuf = this.wasm.memAlloc(0, this.returnType.size)
     }
 
     this.wasm.LSTL_Method_Invoke(this.ptr, thisPtr, ptrList, retBuf)
+    disposeVecs.forEach((vec) => vec[Symbol.dispose]())
 
     // free argument list
     for (const ptr of ptrs) {
@@ -462,13 +476,13 @@ export class ConstructorType<WASM extends INeededWasm = INeededWasm> extends Bin
     }
   }
 
-  constructTo(thisPtr: number, ...args: unknown[]) {
+  constructTo(thisPtr: number, manager: BindingManager, ...args: unknown[]) {
     const wasm = this.wasm
     if (args.length !== this.constructArgs.length) {
       throw new WasmConstructError(`Expected ${this.constructArgs.length} arguments`)
     }
 
-    const {ptrs, ptrList} = buildArgs(wasm, this.constructArgs, ...args)
+    const {ptrs, ptrList} = buildArgs(wasm, manager, this.constructArgs, ...args)
     wasm.LSTL_Constructor_Invoke(this.ptr, thisPtr, ptrList)
 
     for (const ptr of ptrs) {
@@ -479,10 +493,10 @@ export class ConstructorType<WASM extends INeededWasm = INeededWasm> extends Bin
     return thisPtr
   }
 
-  construct(...args: unknown[]) {
+  construct(manager: BindingManager, ...args: unknown[]) {
     const wasm = this.wasm
     const result = wasm.memAlloc(wasm.cstring(this.ownerType.name), this.ownerType.structSize)
-    this.constructTo(result, ...args)
+    this.constructTo(result, manager, ...args)
     return result
   }
 }
@@ -533,7 +547,18 @@ export class StrLitType<WASM extends INeededWasm = INeededWasm> extends LiteralT
   }
 }
 
+// note: to avoid infinite recursion,
+// binding types must add themselves to
+// bindingCache in their constructors
+const bindingCache = new Map<pointer, BindingBase>()
+
 export function getBinding<WASM extends INeededWasm = INeededWasm>(wasm: WASM, ptr: pointer): BindingBase<WASM> {
+  const result = bindingCache.get(ptr)
+
+  if (result) {
+    return result as BindingBase<WASM>
+  }
+
   const bi = wasm.bindingInfo
   const type: BindingType = wasm.HEAP32[(ptr + bi.Offsets.Base.type) >> wasm.INT32SHIFT]
 

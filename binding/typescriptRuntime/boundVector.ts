@@ -102,6 +102,9 @@ export class BoundVector<T = any, MANAGER extends BindingManager = BindingManage
     return boundVec as BoundVector<T>
   }
 
+  // implementation is actually in constructor
+  [Symbol.dispose](): void {}
+
   constructor(wasm: INeededWasm, ptr: pointer, vecType: StructType, manager: MANAGER) {
     super(wasm, ptr)
     this.wasm = wasm
@@ -126,6 +129,10 @@ export class BoundVector<T = any, MANAGER extends BindingManager = BindingManage
     const getItemPtr = (i: number) => _vec.get(i)
     const {set, setUninitialized} = createSetFunc(wasm, manager, (i) => _vec.get(i), elemType)
 
+    const dispose = () => {
+      wasm.LSTL_Destructor_Invoke(vecType.ptr, ptr)
+    }
+
     const proxy = new Proxy(this, {
       get: (target, prop) => {
         if (prop === 'length') {
@@ -134,6 +141,10 @@ export class BoundVector<T = any, MANAGER extends BindingManager = BindingManage
           return setUninitialized
         } else if (prop === 'set') {
           return set
+        } else if (prop === 'ptr') {
+          return _vec.ptr
+        } else if (prop === Symbol.dispose) {
+          return dispose
         }
 
         if (prop === Symbol.iterator) {

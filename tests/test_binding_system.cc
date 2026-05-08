@@ -138,7 +138,7 @@ struct VecTest {
     Struct<VecTest> *st = new Struct<VecTest>("test::VecTest", sizeof(VecTest));
     BIND_STRUCT_DEFAULT_CONSTRUCTOR(st);
     BIND_STRUCT_CONSTRUCTOR(st, "main", int, double, float, bool, bool);
-    BIND_STRUCT_CONSTRUCTOR(st, "copy", VecTest &);
+    BIND_STRUCT_COPY_CONSTRUCTOR(st);
 
     BIND_STRUCT_METHOD(st, print, MARGS());
 
@@ -170,6 +170,9 @@ extern "C" BindingManager *getBindingManager()
 
 int main()
 {
+  BindingManager manager;
+  manager.add(Bind<Foo>());
+
   const auto *base = Foo::defineBindings();
   test_assert(base->type == BindingType::Struct);
   test_assert(base->methods.size() == 3);

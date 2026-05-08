@@ -58,3 +58,20 @@ private:
   } while (0)
 
 #define BIND_STRUCT_DEFAULT_CONSTRUCTOR(def) BIND_STRUCT_CONSTRUCTOR(def, "default")
+
+namespace litestl::binding {
+template <typename T> static void BIND_STRUCT_COPY_CONSTRUCTOR(types::Struct<T> *st)
+{
+  types::Constructor *ctor = new types::Constructor("copy");
+  types::Reference *ref = new types::Reference(st);
+  ctor->ownerType = st;
+  ctor->params.append({"b", ref});
+
+  ctor->thunk = [](void *ptr, void **args) {
+    T *b = static_cast<T *>(args[0]);
+    new (ptr) T(*b);
+  };
+  st->constructors.append(ctor);
+  return;
+}
+} // namespace litestl::binding

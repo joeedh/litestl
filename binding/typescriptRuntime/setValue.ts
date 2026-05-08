@@ -70,7 +70,10 @@ export function createSetFunc(
       // find copy constructor
       const ctor = elemType.findCopyConstructor()
       if (ctor === undefined) {
-        throw new Error('no copy constructor for ' + elemType.buildFullName())
+        setUninitialized = set = (index, value) => {
+          throw new Error('no copy constructor for ' + elemType.buildFullName())
+        }
+        break
       }
 
       setUninitialized = (index, value) => {

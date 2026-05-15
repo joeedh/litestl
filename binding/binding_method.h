@@ -181,8 +181,15 @@ private:
     if constexpr (std::is_void_v<return_type>) {
       (self->*Mfp)(*static_cast<std::remove_cvref_t<arg_t<I>> *>(args[I])...);
     } else {
-      *static_cast<return_type *>(ret) =
-          (self->*Mfp)(*static_cast<std::remove_cvref_t<arg_t<I>> *>(args[I])...);
+      if constexpr (std::is_constructible_v<return_type, const return_type &> ||
+                    std::is_constructible_v<return_type, return_type &&>)
+      {
+        new (ret) return_type(std::forward<return_type>(
+            (self->*Mfp)(*static_cast<std::remove_cvref_t<arg_t<I>> *>(args[I])...)));
+      } else {
+        *static_cast<return_type *>(ret) =
+            (self->*Mfp)(*static_cast<std::remove_cvref_t<arg_t<I>> *>(args[I])...);
+      }
     }
   }
 };

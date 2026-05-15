@@ -141,7 +141,8 @@ static bool rayTriIsect(const T &orig,
 }
 
 template <isMathVec T>
-static bool aabbSphereIsect(const T &p, typename T::value_type r, const AABB<T> &aabb)
+ATTR_NO_OPT static bool
+aabbSphereIsect(const T &p, typename T::value_type r, const AABB<T> &aabb)
 {
   float3 lp = p;
   float3 lmin = aabb.min;
@@ -172,21 +173,18 @@ static bool aabbSphereIsect(const T &p, typename T::value_type r, const AABB<T> 
       return true;
     }
   }
-  float3 p2, p2arr, lparr, lminarr, lmaxarr;
-  p2 = lp;
-  p2arr = p2;
-  lparr = lp;
-  lminarr = lmin;
-  lmaxarr = lmax;
+  float3 p2arr = lp;
+  float3 lminarr = lmin;
+  float3 lmaxarr = lmax;
 
   for (int i = 0; i < 3; i++) {
-    p2 = lp;
+    p2arr = lp;
     int i2 = ((i + 1) % 3);
     int i3 = ((i + 2) % 3);
     p2arr[i] = p2arr[i] < 0.0 ? lminarr[i] : lmaxarr[i];
     p2arr[i2] = std::min(std::max(p2arr[i2], lminarr[i2]), lmaxarr[i2]);
     p2arr[i3] = std::min(std::max(p2arr[i3], lminarr[i3]), lmaxarr[i3]);
-    bool isect2 = p2.distanceSqr(lp) <= r;
+    bool isect2 = p2arr.distanceSqr(lp) <= r;
     if (isect2) {
       return true;
     }

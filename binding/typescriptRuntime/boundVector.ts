@@ -28,6 +28,8 @@ export class BoundArray<T = any, MANAGER extends BindingManager = BindingManager
     const boundCache = new Map<number, T>()
     const typeFullName = type.buildFullName()
 
+    const {set, setUninitialized} = createSetFunc(wasm, manager, (i) => ptr + i * elemSize, type)
+
     return new Proxy(this, {
       get: (target, prop) => {
         if (prop === 'length') {
@@ -51,6 +53,13 @@ export class BoundArray<T = any, MANAGER extends BindingManager = BindingManager
         } else {
           return this.manager.getBoundPointer(type, itemPtr)
         }
+      },
+      set(target, p, newValue, receiver) {
+        if (typeof p === 'symbol') {
+          receiver[p] = newValue
+          return true
+        }
+        return set(parseInt(p), newValue)
       },
     })
   }

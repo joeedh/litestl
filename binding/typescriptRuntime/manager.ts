@@ -132,14 +132,14 @@ export class BindingManager<
     }
 
     if (binding.type === BindingType.Struct && binding.isVector) {
-      return this.getBoundVector(binding.name, ptr)
+      return this.getBoundVector(binding.buildFullName(), ptr)
     }
 
     const wasm = this.wasm
 
     switch (binding.type) {
       case BindingType.Array:
-        return this.getBoundArray(binding.name, ptr)
+        return this.getBoundArray(binding.buildFullName(), ptr)
       case BindingType.Number: {
         const unsigned = binding.flags & NumberFlags.Unsigned
 

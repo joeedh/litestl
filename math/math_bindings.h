@@ -35,6 +35,10 @@ template <math::isMathVec T> static BindingBase *Bind()
 
   types::Struct<T> *st = new types::Struct<T>("litestl::math::" + name, sizeof(T));
   st->add("vec", 0, new types::Array(Bind<typename T::value_type>(), n));
+
+  BIND_STRUCT_DEFAULT_CONSTRUCTOR(st);
+  BIND_STRUCT_COPY_CONSTRUCTOR(st);
+
   return st;
 }
 

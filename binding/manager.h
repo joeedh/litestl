@@ -42,18 +42,20 @@ struct BindingManager {
     add(Bind<util::Vector<uint64_t>>());
     add(Bind<util::Vector<int64_t>>());
     add(Bind<util::Vector<void *>>());
-    add(Bind<void*>());
+    add(Bind<void *>());
   }
 
   void add(const BindingBase *binding)
   {
-    if (bindings.contains(binding->name)) {
+    auto fullName = binding->buildFullName();
+
+    if (bindings.contains(fullName)) {
       return;
     }
+    bindings.add(fullName, binding);
 
-    bindings.add(binding->buildFullName(), binding);
-
-    if (binding->type == BindingType::Struct) {
+    switch (binding->type) {
+    case BindingType::Struct: {
       const types::_StructBase *st = static_cast<const types::_StructBase *>(binding);
       for (const auto &member : st->members) {
         add(member.type);
@@ -71,6 +73,40 @@ struct BindingManager {
           add(p.type);
         }
       }
+      break;
+    }
+    case BindingType::Array:
+      bindings.add(binding->name, binding);
+      add(static_cast<const types::Array<void> *>(binding)->arrayType);
+      break;
+    case BindingType::Pointer:
+      bindings.add(binding->name, binding);
+      add(static_cast<const types::Pointer *>(binding)->ptrType);
+      break;
+    case BindingType::Reference:
+      bindings.add(binding->name, binding);
+      add(static_cast<const types::Reference *>(binding)->refType);
+      break;
+    case BindingType::Enum:
+      bindings.add(binding->name, binding);
+      break;
+    case BindingType::Union: {
+      const types::Union *u = static_cast<const types::Union *>(binding);
+      bindings.add(binding->name, binding);
+      add(u->disPropType);
+      for (auto &pair : u->structs) {
+        add(pair.type);
+      }
+      break;
+    }
+    case BindingType::Method:
+    case BindingType::Boolean:
+    case BindingType::Constructor:
+    case BindingType::Number:
+    case BindingType::ParentTemplParam:
+    case BindingType::Literal:
+      // do nothing
+      break;
     }
   }
 

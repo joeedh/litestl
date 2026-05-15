@@ -327,8 +327,8 @@ function buildArgs(wasm: INeededWasm, manager: BindingManager, argTypes: Constru
   const disposeVecs = [] as BoundVector[]
   let index = 0
   for (const {name, type} of argTypes) {
-    // XXX calc size properly
-    const argPtr = wasm.memAlloc(wasm.cstring('constructor argument'), 8)
+    // XXX type.size might be good enough
+    const argPtr = wasm.memAlloc(wasm.cstring('constructor argument'), Math.max(8, type.size))
     ptrs.push(argPtr)
 
     wasm.HEAPPTR[(ptrList >> wasm.PTRSHIFT) + index] = argPtr
@@ -338,6 +338,29 @@ function buildArgs(wasm: INeededWasm, manager: BindingManager, argTypes: Constru
     }
 
     switch (type.type) {
+      case BindingType.Struct: {
+        // find the copy constructor
+        const ctor = type.findCopyConstructor()
+        if (ctor === undefined) {
+          throw new Error(`type ${type.buildFullName()} has no copy constructor`)
+        }
+
+        let sPtr: pointer
+        if (typeof args[index] === 'object' && typeof (args as any)[index].ptr === 'number') {
+          sPtr = (args as any)[index].ptr
+        } else if (typeof args[index] === 'number') {
+          sPtr = args[index] as number
+        } else if (typeof args[index] === 'undefined' || args[index] === null) {
+          sPtr = 0
+        } else {
+          console.log(args[index], type, index, args, argTypes)
+          throw new Error('invalid argument for ' + name)
+        }
+
+        // call copy constructor
+        ctor.constructTo(argPtr, manager, sPtr)
+        break
+      }
       case BindingType.Boolean:
         heap[argPtr] = args[index] ? 1 : 0
         break

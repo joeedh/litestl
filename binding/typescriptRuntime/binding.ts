@@ -101,7 +101,6 @@ export class BindingBase<
   buildFullName() {
     const namePtr = this.wasm.LSTL_Binding_GetFullName(this.ptr)
     const result = this.wasm.jsString(namePtr)
-    this.wasm.memRelease(namePtr)
     return result
   }
 }

@@ -441,13 +441,8 @@ void LSTL_FreeTypescriptString(char *s)
 /** Note: must free result with memRelease() */
 const char *LSTL_Binding_GetFullName(const BindingBase *type)
 {
-  string s = type->buildFullName();
-  char *s2 = static_cast<char *>(alloc::alloc("LSTL_Binding_GetFullName", s.size() + 1));
-
-  memcpy(s2, s.c_str(), s.size());
-  // explicitly null-terminate
-  s2[s.size()] = 0;
-  return s2;
+  const_cast<BindingBase *>(type)->getFullName();
+  return type->cachedFullName.c_str();
 }
 
 void LSTL_PrintAllocBlocks(bool includePermanent)

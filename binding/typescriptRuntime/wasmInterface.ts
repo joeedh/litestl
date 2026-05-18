@@ -498,6 +498,6 @@ export function createWasmHelpers<T extends IWasmBase>(wasmBase: T, wasmMod: unk
   return result
 }
 
-export const createWasmMemory = (pages = 6400, maximumPages = 32768, shared = true) => {
+export const createWasmMemory = (pages = 19082, maximumPages = 32768, shared = true) => {
   return new WebAssembly.Memory({initial: pages, maximum: maximumPages, shared})
 }

@@ -29,7 +29,7 @@ struct IndexRange {
   }
 
   /** Constructs a range with the given start offset and size. */
-  constexpr IndexRange(int a, int b) : start(a), size(b)
+  constexpr IndexRange(int a, int size) : start(a), size(size)
   {
   }
 

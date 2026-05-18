@@ -41,6 +41,9 @@ struct BindingBase {
   BindingType type;
   string name;
 
+  string cachedFullName;
+  bool hasCachedName;
+
   BindingBase(BindingType type, string name) : type(type), name(name)
   {
     //
@@ -60,6 +63,15 @@ struct BindingBase {
   virtual string buildFullName() const
   {
     return name;
+  }
+
+  string getFullName()
+  {
+    if (!hasCachedName) {
+      cachedFullName = buildFullName();
+      hasCachedName = true;
+    }
+    return cachedFullName;
   }
 };
 

@@ -22,12 +22,18 @@ const StringBinding: ISpecialGenerator = {
       get: `this.manager.readLiteStlString(${ptrCode})`,
       set: '',
     }
-  }
-
-};
+  },
+}
 
 const VectorBinding: ISpecialGenerator = {
   onBind(manager, wasm, type, ptrCode, propKey) {
+    if (type.buildFullName().trim().length === 0) {
+      debugger
+      const fullName = type.buildFullName()
+      console.log(type, type.name, fullName)
+      throw new Error('invalid type ' + type.name)
+    }
+
     if (type.type == BindingType.Struct && type.name.startsWith('litestl::util::Vector')) {
       return {
         codePre: `
@@ -42,8 +48,8 @@ function _getBoundVec(obj, key, typeName, ptr) {
     return obj[boundVecSym][key];
 }
         `,
-        get: `_getBoundVec(this, '${propKey}', '${type.buildFullName()}', ${ptrCode})`,
-        set: '',
+        get    : `_getBoundVec(this, '${propKey}', '${type.buildFullName()}', ${ptrCode})`,
+        set    : '',
       }
     }
   },
@@ -70,8 +76,8 @@ function _getBoundArray(obj, key, typeName, ptr) {
     return obj[boundArraySym][key];
 }
         `,
-        get: `_getBoundArray(this, '${propKey}', '${type.buildFullName()}', ${ptrCode})`,
-        set: '',
+        get    : `_getBoundArray(this, '${propKey}', '${type.buildFullName()}', ${ptrCode})`,
+        set    : '',
       }
     }
   },

@@ -15,6 +15,7 @@ set(SRC
   PUBLIC time.h
   PUBLIC task.h
   PUBLIC ordered_set.h
+  PUBLIC pool.h
   PUBLIC vector.h
   PUBLIC type_tags.h
   PUBLIC memory.h

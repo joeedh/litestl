@@ -508,6 +508,16 @@ public:
     b.size_ = 0;
   }
 
+  Vector &operator=(Vector &&b) noexcept
+  {
+    if (this == &b) {
+      return *this;
+    }
+    this->~Vector();
+    new (static_cast<void *>(this)) Vector(std::move(b));
+    return *this;
+  }
+
 public:
   const_iterator begin() const
   {

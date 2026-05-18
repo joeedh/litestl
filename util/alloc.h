@@ -3,8 +3,6 @@
 #include <utility>
 #include <cstddef>
 
-#define NO_DEBUG_ALLOC
-
 #ifdef NO_DEBUG_ALLOC
 #include <cstdio>
 #include <cstdlib>

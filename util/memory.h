@@ -228,9 +228,10 @@ template <typename T> struct weak_ptr {
 private:
   void remove()
   {
-    if (ptr_) {
+    if (ptr_ && exists_) {
       ptr_->weak_ptrs.remove(&exists_);
     }
+    ptr_ = nullptr;
   }
 
   bool exists_ = false;

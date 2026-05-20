@@ -141,8 +141,7 @@ static bool rayTriIsect(const T &orig,
 }
 
 template <isMathVec T>
-ATTR_NO_OPT static bool
-aabbSphereIsect(const T &p, typename T::value_type r, const AABB<T> &aabb)
+static bool aabbSphereIsect(const T &p, typename T::value_type r, const AABB<T> &aabb)
 {
   float3 lp = p;
   float3 lmin = aabb.min;

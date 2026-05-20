@@ -342,7 +342,7 @@ public:
     data_[N] = 0;
   }
 
-  ATTR_NO_OPT String(const String &b)
+  String(const String &b)
   {
     data_ = static_storage_;
 

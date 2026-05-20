@@ -67,7 +67,6 @@ struct BindingBase {
     return name;
   }
 
-  ATTR_NO_OPT
   string getFullName()
   {
     if (!hasCachedName) {

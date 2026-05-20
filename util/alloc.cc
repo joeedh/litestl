@@ -203,7 +203,6 @@ bool check_mem(void *ptr)
   return true;
 }
 
-ATTR_NO_OPT
 void release(void *ptr)
 {
   if (!ptr) {

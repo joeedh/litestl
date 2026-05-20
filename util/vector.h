@@ -867,7 +867,7 @@ private:
     }
   }
 
-  ATTR_NO_OPT T &prepend_intern()
+  T &prepend_intern()
   {
     ensure_size(size_ + 1);
 
@@ -884,7 +884,7 @@ private:
     return data_[0];
   }
 
-  ATTR_NO_OPT T &append_intern()
+  T &append_intern()
   {
     ensure_size(size_ + 1);
     size_++;
@@ -894,7 +894,7 @@ private:
     return data_[size_ - 1];
   }
 
-  ATTR_NO_OPT void ensure_size(size_t newsize)
+  void ensure_size(size_t newsize)
   {
     if (newsize < capacity_) {
       return;
@@ -919,7 +919,7 @@ private:
     release_data(old, size_);
   }
 
-  ATTR_NO_OPT void release_data(T *old, int size)
+  void release_data(T *old, int size)
   {
     if constexpr (!is_simple<T>()) {
       /* Run destructors. */

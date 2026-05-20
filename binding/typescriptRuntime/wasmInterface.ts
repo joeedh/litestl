@@ -19,6 +19,7 @@ export interface IWasmBase {
   // non-tagged
   _rawAlloc(size: number): pointer
   _rawRelease(ptr: pointer): void
+  _rawGetAllocSize(): number
 
   wasmMemory: WebAssembly.Memory
 }
@@ -227,6 +228,7 @@ export interface INeededWasm extends IWasmBase, IWasmViews {
 }
 
 export function updateWasmViews(wasmBase: IWasmBase & Partial<IWasmViews>, buffer: ArrayBufferLike) {
+  console.warn('updateWasmViews called')
   wasmBase.HEAP8 = new Int8Array(buffer)
   wasmBase.HEAP16 = new Int16Array(buffer)
   wasmBase.HEAP32 = new Int32Array(buffer)

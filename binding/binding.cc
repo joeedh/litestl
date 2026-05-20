@@ -462,12 +462,30 @@ void printMemBlocks()
 {
   alloc::print_blocks(true);
 }
+
+static int rawAllocSize = 0;
+
+int _rawGetAllocSize()
+{
+  return rawAllocSize;
+}
+
 void *_rawAlloc(int size)
 {
-  return malloc(size);
+  rawAllocSize += size + 8;
+
+  int *ptr = static_cast<int *>(malloc(size + 8));
+
+  ptr[0] = size;
+  ptr[1] = 0;
+  return static_cast<void *>(ptr + 2);
 }
 void _rawRelease(void *ptr)
 {
-  free(ptr);
+  if (ptr != nullptr) {
+    int *i = static_cast<int *>(ptr) - 2;
+    rawAllocSize -= i[0] + 8;
+    free(static_cast<void *>(i));
+  }
 }
 }

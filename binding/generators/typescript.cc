@@ -275,6 +275,10 @@ void TypescriptGenerator::recurse(const BindingBase *type)
 
 string TypescriptGenerator::formatImport(const BindingBase *type, const string &filename)
 {
+  if (getFileName(type->name) == filename) {
+    return string("");
+  }
+
   // Vector<X> / String have no module to import; skip silently. This is the
   // single chokepoint for import construction, so guarding here lets callers
   // stay simple.

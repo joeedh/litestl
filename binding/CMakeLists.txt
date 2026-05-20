@@ -45,6 +45,7 @@ set(WASMSYM "
   printMemBlocks
   _rawAlloc
   _rawRelease
+  _rawGetAllocSize
   memAlloc
   memRelease
   "

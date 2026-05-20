@@ -38,6 +38,11 @@ template <typename T> struct Number : public BindingBase {
     //
   }
 
+  virtual string buildFullName() const override
+  {
+    return name;
+  }
+
   virtual BindingBase *clone() const override
   {
     return static_cast<BindingBase *>(new Number(*this));
@@ -110,7 +115,8 @@ struct Pointer : public BindingBase {
   {
     return sizeof(void *);
   }
-  virtual string buildFullName() const override {
+  virtual string buildFullName() const override
+  {
     return ptrType->buildFullName() + "*";
   }
 };
@@ -134,7 +140,8 @@ struct Reference : public BindingBase {
   {
     return sizeof(void *);
   }
-  virtual string buildFullName() const override {
+  virtual string buildFullName() const override
+  {
     return refType->buildFullName() + "&";
   }
 };

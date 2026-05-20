@@ -42,13 +42,15 @@ struct BindingBase {
   string name;
 
   string cachedFullName;
-  bool hasCachedName;
+  bool hasCachedName = false;
 
   BindingBase(BindingType type, string name) : type(type), name(name)
   {
     //
   }
-  BindingBase(const BindingBase &b) : type(b.type), name(b.name)
+  BindingBase(const BindingBase &b)
+      : type(b.type), name(b.name), cachedFullName(b.cachedFullName),
+        hasCachedName(b.hasCachedName)
   {
   }
   virtual BindingBase *clone() const
@@ -65,6 +67,7 @@ struct BindingBase {
     return name;
   }
 
+  ATTR_NO_OPT
   string getFullName()
   {
     if (!hasCachedName) {

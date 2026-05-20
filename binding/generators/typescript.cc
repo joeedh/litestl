@@ -297,8 +297,26 @@ void TypescriptGenerator::addImport(const BindingBase *type,
                                     Set<string> &imports,
                                     const string &filename)
 {
+  using namespace binding::types;
+
   switch (type->type) {
-  case BindingType::Struct:
+  case BindingType::Struct: {
+    // Special structs (Vector<T>, String) print as `T[]` / `string` in
+    // formatType, so the template arg name leaks into the output and needs
+    // its own import even though the wrapper itself doesn't.
+    if (isSpecialStruct(type)) {
+      const _StructBase *st = static_cast<const _StructBase *>(type);
+      if (st->buildFullName().starts_with("litestl::util::Vector<")) {
+        addImport(st->templateParams[0].type, imports, filename);
+      }
+      break;
+    }
+    string s = formatImport(type, filename);
+    if (s.size() > 0) {
+      imports.add(s);
+    }
+    break;
+  }
   case BindingType::Enum: {
     string s = formatImport(type, filename);
     if (s.size() > 0) {
@@ -307,20 +325,20 @@ void TypescriptGenerator::addImport(const BindingBase *type,
     break;
   }
   case BindingType::Union: {
-    const types::Union *u = static_cast<const types::Union *>(type);
+    const Union *u = static_cast<const Union *>(type);
     for (auto &item : u->structs) {
       addImport(item.type, imports, filename);
     }
     break;
   }
   case BindingType::Reference:
-    addImport(static_cast<const types::Reference *>(type)->refType, imports, filename);
+    addImport(static_cast<const Reference *>(type)->refType, imports, filename);
     break;
   case BindingType::Pointer:
-    addImport(static_cast<const types::Pointer *>(type)->ptrType, imports, filename);
+    addImport(static_cast<const Pointer *>(type)->ptrType, imports, filename);
     break;
   case BindingType::Array:
-    addImport(static_cast<const types::Array<const BindingBase *> *>(type)->arrayType,
+    addImport(static_cast<const Array<const BindingBase *> *>(type)->arrayType,
               imports,
               filename);
     break;

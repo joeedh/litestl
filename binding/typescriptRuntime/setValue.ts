@@ -4,7 +4,7 @@ import {INeededWasm, pointer} from './wasmInterface'
 
 /** 
  I've written the binding read code to use generated code snippets
- that get compiled with eval(), and the binding write code (here) uses dynamically
+ that get compiled with eval(), but the binding write code (here) uses dynamically
  built functions created in a remarkably similar way.
  
  It might be worth investigating whether this approach would work for the
@@ -101,7 +101,7 @@ export function createSetFunc(
     }
     default:
       setUninitialized = set = (index, value) => {
-        throw new Error('cannot assign to vector ' + vecType.buildFullName())
+        throw new Error('cannot assign to vector ' + elemType.buildFullName())
       }
   }
 

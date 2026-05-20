@@ -40,8 +40,8 @@ export class SnapShotManager {
       {
         headerOptions: {
           //
-          includeIndex: false,
-          includeUnderline: false,
+          includeIndex      : false,
+          includeUnderline  : false,
           includeFileHeaders: false,
         },
       }

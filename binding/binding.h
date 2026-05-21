@@ -51,6 +51,9 @@ template <IsVector VEC> const BindingBase *Bind()
   BIND_STRUCT_DEFAULT_CONSTRUCTOR(st);
   BIND_STRUCT_CONSTRUCTOR(st, "ptrWithCount", typename VEC::value_type *, int);
 
+  st->constructors[1]->params[0].type =
+      new types::ParentTemplateParam("T", 0, st->constructors[1]->params[0].type);
+
   // resize is a templated method, build manually
   types::Method *m = new types::Method("resize");
   m->params.append({"newsize", Bind<int>()});

@@ -1,6 +1,8 @@
 #include "binding_base.h"
 #include "binding_struct.h"
 
+#include <functional>
+
 namespace litestl::binding::types {
 using litestl::util::Vector;
 
@@ -17,18 +19,23 @@ struct UnionPair {
  * union */
 struct Union : public BindingBase {
   Vector<UnionPair> structs;
+  /** Fully-qualified name of the TS mapped-type emitted from this union
+   * (e.g. "sculptcore::gpu::UniformBindTypeMap"). Also used as the binding's
+   * own `name` so it has a stable filename in the generated TS output. */
+  string mapName;
   // type disambiguation (key) property name
   string disPropName;
   const BindingBase *disPropType;
+  std::function<int32_t(const void *)> disPropFunc;
 
-  Union(string disPropName, const BindingBase *disPropType)
-      : BindingBase(BindingType::Union, "union"), disPropName(disPropName),
-        disPropType(disPropType)
+  Union(string mapName, string disPropName, const BindingBase *disPropType)
+      : BindingBase(BindingType::Union, mapName), mapName(mapName),
+        disPropName(disPropName), disPropType(disPropType)
   {
   }
   Union(const Union &u) = default;
   Union &operator=(const Union &u) = default;
-
+  
   template <typename T> void add(string name, T typeValue, const _StructBase *type)
   {
     UnionPair pair = {name, type, {}};

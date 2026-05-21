@@ -1,6 +1,7 @@
 /** note: we keep bindings code out of the main math headers. */
 
 #pragma once
+#include "../binding/binding_constructor_builder.h"
 #include "../binding/binding_struct.h"
 #include "../binding/binding_template.h"
 #include "../binding/binding_types.h"

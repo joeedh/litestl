@@ -26,6 +26,8 @@ namespace litestl::alloc {
 void *alloc(const char *tag, size_t size);
 /** Release a block of memory allocated with alloc::alloc. */
 void release(void *mem);
+/** Returns true if the pointer refers to a live allocation made via alloc::alloc. Logs to stderr on failure. */
+bool check_mem(void *ptr);
 /** Prints all the blocks allocated by this thread. */
 bool print_blocks(bool printPermanent);
 /** Print a block */
@@ -63,6 +65,9 @@ static void *alloc(const char *tag, size_t size)
 }
 static void release(void *mem) {
   free(mem);
+}
+static bool check_mem(void *ptr) {
+  return ptr != nullptr;
 }
 template<typename T> static const char *getMemoryTag(T *mem) {
   return nullptr;

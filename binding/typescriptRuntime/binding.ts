@@ -636,6 +636,24 @@ export class UnionType<WASM extends INeededWasm> extends BindingBase<WASM, Bindi
   disPropName: string
   disPropType: Binding<WASM>
 
+  /**
+   * Does this union have a custom disambiguation property getter?
+   * note: custom getters are forced to be int32 backed
+   */
+  get hasDisPropFunc() {
+    return this.wasm.LSTL_Union_HasDisPropFunc(this.ptr)
+  }
+
+  getDisProp(manager: BindingManager, thisPtr: pointer) {
+    if (this.hasDisPropFunc) {
+      return this.wasm.LSTL_Union_RunDisPropFunc(this.ptr, thisPtr)
+    }
+
+    // TODO: read disambiguation property using this.disPropName and this.disPropType,
+    // node that it's not required to be an integer (unlike the case with disPropFunc
+    // callbacks).
+  }
+
   constructor(wasm: WASM, ptr: pointer) {
     super(wasm, ptr)
 

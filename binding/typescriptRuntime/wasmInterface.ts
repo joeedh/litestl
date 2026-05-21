@@ -204,6 +204,9 @@ export interface INeededWasm extends IWasmBase, IWasmViews {
   LSTL_GetBindTypeSize(bindType: pointer): int
   LSTL_Destructor_Invoke(structptr: pointer, obj: pointer): void
 
+  LSTL_Union_HasDisPropFunc(unionptr: pointer): boolean
+  LSTL_Union_RunDisPropFunc(unionptr: pointer, thisPtr: pointer): number
+
   // various helper stuff, create with createWasmHelpers() below
   bindingInfo: IBindingInfo
 

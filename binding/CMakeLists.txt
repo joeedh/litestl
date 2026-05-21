@@ -42,6 +42,8 @@ set(WASMSYM "
   LSTL_GetBindTypeSize
   LSTL_PrintAllocBlocks
   LSTL_Binding_GetFullName
+  LSTL_Union_HasDisPropFunc
+  LSTL_Union_RunDisPropFunc
   printMemBlocks
   _rawAlloc
   _rawRelease

@@ -449,6 +449,22 @@ void LSTL_PrintAllocBlocks(bool includePermanent)
 {
   alloc::print_blocks(includePermanent);
 }
+
+/** does union have a custom disambiguation function? */
+bool LSTL_Union_HasDisPropFunc(const types::Union *u)
+{
+  return bool(u->disPropFunc);
+}
+
+/** run custom union disambiguation function if it exists*/
+int32_t LSTL_Union_RunDisPropFunc(const types::Union *u, const void *thisPtr)
+{
+  if (!u->disPropFunc) {
+    return -1;
+  }
+  return u->disPropFunc(thisPtr);
+}
+
 void *memAlloc(const char *tag, size_t size)
 {
   return alloc::alloc(tag, size);

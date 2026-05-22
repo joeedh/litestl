@@ -591,7 +591,6 @@ public:
     int i = index_of(value);
     if (i < 0) {
       fprintf(stderr, "Item not in list\n");
-      return false;
     }
     return remove_at(i, swap_end_only);
   }

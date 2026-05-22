@@ -2,6 +2,5 @@
 
 namespace litestl::task::detail {
 TaskWorker workers[LITESTL_WORKERS_COUNT];
-int curWorker = 0;
-std::recursive_mutex curWorkerMutex = {};
+std::atomic<int> curWorker{0};
 } // namespace litestl::task::detail

@@ -5,12 +5,12 @@
 #endif
 
 #include "platform/cpu.h"
-#include "platform/time.h"
 #include "util/alloc.h"
+#include "util/compiler_util.h"
 #include "util/index_range.h"
 #include "util/vector.h"
 
-#include <chrono>
+#include <atomic>
 #include <condition_variable>
 #include <functional>
 #include <mutex>
@@ -25,147 +25,104 @@ namespace detail {
 /**
  * Worker thread that maintains a task queue.
  *
- * Auto-starts a detached thread on first push and sleeps with a 2ms
- * timeout when the queue is empty. Call stop() to signal the worker
- * to exit after draining remaining tasks.
+ * Auto-starts a joinable thread on first push. The worker sleeps on a
+ * condition variable while idle; push() and stop() both wake it. The
+ * destructor signals stop and joins, so workers are always cleanly
+ * torn down (assuming queued tasks don't reference state that's
+ * already been destroyed).
  */
 struct TaskWorker {
+  /* LIFO for O(1) pop_back; fairness across submissions isn't a goal. */
   Vector<ThreadMain> queue;
-  std::recursive_mutex mutex;
-  std::mutex wait_mutex;
+  std::mutex mutex;
   std::condition_variable cv;
-  bool running = false;
-  bool stop_ = false;
+  std::atomic<bool> running{false};
+  std::atomic<bool> stop_{false};
+  std::thread thread_;
 
-  TaskWorker()
+  TaskWorker() = default;
+
+  ~TaskWorker()
   {
+    {
+      std::lock_guard guard(mutex);
+      stop_.store(true, std::memory_order_release);
+    }
+    cv.notify_all();
+    if (thread_.joinable()) {
+      thread_.join();
+    }
   }
 
   /** Signals the worker to stop after draining its queue. */
   void stop()
   {
-    stop_ = true;
-  }
-
-  /** Starts the worker thread if not already running. */
-  void start()
-  {
     {
       std::lock_guard guard(mutex);
-      if (running) {
-        return;
-      }
-      running = true;
+      stop_.store(true, std::memory_order_release);
     }
-
-    std::thread *thread = new std::thread([&]() { this->run(); });
-    thread->detach();
-    delete thread;
+    cv.notify_all();
   }
 
   /**
    * Main worker loop.
    *
-   * Drains the queue, then sleeps for up to 2ms waiting for new tasks.
-   * Exits when stop() has been called and the queue is empty.
+   * Sleeps on the cv until a task is pushed or stop is signaled.
+   * Exits when stop is set and the queue is drained.
    */
   void run()
   {
-    using namespace std::chrono_literals;
-
-    while (1) {
-      while (!this->empty()) {
-        ThreadMain main = this->pop();
-        main();
-      }
-
-      int size = 0;
+    for (;;) {
+      ThreadMain task;
       {
-        std::lock_guard guard(mutex);
-        size = queue.size();
-        if (stop_ && !size) {
-          printf("worker stopping\n\n");
-          break;
+        std::unique_lock lock(mutex);
+        cv.wait(lock, [this] {
+          return queue.size() != 0 || stop_.load(std::memory_order_acquire);
+        });
+
+        if (queue.size() == 0) {
+          /* stop_ must be set (predicate). */
+          running.store(false, std::memory_order_release);
+          return;
         }
+        task = queue.pop_back();
       }
-
-      if (size == 0) {
-        std::unique_lock lock(wait_mutex);
-        const std::chrono::time_point<std::chrono::steady_clock> start =
-            std::chrono::steady_clock::now();
-
-        cv.wait_until(lock, start + 2ms);
-      }
-    }
-  }
-
-  /** @deprecated Old recursive drain loop, replaced by run(). */
-  void run_old()
-  {
-    using namespace std::chrono_literals;
-
-    while (!this->empty()) {
-      ThreadMain main = this->pop();
-      main();
-    }
-
-    bool empty;
-    {
-      std::lock_guard guard(mutex);
-      empty = this->empty();
-      if (empty) {
-        running = false;
-      }
-    }
-
-    if (!empty) {
-      run();
+      task();
     }
   }
 
   /** Returns the current queue size. */
   int size()
   {
+    std::lock_guard guard(mutex);
     return queue.size();
   }
 
   /**
-   * Enqueues a task, waking or starting the worker as needed.
+   * Enqueues a task, starting or waking the worker as needed.
    *
-   * If the worker is running and the queue was empty, notifies the
-   * condition variable. If the worker is not running, starts it.
+   * Notify happens under the queue mutex to avoid the classic
+   * lost-wakeup race against run()'s cv.wait.
    */
   void push(ThreadMain main)
   {
-    bool notify = false;
-
     {
       std::lock_guard guard(mutex);
-      // don't store allocated memory in leak list
+      /* Queue storage is held for the program's lifetime — don't count
+       * it as a leak. */
       litestl::alloc::PermanentGuard leakguard;
-      queue.append(main);
-      if (queue.size() == 1) {
-        notify = true;
-      }
+      queue.append(std::move(main));
+      cv.notify_one();
     }
 
-    if (running && notify) {
-      cv.notify_all();
-    }
-
-    {
-      std::lock_guard guard(mutex);
-      if (!running) {
-        start();
+    /* Lazy first-time start. CAS makes it safe under concurrent pushes
+     * from multiple threads. */
+    if (!running.load(std::memory_order_acquire)) {
+      bool expected = false;
+      if (running.compare_exchange_strong(expected, true)) {
+        thread_ = std::thread([this]() { run(); });
       }
     }
-  }
-  /** Dequeues and returns the last task. */
-  ThreadMain pop()
-  {
-    std::lock_guard guard(mutex);
-    ThreadMain ret = queue.pop_back();
-    return ret;
   }
 
   /** Returns true if the queue is empty. */
@@ -179,35 +136,14 @@ struct TaskWorker {
 /** Global worker pool array sized by LITESTL_WORKERS_COUNT. */
 extern TaskWorker workers[LITESTL_WORKERS_COUNT];
 /** Round-robin index into the worker pool. */
-extern int curWorker;
-/** Guards @p curWorker. */
-extern std::recursive_mutex curWorkerMutex;
+extern std::atomic<int> curWorker;
 
 /** Returns the next worker via round-robin selection. */
-static TaskWorker &getWorker()
+inline TaskWorker &getWorker()
 {
-#if 0
-  int minWorker = 0;
-  int minCount = workers[0].size();
-
-  for (int i = 0; i < array_size(workers); i++) {
-    if (workers[i].size() < minCount) {
-      minWorker = i;
-      minCount = workers[i].size();
-    }
-  }
-
-  printf("using worker %ds\n", minWorker);
-  return workers[minWorker];
-#else
-  std::lock_guard guard(curWorkerMutex);
-
-  int worker = curWorker;
-  // printf("using worker %d (with %d outstanding tasks)\n", worker,
-  // workers[worker].size());
-  curWorker = (curWorker + 1) % array_size(workers);
+  int worker = curWorker.fetch_add(1, std::memory_order_relaxed) %
+               int(array_size(workers));
   return workers[worker];
-#endif
 }
 
 } // namespace detail
@@ -215,21 +151,17 @@ static TaskWorker &getWorker()
 /** Submits @p cb for asynchronous execution on the worker pool. */
 template <typename Callback> static void run(Callback cb)
 {
-#if 0
-   auto *thread = new std::thread(cb);
-   thread->detach();
-   delete thread;
-#else
-  detail::getWorker().push(cb);
-#endif
+  detail::getWorker().push(std::move(cb));
 }
 
 /**
- * Splits @p range into @p grain_size chunks distributed across threads.
+ * Splits @p range into @p grain_size chunks distributed across the
+ * worker pool, and blocks until all chunks complete.
  *
- * Spawns up to platform::max_thread_count() threads, distributes chunks
- * round-robin, and blocks until all threads complete. Falls back to a
- * single synchronous call when the range size is at or below @p grain_size.
+ * Falls back to a single synchronous call when the range size is at or
+ * below @p grain_size. The number of submissions is capped at both the
+ * worker pool size and the chunk count, so small workloads don't pay
+ * for empty submissions.
  *
  * @p cb signature: `[&](IndexRange range) {}`
  */
@@ -238,80 +170,58 @@ void parallel_for(util::IndexRange range, Callback cb, int grain_size = 1)
 {
   using namespace util;
 
-#if 0
-  cb(range);
-#else
   if (range.size <= grain_size) {
     cb(range);
     return;
   }
 
-  bool have_remain = false;
+  const int outer_end = range.start + range.size;
+  const int task_count = (range.size + grain_size - 1) / grain_size;
 
-  int task_count = range.size / grain_size;
-  if (range.size % grain_size) {
-    task_count++;
-    have_remain = true;
+  int worker_count = int(array_size(detail::workers));
+  const int submission_count = std::min(worker_count, task_count);
+
+  std::mutex done_mutex;
+  std::condition_variable done_cv;
+  std::atomic<int> remaining{submission_count};
+
+  /* Spread `task_count` chunks evenly across `submission_count`
+   * submissions: submission s_idx handles tasks [first, last). */
+  for (int s_idx = 0; s_idx < submission_count; s_idx++) {
+    const int first_task =
+        int((int64_t(task_count) * s_idx) / submission_count);
+    const int last_task =
+        int((int64_t(task_count) * (s_idx + 1)) / submission_count);
+
+    run([first_task,
+         last_task,
+         task_count,
+         outer_end,
+         grain_size,
+         range_start = range.start,
+         &cb,
+         &done_mutex,
+         &done_cv,
+         &remaining]() {
+      for (int t = first_task; t < last_task; t++) {
+        const int chunk_start = range_start + grain_size * t;
+        const int chunk_size = (t == task_count - 1) ? (outer_end - chunk_start)
+                                                     : grain_size;
+        cb(IndexRange(chunk_start, chunk_size));
+      }
+
+      /* Last-out signals completion. Take the mutex so we never notify
+       * between the waiter's predicate check and its sleep. */
+      if (remaining.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+        std::lock_guard guard(done_mutex);
+        done_cv.notify_one();
+      }
+    });
   }
 
-  int thread_count = platform::max_thread_count();
-
-  struct ThreadData {
-    Vector<IndexRange> tasks;
-    bool done = false;
-  };
-
-  Vector<ThreadData> thread_datas;
-  thread_datas.resize(thread_count);
-  int thread_i = 0;
-
-  for (int i = 0; i < task_count; i++) {
-    int start = range.start + grain_size * i;
-    IndexRange range;
-
-    if (i == task_count - 1 && have_remain) {
-      range = IndexRange(start, range.size - start);
-    } else {
-      range = IndexRange(start, grain_size);
-    }
-
-    thread_datas[thread_i].tasks.append(range);
-    thread_i = (thread_i + 1) % thread_count;
-  }
-
-  Vector<std::thread *> threads;
-
-  for (int i : IndexRange(thread_count)) {
-    std::thread *thread =
-        alloc::New<std::thread>("std::thread", std::thread([i, &thread_datas, &cb]() {
-                                  for (IndexRange &range : thread_datas[i].tasks) {
-                                    cb(range);
-                                  }
-
-                                  thread_datas[i].done = true;
-                                }));
-
-    threads.append(thread);
-  }
-
-  while (1) {
-    bool ok = true;
-    for (ThreadData &data : thread_datas) {
-      ok = ok && data.done;
-    }
-
-    if (ok) {
-      break;
-    }
-
-    /* TODO: use a condition variable. */
-    time::sleep_ns(100);
-  }
-
-  for (std::thread *thread : threads) {
-    thread->join();
-    alloc::Delete<std::thread>(thread);
-  }
-#endif
+  std::unique_lock lock(done_mutex);
+  done_cv.wait(lock,
+               [&] { return remaining.load(std::memory_order_acquire) == 0; });
 }
+
 } // namespace litestl::task

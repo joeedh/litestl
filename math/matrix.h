@@ -101,7 +101,7 @@ template <typename Float, int N, int Options = Eigen::ColMajor> struct Matrix {
 
   Matrix inverse() const
   {
-    Matrix cpy{this};
+    Matrix cpy{*this};
     cpy.invert();
     return cpy;
   }

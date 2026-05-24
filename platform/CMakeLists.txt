@@ -9,14 +9,21 @@ set(SRC
 )
 
 if (NOT BUILD_WASM AND CMAKE_SYSTEM_NAME STREQUAL "Windows")
-set(SRC 
+set(SRC
     ${SRC}
     win32.cc
 )
 endif()
 
+if (NOT BUILD_WASM AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+set(SRC
+    ${SRC}
+    linux.cc
+)
+endif()
+
 if (BUILD_WASM)
-    set(SRC 
+    set(SRC
         ${SRC}
         wasm.cc
     )

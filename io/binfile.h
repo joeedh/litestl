@@ -174,6 +174,18 @@ file to match the latest version of the schema prior invoking any struct io cons
 #include <sstream>
 #include <type_traits>
 
+// glibc's <endian.h> defines LITTLE_ENDIAN/BIG_ENDIAN as preprocessor
+// macros, which clobbers our FileFlags::LITTLE_ENDIAN enumerator. The
+// macros aren't used anywhere in this header; drop them so the enum
+// parses on Linux. Anything that needs the runtime endianness uses
+// std::endian above instead.
+#ifdef LITTLE_ENDIAN
+#  undef LITTLE_ENDIAN
+#endif
+#ifdef BIG_ENDIAN
+#  undef BIG_ENDIAN
+#endif
+
 namespace sculptcore::io {
 using litestl::util::Map;
 using litestl::util::string;

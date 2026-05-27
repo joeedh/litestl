@@ -1,5 +1,34 @@
 #pragma once
 
+/*
+ * Open-addressing hash map.
+ *
+ * Probing: linear, stride 1. find_pair() starts at hash(key) % size and walks
+ * h, h+1, h+2, ... (wrapping at the table size) until it reaches the key or a
+ * truly-empty cell. Table sizes are primes from hashtable_sizes.h and the load
+ * factor is capped at 1/3 (check_load() rehashes once used_count_ > size/3).
+ *
+ * Stride 1 is deliberate. An earlier version used a triangular-number quadratic
+ * probe (hashval += ++probe), which on a prime-sized table only visits ~half the
+ * slots: lookups could miss an existing key — or fail to find a free cell — while
+ * the table was far from full, and the count>size fallback could then re-enter
+ * the rehash path and corrupt the table. Linear probing visits every slot for
+ * any modulus, so the walk always terminates at the key or an empty cell.
+ *
+ * Deletion uses tombstones: remove() clears the used_ bit and sets the clear_
+ * bit but leaves the slot in the probe chain. A tombstone is NOT end-of-chain (a
+ * key inserted before the deletion may live further along), so find_pair() only
+ * stops scanning on a cell that is neither used nor a tombstone. Key equality is
+ * never tested against an unused slot — a tombstone's Pair has been destructed,
+ * and for trivial keys the stale bits could spuriously match. Tombstones are
+ * reclaimed on the next rehash (clear_clearcells() rehashes to the same size).
+ *
+ * Slot state is two bitmaps: used_ (slot holds a live entry) and clear_ (slot is
+ * a tombstone). used_count_ is the live-entry count that drives rehashing; it is
+ * maintained across rehashes but is not decremented by remove(), so size() can
+ * overcount tombstones until the next rehash.
+ */
+
 #include "alloc.h"
 #include "boolvector.h"
 #include "compiler_util.h"
@@ -55,8 +84,8 @@ template <typename Key, typename Value> struct Pair {
       return *this;
     }
 
-    key = std::move(key);
-    value = std::move(value);
+    key = std::move(b.key);
+    value = std::move(b.value);
 
     return *this;
   }
@@ -83,7 +112,8 @@ template <typename Key, typename Value> struct Pair {
 } // namespace detail::map
 
 /**
- * Open-addressing hash map with quadratic probing.
+ * Open-addressing hash map with linear probing (stride 1; see the file header
+ * comment for the probing strategy and tombstone semantics).
  *
  * Stores up to @p static_size key-value pairs inline (actual table capacity
  * is roughly 3x to maintain load factor). Falls back to heap via alloc::alloc
@@ -226,7 +256,9 @@ public:
 
     for (int i = 0; i < size; i++) {
       if (used_[i]) {
-        table_[i] = b.table_[i];
+        /* table_ is raw storage; copy-construct rather than assign so a
+         * non-trivial Key/Value isn't assigned over uninitialized memory. */
+        new (static_cast<void *>(&table_[i])) Pair(b.table_[i]);
       }
     }
   }
@@ -239,16 +271,35 @@ public:
   }
 
   Map(Map &&b)
+      : used_(std::move(b.used_)), clear_(std::move(b.clear_)),
+        cur_size_(b.cur_size_), used_count_(b.used_count_)
   {
-    if (table_.data() == get_static()) {
-      Map(static_cast<const Map &>(b));
+    if (b.table_.data() == b.get_static()) {
+      /* b's table lives inline; we can't steal the pointer (it points into b),
+       * so move the live pairs into our own static storage. */
+      table_ = std::span(get_static(), b.table_.size());
+
+      if constexpr (!Pair::is_simple()) {
+        for (int i = 0; i < b.table_.size(); i++) {
+          if (used_[i]) {
+            new (static_cast<void *>(&table_[i])) Pair(std::move(b.table_[i]));
+            b.table_[i].~Pair();
+          }
+        }
+      } else {
+        memcpy(static_cast<void *>(get_static()),
+               static_cast<const void *>(b.table_.data()),
+               sizeof(Pair) * b.table_.size());
+      }
     } else {
-      table_ = std::move(b.table_);
-      used_count_ = b.used_count_;
-      used_ = std::move(b.used_);
-      clear_ = std::move(b.clear_);
-      cur_size_ = b.cur_size_;
+      /* b's table is heap-allocated; steal the buffer outright. */
+      table_ = b.table_;
     }
+
+    /* Reset b to an empty inline state so its destructor neither frees the
+     * buffer we now own nor touches the pairs we moved out. */
+    b.table_ = std::span(b.get_static(), size_t(0));
+    b.used_count_ = 0;
   }
 
   DEFAULT_COPY_ASSIGNMENT(Map)
@@ -545,7 +596,7 @@ private:
   using MyBoolVector = BoolVector<static_size * 3 + 1>;
 
   std::span<Pair> table_;
-  char *static_storage_[real_static_size * sizeof(Pair)];
+  char static_storage_[real_static_size * sizeof(Pair)];
   MyBoolVector used_;
   // used to mark deleted tombstones
   MyBoolVector clear_;
@@ -565,13 +616,21 @@ private:
   {
     check_load();
 
-    int i = find_pair<true, true>(key);
+    int first_clearcell = -1;
+    int i = find_pair<true, true>(key, &first_clearcell);
     if (used_[i]) {
       if constexpr (overwrite) {
         add_finalize(i, key, value);
       }
 
       return false;
+    }
+
+    /* Reuse a tombstone in the probe chain if one was found, instead of
+     * consuming a fresh empty cell (which would rehash sooner). add_finalize
+     * clears the tombstone bit. */
+    if (first_clearcell != -1) {
+      i = first_clearcell;
     }
 
     add_finalize(i, key, value);
@@ -583,8 +642,10 @@ private:
   template <typename KeyArg, typename ValueArg>
   void add_finalize(int i, const KeyArg key, const ValueArg value)
   {
+    const bool was_used = used_[i];
+
     if constexpr (!Pair::is_simple()) {
-      if (!used_[i]) {
+      if (!was_used) {
         /* Use copy/move constructors. */
         new (static_cast<void *>(&table_[i].key)) Key(key);
         new (static_cast<void *>(&table_[i].value)) Value(value);
@@ -597,20 +658,33 @@ private:
       table_[i].value = value;
     }
 
-    used_count_++;
+    /* Only bump the live count when we actually occupied a new slot; an
+     * overwrite of an existing key must not inflate used_count_ (which would
+     * trigger spurious rehashes — the riskiest map operation). */
+    if (!was_used) {
+      used_count_++;
+    }
     used_.set(i, true);
+    clear_.set(i, false);
   }
 
   template <bool check_key_equals = true, bool return_unused_cell = false>
   int find_pair(const Key &key, int *first_clearcell = nullptr)
   {
     const hash::HashInt size = hash::HashInt(table_.size());
-    hash::HashInt hashval = hash::hash(key) % size;
-    hash::HashInt h = hashval, probe = hashval;
+    const hash::HashInt hashval = hash::hash(key) % size;
+    hash::HashInt h = hashval;
 
+    /* Linear probing (stride 1). The table sizes are primes; the previous
+     * triangular-number quadratic probe (h += ++probe) only visits ~half the
+     * slots of a prime-sized table, so it could fail to find an empty slot — or
+     * an existing key — even when the table is far from full, and the resulting
+     * clear_clearcells() retry could re-enter realloc_to_size mid-rehash and
+     * corrupt the table. Stride 1 visits every slot for any modulus, so the
+     * probe always terminates at the key or a truly-empty cell. */
     int count = 0;
     while (1) {
-      if (count > size) {
+      if (count++ > int(size)) {
         clear_clearcells();
         return find_pair<check_key_equals, return_unused_cell>(key, first_clearcell);
       }
@@ -619,23 +693,35 @@ private:
         if constexpr (return_unused_cell) {
           if (!clear_[h]) {
             return h;
-          } else if (first_clearcell) {
+          } else if (first_clearcell && *first_clearcell == -1) {
+            /* Record the first tombstone so the caller can reuse it. */
             *first_clearcell = h;
           }
         } else {
-          return -1;
+          /* A tombstone (used_=false, clear_=true) is a deleted slot, not the
+           * end of the probe chain — a key inserted before the deletion may
+           * still live further along. Only a truly empty cell (not used, not a
+           * tombstone) means the key is absent. Returning -1 on a tombstone made
+           * lookup/contains/remove miss keys whose chain crossed a deleted slot. */
+          if (!clear_[h]) {
+            return -1;
+          }
         }
-      }
-
-      if constexpr (check_key_equals) {
+        /* Never run the key-equality check on an unused slot. A tombstone's Pair
+         * has been destructed; for trivially-destructible keys (pointers, ints)
+         * the stale key bits linger, so comparing them can spuriously match a
+         * just-removed key whose live, re-inserted entry sits further down the
+         * probe chain — producing a duplicate live entry. */
+      } else if constexpr (check_key_equals) {
         if (table_[h].key == key) {
           return h;
         }
       }
 
-      probe++;
-      hashval += probe;
-      h = hashval % size;
+      h++;
+      if (h >= size) {
+        h -= size;
+      }
     }
   }
 
@@ -708,6 +794,12 @@ private:
           old[i].~Pair();
         }
         used_.set(index, true);
+        /* Maintain the live-entry count across the rehash. Leaving it at 0
+         * (the reset above) lets check_load() think the table is empty, so it
+         * never rehashes again until ~size/3 *new* inserts accumulate — by then
+         * the table runs at a pathological load factor, with every probe walking
+         * a near-full chain. */
+        used_count_++;
       }
     }
 

@@ -13,12 +13,17 @@
 namespace litestl::util {
 
 /**
- * Open-addressing hash set with quadratic probing.
+ * Open-addressing hash set with linear probing (stride 1).
  *
  * Stores up to @p static_size_logical keys inline (actual table capacity
  * is roughly 4x to maintain load factor). Falls back to heap via alloc::alloc
  * when the element count exceeds the static capacity. Rehashes when more than
  * one-third of slots are occupied. Uses tombstones for deletion.
+ *
+ * Probing mirrors Map (see map.h's header comment): stride 1 over prime-sized
+ * tables visits every slot, so find_cell() always terminates at the key or a
+ * truly-empty cell. A tombstone is not end-of-chain, so scanning continues past
+ * it; key equality is never tested on an unused slot.
  */
 // cannot rely on pointer members forcibly aligning to 8
 // because of wasm
@@ -140,7 +145,8 @@ struct alignas(ContainerAlign<Key>()) Set {
       }
     }
 
-    if (static_cast<void *>(table_.data()) != static_cast<void *>(static_storage_)) {
+    if (table_.data() &&
+        static_cast<void *>(table_.data()) != static_cast<void *>(static_storage_)) {
       alloc::release(static_cast<void *>(table_.data()));
     }
   }
@@ -251,41 +257,47 @@ private:
 
   int find_cell(const Key &key, int &first_clearcell) const
   {
-    return const_cast<Set *>(this)->find_cell<false>(key, first_clearcell);
+    return const_cast<Set *>(this)->find_cell(key, first_clearcell);
   }
 
-  template <bool realloc_clearcells = true>
   int find_cell(const Key &key, int &first_clearcell)
   {
     const hash::HashInt size = hash::HashInt(table_.size());
-    hash::HashInt hashval = hash::hash(key) % size;
-    hash::HashInt h = hashval, probe = hashval;
+    const hash::HashInt hashval = hash::hash(key) % size;
+    hash::HashInt h = hashval;
 
     int count = 0;
     while (1) {
-      if (count > size) {
-        // clearcell chain is full
-        if constexpr (realloc_clearcells) {
-          clear_clearcell();
-        }
-        return find_cell<realloc_clearcells>(key, first_clearcell);
+      if (count++ > int(size)) {
+        // Probe chain saturated with tombstones; rehash to reclaim them and
+        // retry against a fresh table. Always rehashing (rather than gating it
+        // on the lookup path) is what keeps contains()/remove() from recursing
+        // forever on a tombstone-full table.
+        clear_clearcell();
+        first_clearcell = -1;
+        return find_cell(key, first_clearcell);
       }
-      // hit free cell?
+
       if (!usedmap_[h]) {
-        // was this cell previously cleared? if so keep looking
+        // A tombstone is not end-of-chain: record the first one for reuse and
+        // keep scanning. Only a truly-empty cell means the key is absent.
         if (clearmap_[h]) {
-          first_clearcell = h;
+          if (first_clearcell == -1) {
+            first_clearcell = h;
+          }
         } else {
           return h;
         }
       } else if (table_[h] == key) {
+        // Key equality is only tested on a used slot, so a tombstone's stale
+        // bits can never spuriously match.
         return h;
       }
 
-      probe++;
-      hashval += probe;
-      h = hashval % size;
-      count++;
+      h++;
+      if (h >= size) {
+        h -= size;
+      }
     }
   }
 

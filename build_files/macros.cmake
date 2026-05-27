@@ -88,7 +88,12 @@ macro(build_wasm_post target src lib symbols)
     target_link_options(${target} PRIVATE "-sEXPORTED_RUNTIME_METHODS=HEAPU8")
     
     target_link_options(${target} PRIVATE "-sEXPORTED_FUNCTIONS=${wasmsym}")
-    target_link_options(${target} PRIVATE "--bind")  
+    target_link_options(${target} PRIVATE "--bind")
+
+    # WebGPU backend: emdawnwebgpu port supplies the standardized webgpu.h
+    # implementation (Dawn) for both web and node targets. Must match the
+    # compile-time flag on the `webgpu` static lib.
+    target_link_options(${target} PRIVATE "--use-port=emdawnwebgpu")
   endblock()
 endmacro()
 
@@ -101,5 +106,14 @@ macro(build_wasm_browser target src lib symbols)
   add_executable(${target} "${src}")
   target_link_options(${target} PRIVATE "-sENVIRONMENT=web")
   target_link_options(${target} PRIVATE "-sALLOW_MEMORY_GROWTH=1")
+  # Prewarm the pthread pool. litestl::task uses LITESTL_WORKERS_COUNT (6)
+  # persistent workers; parallel_for spawns them then blocks the caller on a
+  # condition var. On the browser main thread, spawning a worker needs the
+  # event loop to run — but the blocked caller never yields, so an unwarmed
+  # pool deadlocks. A pool pre-created during async module init means the
+  # workers already exist when the first parallel_for blocks. Pool ≥ worker
+  # count (8 for headroom); STRICT=0 lets the odd extra thread spawn lazily.
+  target_link_options(${target} PRIVATE "-sPTHREAD_POOL_SIZE=8")
+  target_link_options(${target} PRIVATE "-sPTHREAD_POOL_SIZE_STRICT=0")
   build_wasm_post(${target} "${src}" "${lib}" "${symbols}")
 endmacro()

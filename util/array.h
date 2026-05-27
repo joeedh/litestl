@@ -129,7 +129,9 @@ template <typename T> struct Array {
       }
     }
 
-    alloc::release(static_cast<void *>(data_));
+    if (data_) {
+      alloc::release(static_cast<void *>(data_));
+    }
 
     data_ = newdata;
     size_ = newsize;

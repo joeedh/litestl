@@ -739,6 +739,7 @@ struct StructData : FieldData {
 
 struct BinFile {
   bool littleEndian;
+  bool compressed = false;
   uint8_t version[3];
   iostream &stream;
 
@@ -930,6 +931,9 @@ struct BinFile {
     if (littleEndian) {
       flags |= uint8_t(FileFlags::LITTLE_ENDIAN);
     }
+    if (compressed) {
+      flags |= uint8_t(FileFlags::COMPRESSED);
+    }
     stream.write(reinterpret_cast<const char *>(&flags), 1);
     stream.write(reinterpret_cast<const char *>(&version[0]), 1);
     stream.write(reinterpret_cast<const char *>(&version[1]), 1);
@@ -948,6 +952,7 @@ struct BinFile {
     uint8_t flags = 0;
     stream.read(reinterpret_cast<char *>(&flags), 1);
     littleEndian = (flags & uint8_t(FileFlags::LITTLE_ENDIAN)) != 0;
+    compressed = (flags & uint8_t(FileFlags::COMPRESSED)) != 0;
     stream.read(reinterpret_cast<char *>(&version[0]), 1);
     stream.read(reinterpret_cast<char *>(&version[1]), 1);
     stream.read(reinterpret_cast<char *>(&version[2]), 1);

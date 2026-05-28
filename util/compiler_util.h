@@ -233,19 +233,19 @@ static inline const void *pointer_offset(const void *ptr, int n)
     }                                                                                    \
     Storage val_;                                                                        \
   };                                                                                     \
-  static Enum operator|(Enum a, Enum b)                                                  \
+  static constexpr Enum operator|(Enum a, Enum b)                                        \
   {                                                                                      \
     return Enum(Storage(a) | Storage(b));                                                \
   }                                                                                      \
-  static Enum operator&(Enum a, Enum b)                                                  \
+  static constexpr Enum operator&(Enum a, Enum b)                                        \
   {                                                                                      \
     return Enum(Storage(a) & Storage(b));                                                \
   }                                                                                      \
-  static Enum operator^(Enum a, Enum b)                                                  \
+  static constexpr Enum operator^(Enum a, Enum b)                                        \
   {                                                                                      \
     return Enum(Storage(a) ^ Storage(b));                                                \
   }                                                                                      \
-  static Enum operator~(Enum a)                                                          \
+  static constexpr Enum operator~(Enum a)                                                \
   {                                                                                      \
     return Enum(~Storage(a));                                                            \
   }                                                                                      \

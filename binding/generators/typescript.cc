@@ -433,6 +433,13 @@ string TypescriptGenerator::formatTemplate(const BindingBase *type,
     const _StructBase *st = static_cast<const _StructBase *>(type);
     if (st->buildFullName().starts_with("litestl::util::Vector<")) {
       addImport(st->templateParams[0].type, imports, filename);
+      // Vector maps to `T[]` everywhere it's *used*, so the suffix is empty
+      // there. But the standalone interface declaration still references the
+      // element-type param `T` (its constructor takes `ptrWithCount(T*, int)`),
+      // so the declaration must introduce that generic parameter.
+      if (isDecl) {
+        return "<T = any>";
+      }
     }
     return "";
   }

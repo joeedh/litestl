@@ -86,7 +86,9 @@ template <typename Key, int static_size = 4> struct OrderedSet {
       freelist_.append(i);
       freemap_.set(i, true);
       size_--;
+      return true;
     }
+    return false;
   }
 
   size_t size() const

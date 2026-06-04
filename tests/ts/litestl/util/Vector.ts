@@ -1,20 +1,23 @@
-
-import type {float3} from "../math/float3";
-
 /** Auto-generated file */
 /* eslint-disable @typescript-eslint/no-misused-new */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
-type float = number;
-type pointer<T=any> = number;
-type int = number;
-type uint = number;
-type double = number;
-type short = number;
-type ushort = number;
-type char = number;
-type uchar = number;
+type pointer<T = any> = number
+type int8 = number
+type uint8 = number
+type int16 = number
+type uint16 = number
+type int32 = number
+type uint32 = number
+type int64 = number
+type uint64 = number
+type float = number
+type double = number
 
-export interface float3[] {
-  [Symbol.dispose](): void;
+export interface Vector<T = any> {
+  [Symbol.dispose](): void
+  resize(newsize: int32): void
+  resize_no_construct_destruct(newsize: int32): void
+  new (): pointer[]
+  new (arg0: T, arg1: int32): pointer[]
 }

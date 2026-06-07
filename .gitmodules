@@ -1,3 +1,0 @@
-[submodule "extern/eigen/SuiteSparse"]
-	path = extern/eigen/SuiteSparse
-	url = https://github.com/DrTimothyAldenDavis/SuiteSparse.git

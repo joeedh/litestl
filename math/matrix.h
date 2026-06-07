@@ -1,7 +1,7 @@
 #pragma once
 
-#include "eigen/include/eigen3/Eigen/Core"
-#include "eigen/include/eigen3/Eigen/LU"
+#include "eigen/include/eigen5/Eigen/Core"
+#include "eigen/include/eigen5/Eigen/LU"
 #include "math/vector.h"
 
 #include <cstdio>

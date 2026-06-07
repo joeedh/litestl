@@ -1,0 +1,6 @@
+[submodule "extern/eigen/SuiteSparse"]
+	path = extern/eigen/SuiteSparse
+	url = https://github.com/DrTimothyAldenDavis/SuiteSparse.git
+[submodule "extern/OpenBLAS"]
+	path = extern/OpenBLAS
+	url = https://github.com/joeedh/OpenBLAS

@@ -38,7 +38,9 @@ public:
   /** Default constructor. Initializes all components to zero. */
   constexpr Vec()
   {
-    vec_[0] = vec_[1] = T(0);
+    for (int i = 0; i < vec_size; i++) {
+      vec_[i] = T(0);
+    }
   }
 
   /** Constructs a vector from two components. Remaining components are zeroed. */

@@ -144,6 +144,72 @@ int test_move_copy()
   return retval;
 }
 
+/* Regression for the Vector move-ctor capacity lie (see test_vector.cc)
+ * triggered through the rehash: buckets holding exactly static_size elements
+ * (heap-backed) were moved into the new table pointing at inline storage but
+ * keeping the heap capacity_, so later appends overflowed into the neighboring
+ * Pair — and a subsequent rehash stole the inline pointer into the freed old
+ * table (use-after-free). Mimics the triage weld-grid usage pattern. */
+int test_rehash_bucket_overflow()
+{
+  using namespace litestl::util;
+  int retval = 0;
+  Map<int, Vector<int>> grid;
+  constexpr int keys = 257;
+
+  /* Bring every bucket to exactly 4 elements (Vector<int>'s static_size). */
+  for (int j = 0; j < 4; j++) {
+    for (int k = 0; k < keys; k++) {
+      grid[k].append(k * 16 + j);
+    }
+  }
+  /* Force at least one rehash while the buckets sit in that state. */
+  for (int k = keys; k < keys * 4; k++) {
+    grid[k].append(k * 16);
+  }
+  /* Append past the inline capacity of every original bucket. */
+  for (int j = 4; j < 8; j++) {
+    for (int k = 0; k < keys; k++) {
+      grid[k].append(k * 16 + j);
+    }
+  }
+
+  for (int k = 0; k < keys; k++) {
+    Vector<int> *bucket = grid.lookup_ptr(k);
+    test_assert(bucket != nullptr);
+    test_assert(bucket->size() == 8);
+    for (int j = 0; j < 8; j++) {
+      test_assert((*bucket)[j] == k * 16 + j);
+    }
+  }
+  for (int k = keys; k < keys * 4; k++) {
+    test_assert(grid.lookup_ptr(k) != nullptr);
+    test_assert(grid.lookup(k)[0] == k * 16);
+  }
+
+  return retval;
+}
+
+/* Regression: operator[] left simple (int/pointer/float) values uninitialized
+ * on first insert, so counting patterns like map[k]++ started from garbage. */
+int test_operator_brackets_init()
+{
+  using namespace litestl::util;
+  int retval = 0;
+  Map<int, int> count;
+
+  for (int pass = 0; pass < 3; pass++) {
+    for (int k = 0; k < 1000; k++) {
+      count[k * 7919]++;
+    }
+  }
+  for (int k = 0; k < 1000; k++) {
+    test_assert(count.lookup(k * 7919) == 3);
+  }
+
+  return retval;
+}
+
 int main()
 {
   using namespace litestl::util;
@@ -151,6 +217,8 @@ int main()
   test_remove();
   test_no_duplicate_keys();
   test_move_copy();
+  test_rehash_bucket_overflow();
+  test_operator_brackets_init();
 
   {
     Map<int, int> imap;

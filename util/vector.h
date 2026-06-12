@@ -372,11 +372,14 @@ public:
   Vector(const Vector &b)
   {
     size_ = b.size_;
-    capacity_ = b.capacity_;
 
+    /* capacity_ must describe the storage data_ points at; copying b's heap
+     * capacity while using inline storage lets later appends overflow it. */
     if (size_ > static_size) {
+      capacity_ = b.capacity_;
       data_ = static_cast<T *>(alloc::alloc("Vector", sizeof(T) * b.capacity_));
     } else {
+      capacity_ = static_size;
       data_ = static_storage();
     }
 
@@ -484,22 +487,24 @@ public:
   Vector(Vector &&b)
   {
     size_ = b.size_;
-    capacity_ = b.capacity_;
 
-    if (size_ <= static_size) {
+    /* Branch on where b's data actually lives, not on size_: a heap-backed
+     * vector can have size_ <= static_size, and copying its capacity_ while
+     * pointing data_ at inline storage lets later appends overflow it. */
+    if (b.data_ == b.static_storage() || b.data_ == nullptr) {
+      capacity_ = static_size;
       data_ = static_storage();
 
       for (int i = 0; i < size_; i++) {
         if constexpr (!is_simple<T>()) {
           new (static_cast<void *>(data_ + i)) T(std::move(b.data_[i]));
+          b.data_[i].~T();
         } else {
           data_[i] = std::move(b.data_[i]);
         }
       }
-      if (b.data_ && b.data_ != b.static_storage()) {
-        alloc::release(static_cast<void *>(b.data_));
-      }
     } else {
+      capacity_ = b.capacity_;
       data_ = b.data_;
     }
 

@@ -433,8 +433,11 @@ public:
         clear_.set(first_clearcell, false);
       }
 
+      /* Simple values must be explicitly zeroed — the slot is raw storage. */
       if constexpr (!is_simple<Value>()) {
         new (static_cast<void *>(&table_[i].value)) Value();
+      } else {
+        table_[i].value = Value();
       }
 
       used_.set(i, true);

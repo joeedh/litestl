@@ -1,6 +1,7 @@
 #pragma once
 
 #include "binding_base.h"
+#include "binding_bind.h"
 #include "binding_method.h"
 #include "binding_types.h"
 #include "util/vector.h"
@@ -191,12 +192,12 @@ concept ClassBindingReq = requires(types::Struct<CLS> *def) {
   std::is_reference_v<CLS> == false;
 };
 
-template <typename CLS>
-const BindingBase *Bind()
-  requires ClassBindingReq<CLS>
-{
-  return CLS::defineBindings();
-}
+template <ClassBindingReq CLS> struct Binder<CLS> {
+  static const BindingBase *bind()
+  {
+    return CLS::defineBindings();
+  }
+};
 } // namespace litestl::binding
 
 #define BIND_STRUCT_MEMBER(def, field)                                                   \

@@ -87,9 +87,9 @@ C++ reflection / type-description layer; see
 - The system intentionally allocates descriptors with `new` and never
   deletes them. This is scaffolding for an eventual `constexpr` /
   `consteval` redesign; do not refactor it to fix the "leaks" or to
-  templatize storage unless that's explicitly the task. Concept-based
-  compile-time dispatch (`ClassBindingReq`, `std::same_as<...>` overloads)
-  is the part that should stay.
+  templatize storage unless that's explicitly the task. Compile-time
+  dispatch through `Binder<T>` specializations (explicit or
+  concept-constrained, e.g. `ClassBindingReq`) is the part that should stay.
 - The TS-side runtime lives in `binding/typescriptRuntime/`. It reads
   descriptors out of the WASM heap using the `BindingInfo` offsets table
   populated in `binding.cc::LSTL_GetBindingInfo`. If you add fields to a

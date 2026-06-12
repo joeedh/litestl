@@ -1,5 +1,6 @@
 #pragma once
 #include "binding_base.h"
+#include "binding_bind.h"
 #include "binding_types.h"
 #include "concepts"
 #include <cstdint>
@@ -16,14 +17,16 @@ namespace litestl::binding {
 // so we do a lot of dynamic checking here
 
 #define _(ctype, Name, type)                                                             \
-  template <std::same_as<ctype> T> types::Number<ctype> *Bind()                          \
-  {                                                                                      \
-    auto *num = new types::Number<ctype>(NumberType::type, (Name), NumberFlags::None);   \
-    if constexpr (std::is_integral_v<T> && std::is_unsigned_v<T>) {                      \
-      num->flags |= NumberFlags::Unsigned;                                               \
-      num->name = "u" + num->name;                                                       \
+  template <> struct Binder<ctype> {                                                     \
+    static types::Number<ctype> *bind()                                                  \
+    {                                                                                    \
+      auto *num = new types::Number<ctype>(NumberType::type, (Name), NumberFlags::None); \
+      if constexpr (std::is_integral_v<ctype> && std::is_unsigned_v<ctype>) {            \
+        num->flags |= NumberFlags::Unsigned;                                             \
+        num->name = "u" + num->name;                                                     \
+      }                                                                                  \
+      return num;                                                                        \
     }                                                                                    \
-    return num;                                                                          \
   }
 
 // why do we need signed char and char? 

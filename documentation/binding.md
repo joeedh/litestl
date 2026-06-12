@@ -32,9 +32,10 @@ The header layout mirrors the conceptual layering:
 | Header | Role |
 | --- | --- |
 | `binding_base.h` | `BindingBase`, the polymorphic root, plus the `BindingType` and `NumberType` / `NumberFlags` tag enums. |
+| `binding_bind.h` | The `Binder<T>` customization point (undefined primary template) and the `Bind<T>()` dispatcher that routes to `Binder<T>::bind()`. |
 | `binding_types.h` | Primitive and indirection descriptors: `types::Boolean`, `types::Number<T>`, `types::Array<T>`, `types::Pointer`, `types::Reference`. |
-| `binding_number.h` | `Bind<T>()` overloads for the built-in numeric C types (`char`, `short`, `int`, `int64_t`, `float`, `double`, plus unsigned variants). |
-| `binding_utils.h` | `Bind<T>()` overloads for `bool`, raw pointers, and references. |
+| `binding_number.h` | `Binder<T>` specializations for the built-in numeric C types (`char`, `short`, `int`, `int64_t`, `float`, `double`, plus unsigned variants). |
+| `binding_utils.h` | `Binder<T>` specializations for `bool`, raw pointers, and references. |
 | `binding_struct.h` | `types::Struct<CLS>`, the `ClassBindingReq` concept, the `BIND_STRUCT_MEMBER` macro, and the `StructMember` / `StructTemplate` records. |
 | `binding_method.h` | `types::Method`, the `MethodBuilder` traits class, and the `BIND_STRUCT_METHOD` / `BIND_STRUCT_METHOD_SIG` macros. |
 | `binding_constructor.h` | `types::Constructor` and `_StructBase::findConstructor`. |
@@ -52,34 +53,49 @@ The header layout mirrors the conceptual layering:
 ## The core idea: `Bind<T>()`
 
 Every type that participates in the binding system is reachable through a
-single generic function:
+single generic function (`binding_bind.h`):
 
 ```cpp
-template <typename T> const BindingBase *Bind();
+template <typename T> struct Binder;          // undefined primary
+
+template <typename T> auto Bind()
+{
+  return Binder<T>::bind();
+}
 ```
 
 `Bind<T>()` returns a pointer to the most-derived `BindingBase` subclass that
-describes `T`. The correct overload is selected at **compile time** using C++20
-concepts — the binding system never inspects a runtime type tag to decide how
-to describe a C++ type. Which overload fires depends on what `T` is:
+describes `T`. The dispatch goes through the `Binder<T>` **class-template
+customization point**: each bindable type provides a specialization with a
+`static bind()` member, selected at **compile time** (explicit specializations
+and C++20-constrained partial specializations) — the binding system never
+inspects a runtime type tag to decide how to describe a C++ type. Because
+`Binder<T>::bind` is a dependent qualified name, a specialization only needs
+to be declared before the first `Bind<T>()` call that a TU instantiates; this
+is what lets downstream modules (mesh, gpu, props, …) register their own types
+under conforming two-phase name lookup. Which specialization fires depends on
+what `T` is:
 
-- For a **built-in numeric type** (`int`, `uint64_t`, `short`, …), a
-  `std::same_as<ctype>`-constrained overload in `binding_number.h` produces a
-  `types::Number<T>`. Unsigned variants get the `NumberFlags::Unsigned` flag set
-  and their TS-side name prefixed with `u` (so `unsigned int` → `"uint32"`).
+- For a **built-in numeric type** (`int`, `uint64_t`, `short`, …), an explicit
+  specialization in `binding_number.h` produces a `types::Number<T>`. Unsigned
+  variants get the `NumberFlags::Unsigned` flag set and their TS-side name
+  prefixed with `u` (so `unsigned int` → `"uint32"`).
 - For `bool`, a `types::Boolean`.
-- For a **raw pointer** `T*`, a `types::Pointer` wrapping `Bind<T>()`. The
-  special case `void *` produces an unsigned-integer descriptor sized for the
-  target pointer width.
+- For a **raw pointer** `T*`, a partial specialization produces a
+  `types::Pointer` wrapping `Bind<T>()`. The special case `void *` (an explicit
+  specialization, which always beats the partial one) produces an
+  unsigned-integer descriptor sized for the target pointer width.
 - For a **reference** `T&`, a `types::Reference`.
 - For a **user-defined class** that opts in via a static `defineBindings()`
-  method, the `ClassBindingReq` concept in `binding_struct.h` selects an
-  overload that returns the class's own `types::Struct<CLS>` descriptor.
+  method, the `ClassBindingReq`-constrained partial specialization in
+  `binding_struct.h` returns the class's own `types::Struct<CLS>` descriptor.
 - For **`litestl::util::Vector<T, N>`** and **`litestl::util::string`**, the
-  helpers in `binding.h` produce a `types::Struct` describing the container.
+  specializations in `binding.h` produce a `types::Struct` describing the
+  container.
 
-If no overload matches, compilation fails cleanly — a type that cannot be
-described is caught the moment someone tries to bind it, not at runtime.
+If no specialization matches, compilation fails cleanly (the primary template
+is undefined) — a type that cannot be described is caught the moment someone
+tries to bind it, not at runtime.
 
 ### Use of `new`
 
@@ -252,6 +268,24 @@ value* should register one.
 `isBitMask` flag, and a `Vector<EnumItem>` of `{name, value}` pairs. Items are
 appended with `addItem(name, value)`. The generator emits a TS `enum` (or a
 union of numeric literals for bitmask enums).
+
+To bind a new enum, specialize `Binder` for it (in a header next to the enum,
+reopening `namespace litestl::binding`, so every TU agrees on the
+specialization; the `bind()` body may also live out-of-line in a `.cc`):
+
+```cpp
+namespace litestl::binding {
+template <> struct Binder<myns::MyEnum> {
+  static const types::Enum *bind()
+  {
+    types::Enum *e = new types::Enum("myns::MyEnum", sizeof(myns::MyEnum));
+    e->addItem("A", int(myns::MyEnum::A));
+    e->addItem("B", int(myns::MyEnum::B));
+    return e;
+  }
+};
+} // namespace litestl::binding
+```
 
 ## Discriminated unions
 

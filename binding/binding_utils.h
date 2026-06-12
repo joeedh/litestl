@@ -1,6 +1,7 @@
 #pragma once
 #include "../util/vector.h"
 #include "binding/binding_base.h"
+#include "binding_bind.h"
 #include "binding_literal.h"
 #include "binding_struct.h"
 #include "binding_types.h"
@@ -10,25 +11,27 @@
 
 namespace litestl::binding {
 
-template <std::same_as<bool> T> static types::Boolean *Bind()
-{
-  return new types::Boolean();
-}
+template <> struct Binder<bool> {
+  static types::Boolean *bind()
+  {
+    return new types::Boolean();
+  }
+};
 
-template <typename T>
-  requires std::is_pointer_v<T> && (!std::same_as<T, void *>)
-static types::Pointer *Bind()
-{
-  using P = std::remove_pointer_t<T>;
-  return new types::Pointer(Bind<P>());
-}
+// Binder<void *> (binding.h) is an explicit specialization, so it beats this
+// partial specialization without needing an exclusion constraint.
+template <typename T> struct Binder<T *> {
+  static types::Pointer *bind()
+  {
+    return new types::Pointer(Bind<T>());
+  }
+};
 
-template <typename T>
-  requires std::is_reference_v<T>
-static types::Reference *Bind()
-{
-  using P = std::remove_reference_t<T>;
-  return new types::Reference(Bind<P>());
-}
+template <typename T> struct Binder<T &> {
+  static types::Reference *bind()
+  {
+    return new types::Reference(Bind<T>());
+  }
+};
 
 } // namespace litestl::binding

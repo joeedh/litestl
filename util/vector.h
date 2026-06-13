@@ -861,6 +861,11 @@ public:
     return result;
   }
 
+  bool using_heap() const
+  {
+    return static_cast<const void *>(data_) != static_cast<const void *>(static_storage_);
+  }
+
 private:
   flatten_inline void deconstruct_all()
   {

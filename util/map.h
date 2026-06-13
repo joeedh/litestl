@@ -271,8 +271,8 @@ public:
   }
 
   Map(Map &&b)
-      : used_(std::move(b.used_)), clear_(std::move(b.clear_)),
-        cur_size_(b.cur_size_), used_count_(b.used_count_)
+      : used_(std::move(b.used_)), clear_(std::move(b.clear_)), cur_size_(b.cur_size_),
+        used_count_(b.used_count_)
   {
     if (b.table_.data() == b.get_static()) {
       /* b's table lives inline; we can't steal the pointer (it points into b),
@@ -547,7 +547,7 @@ public:
     int i = find_pair<true, false>(key);
     return table_[i].value;
   }
-  
+
   const Value &lookup(const Key &key) const
   {
     int i = const_cast<Map *>(this)->find_pair<true, false>(key);
@@ -593,6 +593,12 @@ public:
     }
 
     realloc_to_size(size);
+  }
+
+  bool using_heap() const
+  {
+    return static_cast<const void *>(table_.data()) !=
+           static_cast<const void *>(static_storage_);
   }
 
 private:

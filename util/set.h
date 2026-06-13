@@ -146,7 +146,8 @@ struct alignas(ContainerAlign<Key>()) Set {
     }
 
     if (table_.data() &&
-        static_cast<void *>(table_.data()) != static_cast<void *>(static_storage_)) {
+        static_cast<void *>(table_.data()) != static_cast<void *>(static_storage_))
+    {
       alloc::release(static_cast<void *>(table_.data()));
     }
   }
@@ -245,6 +246,12 @@ struct alignas(ContainerAlign<Key>()) Set {
     size_ = 0;
     usedmap_.clear();
     return *this;
+  }
+
+  bool using_heap() const
+  {
+    return static_cast<const void *>(table_.data()) !=
+           static_cast<const void *>(static_storage_);
   }
 
 private:

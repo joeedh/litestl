@@ -1,7 +1,9 @@
 #pragma once
 
+#include <string>
+
 namespace litestl::platform {
-void printStackTrace();
+std::string getStackTrace();
 static int debugBreak()
 {
 #ifdef WIN32

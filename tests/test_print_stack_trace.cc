@@ -10,7 +10,7 @@ test_init;
 
 struct Bleh {
   ATTR_NO_OPT void A() {
-    litestl::platform::printStackTrace();
+    printf("%s\n", litestl::platform::getStackTrace().c_str());
   }
   ATTR_NO_OPT void B() {
     A();

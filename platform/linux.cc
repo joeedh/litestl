@@ -2,6 +2,7 @@
 #include "platform/time.h"
 
 #include <chrono>
+#include <string>
 #include <thread>
 
 namespace litestl::time {
@@ -26,8 +27,9 @@ int max_thread_count()
   return cpu_core_count() * 2;
 }
 
-void printStackTrace()
+std::string getStackTrace()
 {
   // TODO: unimplemented
+  return "";
 }
 } // namespace litestl::platform

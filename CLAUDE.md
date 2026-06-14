@@ -12,7 +12,7 @@ file covers the things that are specific to litestl.
 
 ## Debugging
 in platform/platform.h:
-* printStackTrace(): print stack trace to stdout
+* getStackTrace(): return the current stack trace as a std::string
 * debugBreak: break in debugger (calls __debugbreak on windows, 
   derefs a nullptr on other platforms/wasm).
 

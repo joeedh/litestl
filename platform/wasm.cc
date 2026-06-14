@@ -1,7 +1,9 @@
-#include "util/wasm.h"
 #include <chrono>
 #include <emscripten.h>
+#include <string>
 #include <thread>
+
+#include "util/wasm.h"
 
 
 // use std c++ for wasm
@@ -25,12 +27,13 @@ int max_thread_count()
 {
   return cpu_core_count() << 1;
 }
-void printStackTrace()
+std::string getStackTrace()
 {
   const char *s = litestl::util::wasm::getStackTrace("");
-  printf("%s\n", s);
+  std::string result = s ? s : "";
   if (s) {
     free((void *)s);
   }
+  return result;
 }
 } // namespace litestl::platform

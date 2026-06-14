@@ -1,15 +1,19 @@
 #include <windows.h>
 
 #include <dbghelp.h>
-#include <iostream>
+#include <sstream>
+#include <string>
 
 #pragma comment(lib, "dbghelp.lib")
 
 namespace litestl::platform {
-void printStackTrace()
+  using std::string;
+
+string getStackTrace()
 {
   void *stackBuffer[64];
   HANDLE process = GetCurrentProcess();
+  std::ostringstream out;
 
   // 1. Initialize the symbol handler
   SymInitialize(process, NULL, TRUE);
@@ -27,14 +31,15 @@ void printStackTrace()
   for (USHORT i = 0; i < frames; ++i) {
     DWORD64 displacement = 0;
     if (SymFromAddr(process, (DWORD64)stackBuffer[i], &displacement, symbol)) {
-      std::cout << "[" << i << "] " << symbol->Name
-                << "() - Address: " << (void *)symbol->Address << "\n";
+      out << "[" << i << "] " << symbol->Name
+          << "() - Address: " << (void *)symbol->Address << "\n";
     } else {
-      std::cout << "[" << i << "] UnknownFunction - Address: " << stackBuffer[i] << "\n";
+      out << "[" << i << "] UnknownFunction - Address: " << stackBuffer[i] << "\n";
     }
   }
 
   // 5. Clean up resource
   SymCleanup(process);
+  return out.str();
 }
 } // namespace litestl::platform

@@ -33,7 +33,7 @@ template <typename T, int SLAB_N = 64> class Pool {
   struct FreeNode {
     FreeNode *next;
   };
-  
+
 public:
   Pool() = default;
 
@@ -87,20 +87,24 @@ public:
     return p;
   }
 
-  void release(T *p)
+  bool release(T *p)
   {
     if (!p) {
-      return;
+      return false;
     }
     int slab_idx;
     int slot_in_slab;
     locate(static_cast<void *>(p), slab_idx, slot_in_slab);
-    p->~T();
-    slabs_[slab_idx]->live.set(slot_in_slab, false);
-    FreeNode *node = static_cast<FreeNode *>(static_cast<void *>(p));
-    node->next = freelist_;
-    freelist_ = node;
-    live_--;
+    if (slabs_[slab_idx]->live[slot_in_slab]) {
+      p->~T();
+      slabs_[slab_idx]->live.set(slot_in_slab, false);
+      FreeNode *node = static_cast<FreeNode *>(static_cast<void *>(p));
+      node->next = freelist_;
+      freelist_ = node;
+      live_--;
+      return true;
+    }
+    return false;
   }
 
   void clear()

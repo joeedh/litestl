@@ -203,6 +203,41 @@ bool check_mem(void *ptr)
   return true;
 }
 
+/* CLAUDENOTE: diagnostic heap-wide canary sweep (see alloc.h). */
+const char *check_all(void **out_ptr)
+{
+  std::lock_guard guard(getMemList()->mutex);
+  MemHead *mem = getMemList()->first;
+  while (mem) {
+    bool bad = false;
+    if (mem->tag1 == FREE) {
+      bad = true;
+    } else if (mem->tag1 != TAG1 || mem->tag2 != TAG2) {
+      bad = true;
+    }
+#ifdef WITH_MEM_TAIL
+    if (!bad) {
+      MemTail *t = reinterpret_cast<MemTail *>(
+          static_cast<char *>(static_cast<void *>(mem + 1)) + mem->size);
+      const char *c = t->check;
+      if (c[0] != 'C' || c[1] != 'H' || c[2] != 'E' || c[3] != 'C' || c[4] != 'K' ||
+          c[5] != '1' || c[6] != '2' || c[7] != '3')
+      {
+        bad = true;
+      }
+    }
+#endif
+    if (bad) {
+      if (out_ptr) {
+        *out_ptr = static_cast<void *>(mem + 1);
+      }
+      return mem->tag;
+    }
+    mem = mem->next;
+  }
+  return nullptr;
+}
+
 void release(void *ptr)
 {
   if (!ptr) {

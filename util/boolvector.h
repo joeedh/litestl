@@ -19,7 +19,17 @@ public:
   {
     vector_ = static_storage_;
     size_ = static_size;
-    vector_size_ = std::max(static_size >> block_shift, 1);
+
+    /* Round the block count UP: a static_size that is not a multiple of the
+     * per-block lane count (1 << block_shift) needs one extra block to back its
+     * top indices. Flooring here (the old bug) left that block uninitialized and
+     * dropped it on the first realloc — corrupting occupancy maps for the likes
+     * of Map<K,V,16> (BoolVector<49>). */
+    vector_size_ = static_size >> block_shift;
+    if (((static_size >> block_shift) << block_shift) != static_size) {
+      vector_size_++;
+    }
+    vector_size_ = std::max(vector_size_, 1);
 
     for (int i = 0; i < vector_size_; i++) {
       vector_[i] = 0;

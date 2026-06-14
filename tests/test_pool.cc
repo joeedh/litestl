@@ -115,5 +115,57 @@ int main()
   }
   test_assert(Counted::live == 0);
 
+  /* Iteration over live objects (single + cross-slab). */
+  {
+    Pool<Counted, 4> pool;
+    pool.alloc(1);
+    Counted *b = pool.alloc(2);
+    pool.alloc(3);
+    pool.alloc(4); // fills slab 0
+    pool.alloc(5); // forces a second slab
+    test_assert(Counted::live == 5);
+
+    /* Explicit iterator loop also exercises operator->. */
+    int count = 0, sum = 0;
+    for (auto it = pool.begin(); it != pool.end(); ++it) {
+      count++;
+      sum += it->value;
+    }
+    test_assert(count == 5);
+    test_assert(sum == 1 + 2 + 3 + 4 + 5);
+
+    /* A released slot drops out of iteration. */
+    pool.release(b);
+    count = 0;
+    sum = 0;
+    for (Counted &c : pool) {
+      count++;
+      sum += c.value;
+    }
+    test_assert(count == 4);
+    test_assert(sum == 1 + 3 + 4 + 5);
+
+    /* const iteration over the same live set. */
+    const Pool<Counted, 4> &cpool = pool;
+    int csum = 0;
+    for (const Counted &c : cpool) {
+      csum += c.value;
+    }
+    test_assert(csum == 1 + 3 + 4 + 5);
+  }
+  test_assert(Counted::live == 0);
+
+  /* Empty pool: begin() == end(), no iterations. */
+  {
+    Pool<Counted, 4> pool;
+    test_assert(pool.begin() == pool.end());
+    int count = 0;
+    for (Counted &c : pool) {
+      (void)c;
+      count++;
+    }
+    test_assert(count == 0);
+  }
+
   return test_end();
 }

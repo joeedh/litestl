@@ -5,6 +5,7 @@
 #include "vector.h"
 #include <cstddef>
 #include <new>
+#include <type_traits>
 #include <utility>
 
 namespace litestl::util {
@@ -32,7 +33,7 @@ template <typename T, int SLAB_N = 64> class Pool {
   struct FreeNode {
     FreeNode *next;
   };
-
+  
 public:
   Pool() = default;
 
@@ -114,6 +115,78 @@ public:
   int live_count() const
   {
     return live_;
+  }
+
+  /**
+   * Forward iterator over live objects: walks slabs in slot order, skipping
+   * freed / never-allocated slots via the per-slab live bitmap. Invalidated by
+   * any alloc()/release()/clear() — don't mutate the pool mid-traversal.
+   */
+  template <bool is_const> struct iterator_base {
+    using pool_type = std::conditional_t<is_const, const Pool, Pool>;
+    using value_type = std::conditional_t<is_const, const T, T>;
+
+    iterator_base(pool_type *pool, int i) : pool_(pool), i_(i)
+    {
+      if (i_ == 0) {
+        /* Prewind to the first live slot. */
+        i_ = -1;
+        operator++();
+      }
+    }
+
+    bool operator==(const iterator_base &b) const
+    {
+      return i_ == b.i_;
+    }
+    bool operator!=(const iterator_base &b) const
+    {
+      return i_ != b.i_;
+    }
+
+    value_type &operator*() const
+    {
+      Slab *s = pool_->slabs_[i_ / SLAB_N];
+      return *reinterpret_cast<value_type *>(&s->data[sizeof(T) * (i_ % SLAB_N)]);
+    }
+    value_type *operator->() const
+    {
+      return &operator*();
+    }
+
+    iterator_base &operator++()
+    {
+      const int cap = int(pool_->slabs_.size()) * SLAB_N;
+      i_++;
+      while (i_ < cap && !pool_->slabs_[i_ / SLAB_N]->live[i_ % SLAB_N]) {
+        i_++;
+      }
+      return *this;
+    }
+
+  private:
+    pool_type *pool_;
+    int i_;
+  };
+
+  using iterator = iterator_base<false>;
+  using const_iterator = iterator_base<true>;
+
+  iterator begin()
+  {
+    return iterator(this, 0);
+  }
+  iterator end()
+  {
+    return iterator(this, int(slabs_.size()) * SLAB_N);
+  }
+  const_iterator begin() const
+  {
+    return const_iterator(this, 0);
+  }
+  const_iterator end() const
+  {
+    return const_iterator(this, int(slabs_.size()) * SLAB_N);
   }
 
 private:

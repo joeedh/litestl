@@ -5,6 +5,7 @@ set(SRC
   PUBLIC export.h
   PUBLIC time.h
   PUBLIC cpu.h
+  PUBLIC platform.h
   common.cc
 )
 
@@ -12,6 +13,7 @@ if (NOT BUILD_WASM AND CMAKE_SYSTEM_NAME STREQUAL "Windows")
 set(SRC
     ${SRC}
     win32.cc
+    debug_win32.cc
 )
 endif()
 

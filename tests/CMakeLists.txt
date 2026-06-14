@@ -44,6 +44,7 @@ test(test_binding_constructor.cc "binding")
 test(test_binding_system.cc "binding")
 test(test_string.cc "")
 test(test_binfile.cc "io")
+test(test_print_stack_trace.cc "platform")
 
 include(../build_files/macros.cmake)
 if (BUILD_WASM)

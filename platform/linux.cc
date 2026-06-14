@@ -25,4 +25,9 @@ int max_thread_count()
 {
   return cpu_core_count() * 2;
 }
+
+void printStackTrace()
+{
+  // TODO: unimplemented
+}
 } // namespace litestl::platform

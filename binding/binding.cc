@@ -5,6 +5,7 @@
 #include "binding_types.h"
 #include "litestl/util/string.h"
 #include "manager.h"
+#include <cstring>
 
 extern "C" {
 struct [[gnu::packed]] WasmOffsets {
@@ -459,14 +460,14 @@ void LSTL_FreeFormatBlocks(char *s) {
 char *LSTL_FormatBlocks(bool printPermanent)
 {
   // use raw heap to avoid contaminating leak guard alloc state
-  return _strdup(alloc::formatBlocks(printPermanent).c_str());
+  return strdup(alloc::formatBlocks(printPermanent).c_str());
 }
 
 /** free result with LSTL_FreeFormatBlocks() */
 char *LSTL_FormatBlock(void *mem)
 {
   // use raw heap to avoid contaminating leak guard alloc state
-  return _strdup(alloc::formatBlock(mem).c_str());
+  return strdup(alloc::formatBlock(mem).c_str());
 }
 
 void LSTL_PrintAllocBlocks(bool includePermanent)

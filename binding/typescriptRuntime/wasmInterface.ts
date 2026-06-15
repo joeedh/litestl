@@ -178,6 +178,9 @@ export interface INeededWasm extends IWasmBase, IWasmViews {
   jsString(s: cstring): string
 
   LSTL_PrintAllocBlocks(includePermanent: boolean): void
+  LSTL_GetMemSize(includePermanent: boolean): number
+  LSTL_FormatBlocks(includePtermanent: boolean): string
+  LSTL_FormatBlock(ptr: pointer): string
 
   LSTL_Binding_GetKeys(bindingManager: pointer): cstring
   LSTL_Binding_FreeKeys(bindingManager: pointer): cstring
@@ -493,6 +496,32 @@ export function createWasmHelpers<T extends IWasmBase>(wasmBase: T, wasmMod: unk
     const result2 = grow.apply(result.wasmMemory, args)
     updateWasmViews(result, this.buffer)
     return result2
+  }
+
+  interface LSTLMemFuncs {
+    _LSTL_PrintAllocBlocks(includePermanent: boolean): void
+    _LSTL_GetMemSize(includePermanent: boolean): number
+    _LSTL_FormatBlocks(includePtermanent: boolean): cstring
+    _LSTL_FormatBlock(ptr: pointer): cstring
+    _LSTL_FreeFormatBlocks(ptr: pointer): void
+  }
+
+  result.LSTL_FormatBlocks = function (includePermanent: boolean) {
+    const memfuncs = wasm as unknown as LSTLMemFuncs
+
+    const result2 = memfuncs._LSTL_FormatBlocks(includePermanent)
+    const result3 = result.jsString(result2)
+    memfuncs._LSTL_FreeFormatBlocks(result2)
+    return result3
+  }
+
+  result.LSTL_FormatBlock = function (ptr: pointer) {
+    const memfuncs = wasm as unknown as LSTLMemFuncs
+
+    const result2 = memfuncs._LSTL_FormatBlock(ptr)
+    const result3 = result.jsString(result2)
+    memfuncs._LSTL_FreeFormatBlocks(result2)
+    return result3
   }
 
   /*

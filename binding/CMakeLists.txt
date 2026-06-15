@@ -41,6 +41,10 @@ set(WASMSYM "
   LSTL_FreeTypescriptString
   LSTL_GetBindTypeSize
   LSTL_PrintAllocBlocks
+  LSTL_FormatBlock
+  LSTL_FormatBlocks
+  LSTL_FreeFormatBlocks
+  LSTL_GetMemSize
   LSTL_Binding_GetFullName
   LSTL_Union_HasDisPropFunc
   LSTL_Union_RunDisPropFunc

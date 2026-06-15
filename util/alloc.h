@@ -1,7 +1,8 @@
 #pragma once
 
-#include <utility>
 #include <cstddef>
+#include <utility>
+#include <string>
 
 #ifdef NO_DEBUG_ALLOC
 #include <cstdio>
@@ -26,21 +27,25 @@ namespace litestl::alloc {
 void *alloc(const char *tag, size_t size);
 /** Release a block of memory allocated with alloc::alloc. */
 void release(void *mem);
-/** Returns true if the pointer refers to a live allocation made via alloc::alloc. Logs to stderr on failure. */
+/** Returns true if the pointer refers to a live allocation made via alloc::alloc. Logs to
+ * stderr on failure. */
 bool check_mem(void *ptr);
 /* CLAUDENOTE: walk every live block on this thread and verify head+tail canaries.
  * Returns the tag of the first corrupted block (and writes its user pointer to
  * *out_ptr if non-null), or nullptr if all blocks are intact. Diagnostic only. */
 const char *check_all(void **out_ptr = nullptr);
+std::string formatBlocks(bool printPermanent);
+std::string formatBlock(void *mem);
 /** Prints all the blocks allocated by this thread. */
 bool print_blocks(bool printPermanent);
 /** Print a block */
 void print_block(const void *mem);
 /** Returns the total memory allocated by all threads. */
-int getMemorySize();
+size_t getMemorySize();
 /** Returns the total permanent memory allocated by all threads. */
-int getPermanentMemorySize();
-/** Begins a permanent allocation scope. Allocations made while active are excluded from leak reports. */
+size_t getPermanentMemorySize();
+/** Begins a permanent allocation scope. Allocations made while active are excluded from
+ * leak reports. */
 void pushPermanentAlloc();
 /** Ends a permanent allocation scope. */
 void popPermanentAlloc();
@@ -48,41 +53,62 @@ void popPermanentAlloc();
 namespace detail {
 /** Retrieves the debug tag string associated with an allocation. */
 const char *getMemoryTag(void *vmem);
-}
+} // namespace detail
 /** Retrieves the debug tag string associated with an allocation. */
-template<typename T> static const char *getMemoryTag(T *mem) {
-  return detail::getMemoryTag(static_cast<void*>(mem));
+template <typename T> static const char *getMemoryTag(T *mem)
+{
+  return detail::getMemoryTag(static_cast<void *>(mem));
 }
 
 #else
-static void pushPermanentAlloc() {}
-static void popPermanentAlloc() {}
-static int getMemorySize() {
-  return -1;
+static void pushPermanentAlloc()
+{
 }
-static int getPermanentMemorySize() {
-  return -1;
+static void popPermanentAlloc()
+{
+}
+static size_t getMemorySize()
+{
+  return size_t(-1);
+}
+static size_t getPermanentMemorySize()
+{
+  return size_t(-1);
 }
 static void *alloc(const char *tag, size_t size)
 {
   return malloc(size);
 }
-static void release(void *mem) {
+static void release(void *mem)
+{
   free(mem);
 }
-static bool check_mem(void *ptr) {
+static bool check_mem(void *ptr)
+{
   return ptr != nullptr;
 }
-template<typename T> static const char *getMemoryTag(T *mem) {
+template <typename T> static const char *getMemoryTag(T *mem)
+{
   return nullptr;
 }
 
-static bool print_blocks(bool printPermanent) {
+static bool print_blocks(bool printPermanent)
+{
   return false;
 }
 
-static void print_block(const void *mem) {
+static void print_block(const void *mem)
+{
 }
+
+static std::string formatBlocks(bool printPermanent)
+{
+}
+
+static std::string formatBlock(void *mem)
+{
+}
+
 #endif
 
 /** Allocates and constructs a single object using placement new. */
@@ -93,7 +119,8 @@ template <typename T, typename... Args> inline T *New(const char *tag, Args... a
   return new (mem) T(std::forward<Args>(args)...);
 }
 
-/** Allocates and constructs an array of objects using placement new. Returns nullptr if size is 0. */
+/** Allocates and constructs an array of objects using placement new. Returns nullptr if
+ * size is 0. */
 template <typename T, typename... Args>
 inline T *NewArray(const char *tag, size_t size, Args... args)
 {
@@ -135,18 +162,20 @@ template <typename T> inline void DeleteArray(T *arg, size_t size)
 /**
  * Allocate permanent things that shouldn't show up
  * in the leak list.
- * 
+ *
  * {
  *    alloc::PermanentGuard guard;
  *    string *s = alloc::New<string>("a permanent string");
  * }
- *  
+ *
  */
 struct PermanentGuard {
-  PermanentGuard() {
+  PermanentGuard()
+  {
     pushPermanentAlloc();
   }
-  ~PermanentGuard() {
+  ~PermanentGuard()
+  {
     popPermanentAlloc();
   }
 };

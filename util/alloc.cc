@@ -20,10 +20,10 @@ static constexpr int TAG2 = ('T' | ('A' << 8) | ('g' << 16));
 
 #define FREE MAKE_TAG('f', 'r', 'e', 'e')
 
-std::atomic<int> memorySize = {0};
-std::atomic<int> permanentMemorySize = {
+std::atomic<size_t> memorySize = {0};
+std::atomic<size_t> permanentMemorySize = {
     0}; // size of things allocated when disableLeakTracking > 0
-std::atomic<int> allocatingPermanent = {0};
+std::atomic<size_t> allocatingPermanent = {0};
 
 enum { MEM_PERMANENT = 1 << 0 };
 
@@ -81,6 +81,8 @@ static MemList *getMemList()
 namespace litestl::alloc {
 #ifndef NO_DEBUG_ALLOC
 
+bool check_mem(void *ptr);
+
 void print_block(const void *vmem)
 {
   std::lock_guard guard(getMemList()->mutex);
@@ -105,12 +107,52 @@ bool print_blocks(bool printPermanent)
   return count != 0;
 }
 
-int getMemorySize()
+void freeFormatBlocks(char *s)
+{
+  free(s);
+}
+
+std::string formatBlock(void *vmem)
+{
+  if (!vmem) {
+    return "nullptr";
+  }
+  if (!check_mem(vmem)) {
+    return "corrupted memory block";
+  }
+  MemHead *mem = static_cast<MemHead *>(vmem);
+  mem--;
+
+  char buf[512];
+  sprintf(buf, ":%d\"  (%p)\n", int(mem->size), mem + 1);
+  return std::string("\"") + mem->tag + buf;
+}
+
+/** free result with freeFormatBlocks()*/
+std::string formatBlocks(bool printPermanent)
+{
+  std::lock_guard guard(getMemList()->mutex);
+  std::string s;
+  char buf[512];
+
+  int count = 0;
+  MemHead *mem = getMemList()->first;
+  while (mem) {
+    if (!(mem->flag & MEM_PERMANENT) != printPermanent) {
+      s += formatBlock(static_cast<void *>(mem + 1));
+    }
+    mem = mem->next;
+  }
+
+  return s;
+}
+
+size_t getMemorySize()
 {
   return memorySize.load();
 }
 
-int getPermanentMemorySize()
+size_t getPermanentMemorySize()
 {
   return permanentMemorySize.load();
 }

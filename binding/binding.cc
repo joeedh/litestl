@@ -445,6 +445,30 @@ const char *LSTL_Binding_GetFullName(const BindingBase *type)
   return type->cachedFullName.c_str();
 }
 
+size_t LSTL_GetMemSize(bool includePermanent)
+{
+  size_t size = alloc::getMemorySize();
+  return includePermanent ? size + alloc::getPermanentMemorySize() : size;
+}
+
+void LSTL_FreeFormatBlocks(char *s) {
+  free(s);
+}
+
+/** free result with LSTL_FreeFormatBlocks() */
+char *LSTL_FormatBlocks(bool printPermanent)
+{
+  // use raw heap to avoid contaminating leak guard alloc state
+  return _strdup(alloc::formatBlocks(printPermanent).c_str());
+}
+
+/** free result with LSTL_FreeFormatBlocks() */
+char *LSTL_FormatBlock(void *mem)
+{
+  // use raw heap to avoid contaminating leak guard alloc state
+  return _strdup(alloc::formatBlock(mem).c_str());
+}
+
 void LSTL_PrintAllocBlocks(bool includePermanent)
 {
   alloc::print_blocks(includePermanent);

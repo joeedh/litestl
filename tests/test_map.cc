@@ -210,6 +210,131 @@ int test_operator_brackets_init()
   return retval;
 }
 
+/* Stress the control-byte plane at the 7/8 load factor: a wide key range with
+ * heavy interleaved add/remove drives tombstone creation, reclamation, and
+ * repeated rehashes. After each op the iterated live set must match the model
+ * exactly and the internal invariants (ctrl == h2, live count, cloned tail) must
+ * hold. */
+int test_high_load_churn()
+{
+  using namespace litestl::util;
+  Random rand;
+  Map<int, int> map;
+  Vector<int> present;
+  constexpr int key_range = 2003; // wide range → many groups + rehashes
+  int retval = 0;
+
+  for (int iter = 0; iter < 60000; iter++) {
+    int key = rand.get_int() % key_range;
+    bool have = present.contains(key);
+
+    if (!have && rand.get_float() > 0.35) {
+      map[key] = key * 7 + 1;
+      present.append(key);
+    } else if (have) {
+      map.remove(key);
+      present.remove(key, false);
+    }
+
+    test_assert(map.size() == size_t(present.size()));
+
+    if ((iter & 1023) == 0) {
+      test_assert(map.debugCheckInvariants());
+      int seen = 0;
+      for (auto &pair : map) {
+        test_assert(present.contains(pair.key));
+        test_assert(pair.value == pair.key * 7 + 1);
+        seen++;
+      }
+      test_assert(seen == present.size());
+    }
+  }
+
+  for (int k = 0; k < key_range; k++) {
+    test_assert(map.contains(k) == present.contains(k));
+  }
+  test_assert(map.debugCheckInvariants());
+
+  return retval;
+}
+
+/* A near-group-width inline table (static_size=1 → inline cap == kGroupWidth)
+ * keeps probing wrapping through the cloned tail constantly. Fill it past the
+ * inline capacity, remove and re-add, and verify lookups + invariants survive
+ * the wrap and the inline→heap transition. */
+int test_tiny_table_wrap()
+{
+  using namespace litestl::util;
+  int retval = 0;
+  Map<int, int, 1> map; // inline cap is one group wide
+
+  /* Grow well past the inline group (forces heap + cloned-tail wraps). */
+  for (int k = 0; k < 200; k++) {
+    map[k] = k * 3 + 5;
+    test_assert(map.debugCheckInvariants());
+  }
+  for (int k = 0; k < 200; k++) {
+    test_assert(map.contains(k));
+    test_assert(map.lookup(k) == k * 3 + 5);
+  }
+
+  /* Remove evens, re-add them, interleaving so tombstones and live slots share
+   * groups across the wrap boundary. */
+  for (int k = 0; k < 200; k += 2) {
+    test_assert(map.remove(k));
+  }
+  test_assert(map.debugCheckInvariants());
+  for (int k = 1; k < 200; k += 2) {
+    test_assert(map.contains(k));
+  }
+  for (int k = 0; k < 200; k += 2) {
+    test_assert(!map.contains(k));
+    map[k] = k * 3 + 5;
+  }
+  test_assert(map.debugCheckInvariants());
+  for (int k = 0; k < 200; k++) {
+    test_assert(map.lookup(k) == k * 3 + 5);
+  }
+
+  return retval;
+}
+
+/* Pointer keys exercise hash(T*) (shifted pointer) run through mixHash. Use the
+ * addresses of distinct heap-ish objects as keys. */
+int test_pointer_keys()
+{
+  using namespace litestl::util;
+  int retval = 0;
+  constexpr int n = 1500;
+  Vector<int> storage;
+  storage.resize(n);
+
+  Map<int *, int> map;
+  for (int i = 0; i < n; i++) {
+    map.add(&storage[i], i);
+  }
+  test_assert(map.size() == size_t(n));
+  test_assert(map.debugCheckInvariants());
+
+  for (int i = 0; i < n; i++) {
+    test_assert(map.contains(&storage[i]));
+    test_assert(map.lookup(&storage[i]) == i);
+  }
+
+  int dummy = 0;
+  test_assert(!map.contains(&dummy));
+
+  for (int i = 0; i < n; i += 3) {
+    test_assert(map.remove(&storage[i]));
+  }
+  test_assert(map.debugCheckInvariants());
+  for (int i = 0; i < n; i++) {
+    test_assert(map.contains(&storage[i]) == (i % 3 != 0));
+  }
+
+  return retval;
+}
+
 int main()
 {
   using namespace litestl::util;
@@ -219,6 +344,9 @@ int main()
   test_move_copy();
   test_rehash_bucket_overflow();
   test_operator_brackets_init();
+  test_high_load_churn();
+  test_tiny_table_wrap();
+  test_pointer_keys();
 
   {
     Map<int, int> imap;

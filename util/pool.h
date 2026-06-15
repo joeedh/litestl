@@ -193,6 +193,8 @@ public:
     return const_iterator(this, int(slabs_.size()) * SLAB_N);
   }
 
+  size_t capacity() const { return slabs_.size() * SLAB_N; }
+
 private:
   void locate(void *slot, int &slab_idx, int &slot_in_slab)
   {

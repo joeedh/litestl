@@ -7,8 +7,8 @@
 
 namespace litestl::util {
 template <StrLiteral typeName, StrLiteral msg> struct Error {
-  static const StrLiteral message = msg;
-  static const StrLiteral type = typeName;
+  static constexpr StrLiteral message = msg;
+  static constexpr StrLiteral type = typeName;
 };
 
 template <typename... types> struct ErrorUnion {

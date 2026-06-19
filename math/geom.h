@@ -20,6 +20,17 @@ template <isMathVec T> static T triNormal(const T &a, const T &b, const T &c)
   return t1.cross(t2).normalized();
 }
 
+template <isMathVec T> static double triArea(const T &a, const T &b, const T &c)
+{
+  T t1 = b - a;
+  T t2 = c - a;
+  if constexpr (T::size == 2) {
+    return std::abs(t1[0] * t2[1] - t1[1] * t2[0]) * 0.5;
+  } else {
+    return t1.cross(t2).length() * 0.5;
+  }
+}
+
 template <isMathVec T> static bool aabbTriOverlaps(const AABB<T> &aabb, T &a, T &b, T &c)
 {
   T center = aabb.center();
@@ -257,9 +268,11 @@ static T closestPointOnTri(const T &p, const T &a, const T &b, const T &c)
  * `r1` at the base interpolating to `r2` at the tip. Mirrors the TS
  * aabb_cone_isect used by the JS BVH brush select. */
 template <isMathVec T>
-static bool aabbConeIsects(
-    const T &co, const T &vector, typename T::value_type r1, typename T::value_type r2,
-    const AABB<T> &aabb)
+static bool aabbConeIsects(const T &co,
+                           const T &vector,
+                           typename T::value_type r1,
+                           typename T::value_type r2,
+                           const AABB<T> &aabb)
 {
   using S = typename T::value_type;
 
@@ -312,9 +325,13 @@ static bool aabbConeIsects(
 
 /* Triangle-cone test (cone p1->p2, radius r1->r2). Mirrors TS tri_cone_isect. */
 template <isMathVec T>
-static bool triConeIsects(
-    const T &p1, const T &p2, typename T::value_type r1, typename T::value_type r2,
-    const T &v1, const T &v2, const T &v3)
+static bool triConeIsects(const T &p1,
+                          const T &p2,
+                          typename T::value_type r1,
+                          typename T::value_type r2,
+                          const T &v1,
+                          const T &v2,
+                          const T &v3)
 {
   using S = typename T::value_type;
   T pco = closestPointOnTri(p1, v1, v2, v3);

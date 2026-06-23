@@ -877,6 +877,9 @@ private:
     }
   }
 
+public:
+  /* Remove all entries but keep the allocated table (capacity retained), so a
+   * clear + refill reuses storage instead of reallocating. */
   inline Map &clear()
   {
     if constexpr (!Pair::is_simple()) {

@@ -91,6 +91,27 @@ template <typename Key, int static_size = 4> struct OrderedSet {
     return false;
   }
 
+  /* Replace every stored value v with fn(v), in place, preserving each value's
+   * slot. Reuses the existing storage (no fresh allocation) — the win over
+   * rebuilding into a new set. fn must be a bijection over the stored values
+   * (no collisions), which the caller guarantees. */
+  template <typename Fn> void remap(Fn fn)
+  {
+    for (size_t i = 0; i < idx_to_val_.size(); i++) {
+      if (freemap_[i]) {
+        continue;
+      }
+      idx_to_val_[i] = fn(idx_to_val_[i]);
+    }
+    val_to_idx_.clear();
+    for (size_t i = 0; i < idx_to_val_.size(); i++) {
+      if (freemap_[i]) {
+        continue;
+      }
+      val_to_idx_.add(idx_to_val_[i], int(i));
+    }
+  }
+
   size_t size() const
   {
     return size_;

@@ -19,6 +19,6 @@ export interface Vector<T = any> {
   [Symbol.dispose](): void;
   resize(newsize: int32): void
   resize_no_construct_destruct(newsize: int32): void
-  new(): (pointer)[]
-  new(arg0: T, arg1: int32): (pointer)[]
+  new(): (uint64)[]
+  new(arg0: T, arg1: int32): (uint64)[]
 }

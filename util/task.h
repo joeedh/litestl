@@ -1,7 +1,7 @@
 #pragma once
 
 #ifndef LITESTL_WORKERS_COUNT
-#define LITESTL_WORKERS_COUNT 6
+#define LITESTL_WORKERS_COUNT 12
 #endif
 
 #include "platform/cpu.h"

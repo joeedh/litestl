@@ -106,14 +106,17 @@ macro(build_wasm_browser target src lib symbols)
   add_executable(${target} "${src}")
   target_link_options(${target} PRIVATE "-sENVIRONMENT=web")
   target_link_options(${target} PRIVATE "-sALLOW_MEMORY_GROWTH=1")
-  # Prewarm the pthread pool. litestl::task uses LITESTL_WORKERS_COUNT (6)
-  # persistent workers; parallel_for spawns them then blocks the caller on a
-  # condition var. On the browser main thread, spawning a worker needs the
-  # event loop to run — but the blocked caller never yields, so an unwarmed
-  # pool deadlocks. A pool pre-created during async module init means the
-  # workers already exist when the first parallel_for blocks. Pool ≥ worker
-  # count (8 for headroom); STRICT=0 lets the odd extra thread spawn lazily.
-  target_link_options(${target} PRIVATE "-sPTHREAD_POOL_SIZE=8")
+  # Prewarm the pthread pool. litestl::task uses LITESTL_WORKERS_COUNT (12,
+  # util/task.h — keep this in sync) persistent workers; parallel_for spawns
+  # them then blocks the caller on a condition var. On the browser main
+  # thread, spawning a worker needs the event loop to run — but the blocked
+  # caller never yields, so an unwarmed pool deadlocks (a pool of 8 against
+  # 12 workers hung wasm boot inside the first big parallel_for, at
+  # Mesh_buildSpatialTree). A pool pre-created during async module init means
+  # the workers already exist when the first parallel_for blocks. Pool ≥
+  # worker count (14 for headroom); STRICT=0 lets the odd extra thread spawn
+  # lazily.
+  target_link_options(${target} PRIVATE "-sPTHREAD_POOL_SIZE=14")
   target_link_options(${target} PRIVATE "-sPTHREAD_POOL_SIZE_STRICT=0")
   build_wasm_post(${target} "${src}" "${lib}" "${symbols}")
 endmacro()

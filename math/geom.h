@@ -5,6 +5,10 @@
 #include "tri_aabb_isect.h"
 #include "vector.h"
 
+#include <algorithm>
+#include <cmath>
+#include <limits>
+
 namespace litestl::math {
 enum _ShapeTests {
   Contains = 1,
@@ -90,6 +94,46 @@ static bool aabbRayIsects(const AABB<T> &aabb, const T &co, const T &indir)
   }
 
   return false;
+}
+
+/**
+ * Slab ray-AABB test for a forward ray (t >= 0). Returns true on hit with the
+ * entry distance in `tEnter` (0 when the origin is inside the box), so BVH
+ * traversals can visit near children first and prune subtrees whose entry
+ * distance exceeds the best hit found so far.
+ */
+template <isMathVec T>
+static bool aabbRayEnter(const AABB<T> &aabb,
+                         const T &co,
+                         const T &dir,
+                         typename T::value_type &tEnter)
+{
+  using value_type = typename T::value_type;
+  value_type t0 = value_type(0);
+  value_type t1 = std::numeric_limits<value_type>::max();
+
+  for (int axis = 0; axis < 3; axis++) {
+    if (std::fabs(dir[axis]) < value_type(1e-12)) {
+      if (co[axis] < aabb.min[axis] || co[axis] > aabb.max[axis]) {
+        return false;
+      }
+      continue;
+    }
+    value_type inv = value_type(1) / dir[axis];
+    value_type ta = (aabb.min[axis] - co[axis]) * inv;
+    value_type tb = (aabb.max[axis] - co[axis]) * inv;
+    if (ta > tb) {
+      std::swap(ta, tb);
+    }
+    t0 = std::max(t0, ta);
+    t1 = std::min(t1, tb);
+    if (t0 > t1) {
+      return false;
+    }
+  }
+
+  tEnter = t0;
+  return true;
 }
 
 template <isMathVec T> struct RayTriIsect {

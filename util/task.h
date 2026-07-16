@@ -304,16 +304,19 @@ void parallel_for(util::IndexRange range, Callback cb, int grain_size = 1)
     void operator()() const
     {
       /* Signal completion on any exit — including a throwing cb — so the
-       * caller's wait can never hang. Take the mutex so we never notify
-       * between the waiter's predicate check and its sleep. */
+       * caller's wait can never hang. The decrement must happen UNDER the
+       * mutex: the waiter's predicate reads `remaining` while holding it, so
+       * decrementing outside lets a spuriously-woken waiter observe 0, return,
+       * and unwind the stack this mutex/cv live on before our lock/notify
+       * (a real crash — notify_one on a destroyed cv). */
       struct Signal {
         std::atomic<int> &remaining;
         std::mutex &mutex;
         std::condition_variable &cv;
         ~Signal()
         {
+          std::lock_guard guard(mutex);
           if (remaining.fetch_sub(1, std::memory_order_acq_rel) == 1) {
-            std::lock_guard guard(mutex);
             cv.notify_one();
           }
         }

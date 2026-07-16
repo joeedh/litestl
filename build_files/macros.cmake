@@ -70,6 +70,29 @@ macro(lt_wasm_add_symbols symbols)
   set_property(GLOBAL PROPERTY LT_WASM_SYMBOLS "${existing}\n${symbols}")
 endmacro()
 
+# Force-export a newline-separated C symbol list from a native shared library.
+# Native counterpart of the -sEXPORTED_FUNCTIONS flow in build_wasm_post — feed
+# it the same symbol sets so the native C ABI cannot drift from the WASM one.
+# The per-symbol link options also force each symbol to be pulled out of the
+# static archives the shared lib links (/EXPORT on Windows, -u/--undefined
+# elsewhere), so no dllexport annotations or whole-archive linking are needed.
+macro(lt_native_export_symbols target symbols)
+  block()
+    string(REPLACE " " "" symlist "${symbols}")
+    string(STRIP "${symlist}" symlist)
+    string(REGEX REPLACE "\n+" ";" symlist "${symlist}")
+    foreach(sym IN LISTS symlist)
+      if(WIN32)
+        target_link_options(${target} PRIVATE "LINKER:/EXPORT:${sym}")
+      elseif(APPLE)
+        target_link_options(${target} PRIVATE "LINKER:-u,_${sym}")
+      else()
+        target_link_options(${target} PRIVATE "LINKER:--undefined=${sym}")
+      endif()
+    endforeach()
+  endblock()
+endmacro()
+
 macro(build_wasm_post target src lib symbols)
   block()
     # build final symbol list

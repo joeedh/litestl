@@ -15,6 +15,7 @@
 
 #include "../math/math_bindings.h"
 
+#include "generators/python.h"
 #include "generators/typescript.h"
 
 // XXX vector binding utility, find where to put it other then this file!

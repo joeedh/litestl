@@ -8,6 +8,8 @@ set(LIB
 set(SRC
   PUBLIC typescript.h
   typescript.cc
+  PUBLIC python.h
+  python.cc
 )
 
 lt_add_library(binding_generators "${SRC}" "${LIB}" STATIC)

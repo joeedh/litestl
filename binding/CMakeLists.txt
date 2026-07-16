@@ -16,6 +16,7 @@ set(SRC
 lt_add_library(binding "${SRC}" "${LIB}" STATIC)
 add_subdirectory(generators)
 set(WASMSYM "
+  LSTL_AbiVersion
   LSTL_Binding_GetKeys
   LSTL_Binding_FreeKeys
   LSTL_Binding_Get
@@ -39,6 +40,8 @@ set(WASMSYM "
   LSTL_FreeBindingInfo
   LSTL_GenerateTypescript
   LSTL_FreeTypescriptString
+  LSTL_GeneratePython
+  LSTL_FreePythonString
   LSTL_GetBindTypeSize
   LSTL_PrintAllocBlocks
   LSTL_FormatBlock

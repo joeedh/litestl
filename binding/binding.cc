@@ -257,6 +257,14 @@ void LSTL_FreeBindingInfo(BindingInfo *info)
 using namespace litestl::binding;
 using namespace litestl;
 extern "C" {
+/** ABI version of the LSTL_* C surface. Out-of-process runtimes (the Python
+ * ctypes package) check this before trusting descriptor layouts; bump on any
+ * incompatible change to the LSTL_* functions or the descriptor structs. */
+int LSTL_AbiVersion()
+{
+  return 1;
+}
+
 const char *LSTL_Binding_GetKeys(BindingManager *m)
 {
   string s = "";
@@ -435,6 +443,55 @@ unsigned char *LSTL_GenerateTypescript(BindingManager *manager, int *size_out)
 }
 
 void LSTL_FreeTypescriptString(char *s)
+{
+  free(s);
+}
+
+/** Same length-prefixed path/content buffer as #LSTL_GenerateTypescript, but
+ * emitting the Python .pyi stub tree. Free with LSTL_FreePythonString(). */
+unsigned char *LSTL_GeneratePython(BindingManager *manager, int *size_out)
+{
+  util::Vector<const BindingBase *> types;
+  for (auto *type : manager->getBindings().values()) {
+    types.append(type);
+  }
+  int count = 0;
+  auto files = generators::generatePython(types);
+
+  for (auto &key : files->keys()) {
+    auto &value = files->lookup(key);
+    count += key.size() + 4 + value.size() + 4;
+  }
+
+  unsigned char *s = static_cast<unsigned char *>(malloc(count));
+  unsigned char *result = s;
+
+  for (auto &key : files->keys()) {
+    auto &value = files->lookup(key);
+
+    int n = key.size();
+    memcpy(s, &n, 4);
+    s += 4;
+    memcpy(s, key.c_str(), n);
+    s += n;
+
+    n = value.size();
+    memcpy(s, &n, 4);
+    s += 4;
+    memcpy(s, value.c_str(), n);
+    s += n;
+  }
+
+  if (s - result > count) {
+    printf("ERROR: generated python string is larger than expected\n");
+    abort();
+  }
+  alloc::Delete(files);
+  *size_out = count;
+  return result;
+}
+
+void LSTL_FreePythonString(char *s)
 {
   free(s);
 }

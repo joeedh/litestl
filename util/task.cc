@@ -1,6 +1,5 @@
 #include "task.h"
 
 namespace litestl::task::detail {
-TaskWorker workers[LITESTL_WORKERS_COUNT];
-std::atomic<int> curWorker{0};
+TaskPool pool;
 } // namespace litestl::task::detail

@@ -7,13 +7,16 @@
 #include "platform/cpu.h"
 #include "util/alloc.h"
 #include "util/compiler_util.h"
+#include "util/function.h"
 #include "util/index_range.h"
 #include "util/vector.h"
 
+#include <algorithm>
 #include <atomic>
 #include <condition_variable>
 #include <functional>
 #include <mutex>
+#include <new>
 #include <thread>
 
 /** Thread pool and parallel execution utilities. */
@@ -22,146 +25,235 @@ using ThreadMain = std::function<void()>;
 using litestl::util::Vector;
 
 namespace detail {
+
+#ifdef __cpp_lib_hardware_interference_size
+constexpr size_t kCacheLine = std::hardware_destructive_interference_size;
+#else
+constexpr size_t kCacheLine = 64;
+#endif
+
 /**
- * Worker thread that maintains a task queue.
+ * One worker's LIFO task queue plus its OS thread.
  *
- * Auto-starts a joinable thread on first push. The worker sleeps on a
- * condition variable while idle; push() and stop() both wake it. The
- * destructor signals stop and joins, so workers are always cleanly
- * torn down (assuming queued tasks don't reference state that's
- * already been destroyed).
+ * Queues are per-worker so submission contention stays low, but the pool is
+ * work-stealing: an idle worker drains its own queue first, then steals from
+ * peers (see TaskPool::try_get_task), so a lopsided distribution never leaves
+ * a core idle while work remains anywhere. Idle workers park on the shared
+ * pool cv (not a per-worker one), so any submission can wake any sleeper.
+ *
+ * Cache-line aligned so neighbouring workers' mutexes/queues don't
+ * false-share.
  */
-struct TaskWorker {
+struct alignas(kCacheLine) TaskWorker {
   /* LIFO for O(1) pop_back; fairness across submissions isn't a goal. */
   Vector<ThreadMain> queue;
   std::mutex mutex;
-  std::condition_variable cv;
-  std::atomic<bool> running{false};
-  std::atomic<bool> stop_{false};
   std::thread thread_;
 
   TaskWorker() = default;
 
   ~TaskWorker()
   {
-    {
-      std::lock_guard guard(mutex);
-      stop_.store(true, std::memory_order_release);
-    }
-    cv.notify_all();
+    /* Threads are joined by TaskPool's destructor before the pool's
+     * coordination state is torn down; this is a no-op safety net. */
     if (thread_.joinable()) {
       thread_.join();
     }
   }
 
-  /** Signals the worker to stop after draining its queue. */
-  void stop()
+  /** Pops this worker's most-recent task. Returns false if the queue is empty. */
+  bool try_pop(ThreadMain &out)
   {
-    {
-      std::lock_guard guard(mutex);
-      stop_.store(true, std::memory_order_release);
+    std::lock_guard guard(mutex);
+    if (queue.size() == 0) {
+      return false;
     }
-    cv.notify_all();
+    out = queue.pop_back();
+    return true;
   }
 
-  /**
-   * Main worker loop.
-   *
-   * Sleeps on the cv until a task is pushed or stop is signaled.
-   * Exits when stop is set and the queue is drained.
-   */
-  void run()
+  /** Appends a task; the caller is responsible for signalling the pool cv. */
+  void push_local(ThreadMain main)
   {
-    for (;;) {
-      ThreadMain task;
-      {
-        std::unique_lock lock(mutex);
-        cv.wait(lock, [this] {
-          return queue.size() != 0 || stop_.load(std::memory_order_acquire);
-        });
-
-        if (queue.size() == 0) {
-          /* stop_ must be set (predicate). */
-          running.store(false, std::memory_order_release);
-          return;
-        }
-        task = queue.pop_back();
-      }
-      task();
-    }
+    std::lock_guard guard(mutex);
+    /* Queue storage is held for the program's lifetime — don't count it
+     * as a leak. */
+    litestl::alloc::PermanentGuard leakguard;
+    queue.append(std::move(main));
   }
 
   /** Returns the current queue size. */
   int size()
   {
     std::lock_guard guard(mutex);
-    return queue.size();
+    return int(queue.size());
+  }
+};
+
+/**
+ * The global work-stealing thread pool.
+ *
+ * A fixed worker array plus the shared park/wake coordination. `pending`
+ * counts tasks queued across all workers; idle workers sleep on `cv` until it
+ * goes positive (or stop is signalled). Threads start lazily, all at once, on
+ * the first submission — every worker must be live for stealing to balance
+ * load.
+ *
+ * The array is sized to the compile-time max (LITESTL_WORKERS_COUNT), but only
+ * `active_` of them are spawned and used, clamped to the machine's core count
+ * so we neither oversubscribe small CPUs nor cap large ones below the array.
+ */
+struct TaskPool {
+  TaskWorker workers[LITESTL_WORKERS_COUNT];
+
+  std::mutex mutex; // pairs with cv; publishes `pending` to parked workers
+  std::condition_variable cv;
+  std::atomic<int> pending{0}; // total queued tasks across all workers
+  std::atomic<bool> stop_{false};
+  std::atomic<bool> started{false};
+  std::atomic<int> next_worker{0};
+  const int active_ = clamped_worker_count();
+
+  /** Live worker count: hardware concurrency, clamped to [1, array size]. */
+  static int clamped_worker_count()
+  {
+    const int n = platform::cpu_core_count();
+    return n < 1 ? 1 : (n > LITESTL_WORKERS_COUNT ? LITESTL_WORKERS_COUNT : n);
   }
 
-  /**
-   * Enqueues a task, starting or waking the worker as needed.
-   *
-   * Notify happens under the queue mutex to avoid the classic
-   * lost-wakeup race against run()'s cv.wait.
-   */
-  void push(ThreadMain main)
+  int worker_count() const
+  {
+    return active_;
+  }
+
+  ~TaskPool()
   {
     {
       std::lock_guard guard(mutex);
-      /* Queue storage is held for the program's lifetime — don't count
-       * it as a leak. */
-      litestl::alloc::PermanentGuard leakguard;
-      queue.append(std::move(main));
-      cv.notify_one();
+      stop_.store(true, std::memory_order_release);
     }
-
-    /* Lazy first-time start. CAS makes it safe under concurrent pushes
-     * from multiple threads. */
-    if (!running.load(std::memory_order_acquire)) {
-      bool expected = false;
-      if (running.compare_exchange_strong(expected, true)) {
-        thread_ = std::thread([this]() { run(); });
+    cv.notify_all();
+    /* Join here, while the coordination state (mutex/cv/pending) is still
+     * alive — a running worker may touch it until it observes stop. */
+    for (int i = 0; i < worker_count(); i++) {
+      if (workers[i].thread_.joinable()) {
+        workers[i].thread_.join();
       }
     }
   }
 
-  /** Returns true if the queue is empty. */
-  bool empty()
+  /** Spawns all worker threads on first use (idempotent, thread-safe). */
+  void ensure_started()
   {
-    std::lock_guard guard(mutex);
-    return queue.size() == 0;
+    if (started.load(std::memory_order_acquire)) {
+      return;
+    }
+    bool expected = false;
+    if (!started.compare_exchange_strong(expected, true)) {
+      return; // another thread won the race and is spawning them
+    }
+    for (int i = 0; i < worker_count(); i++) {
+      workers[i].thread_ = std::thread([this, i]() { worker_main(i); });
+    }
+  }
+
+  /**
+   * Finds the next task to run for worker @p id: its own queue first, then
+   * steals from peers in round-robin order. Returns false if all queues are
+   * empty. Decrements `pending` for the task it claims.
+   */
+  bool try_get_task(int id, ThreadMain &out)
+  {
+    if (workers[id].try_pop(out)) {
+      pending.fetch_sub(1, std::memory_order_acq_rel);
+      return true;
+    }
+    const int n = worker_count();
+    for (int i = 1; i < n; i++) {
+      if (workers[(id + i) % n].try_pop(out)) {
+        pending.fetch_sub(1, std::memory_order_acq_rel);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Worker loop: run whatever can be found (own queue or a steal), else park
+   * on the shared cv until a submission arrives or stop is signalled.
+   */
+  void worker_main(int id)
+  {
+    for (;;) {
+      ThreadMain task;
+      if (try_get_task(id, task)) {
+        task();
+        continue;
+      }
+      std::unique_lock lock(mutex);
+      cv.wait(lock, [this] {
+        return pending.load(std::memory_order_acquire) > 0 ||
+               stop_.load(std::memory_order_acquire);
+      });
+      if (stop_.load(std::memory_order_acquire) &&
+          pending.load(std::memory_order_acquire) == 0) {
+        return;
+      }
+      /* Woke with work (or spuriously) — loop and try_get_task again. */
+    }
+  }
+
+  /** Submits @p main to worker @p target and wakes one sleeper. */
+  void submit(int target, ThreadMain main)
+  {
+    ensure_started();
+    /* push_local happens-before the pending increment, so any worker that
+     * observes pending>0 is guaranteed to find the task in a queue. */
+    workers[target].push_local(std::move(main));
+    {
+      /* Publish `pending` under the pool mutex so a worker between its
+       * predicate check and its sleep can't miss this wakeup. */
+      std::lock_guard guard(mutex);
+      pending.fetch_add(1, std::memory_order_release);
+    }
+    cv.notify_one();
+  }
+
+  /** Round-robin initial placement; stealing corrects any imbalance. */
+  int next_target()
+  {
+    return next_worker.fetch_add(1, std::memory_order_relaxed) % worker_count();
   }
 };
 
-/** Global worker pool array sized by LITESTL_WORKERS_COUNT. */
-extern TaskWorker workers[LITESTL_WORKERS_COUNT];
-/** Round-robin index into the worker pool. */
-extern std::atomic<int> curWorker;
-
-/** Returns the next worker via round-robin selection. */
-inline TaskWorker &getWorker()
-{
-  int worker = curWorker.fetch_add(1, std::memory_order_relaxed) %
-               int(array_size(workers));
-  return workers[worker];
-}
+/** The single global pool instance (defined in task.cc). */
+extern TaskPool pool;
 
 } // namespace detail
 
 /** Submits @p cb for asynchronous execution on the worker pool. */
 template <typename Callback> static void run(Callback cb)
 {
-  detail::getWorker().push(std::move(cb));
+  detail::pool.submit(detail::pool.next_target(), std::move(cb));
 }
 
 /**
- * Splits @p range into @p grain_size chunks distributed across the
- * worker pool, and blocks until all chunks complete.
+ * Splits @p range into contiguous bands distributed across the worker pool
+ * and blocks until all bands complete.
  *
- * Falls back to a single synchronous call when the range size is at or
- * below @p grain_size. The number of submissions is capped at both the
- * worker pool size and the chunk count, so small workloads don't pay
- * for empty submissions.
+ * Falls back to a single synchronous call when the range size is at or below
+ * @p grain_size. Otherwise the range is cut into `min(worker_count,
+ * ceil(size/grain_size))` contiguous bands: the calling thread runs the last
+ * band itself (no handoff) while the pool runs the rest, and @p cb is invoked
+ * exactly once per band. @p grain_size therefore only bounds the band count,
+ * not the number of callback calls.
+ *
+ * Completion is signalled through an RAII guard, so a callback that throws
+ * still releases the caller rather than deadlocking it (a throw inside a
+ * pooled band is otherwise fatal, as before).
+ *
+ * A callback must not itself call parallel_for from a pool worker unless the
+ * pool has spare workers — nested waits can starve a bounded pool.
  *
  * @p cb signature: `[&](IndexRange range) {}`
  */
@@ -178,50 +270,87 @@ void parallel_for(util::IndexRange range, Callback cb, int grain_size = 1)
   const int outer_end = range.start + range.size;
   const int task_count = (range.size + grain_size - 1) / grain_size;
 
-  int worker_count = int(array_size(detail::workers));
+  const int worker_count = detail::pool.worker_count();
   const int submission_count = std::min(worker_count, task_count);
+
+  /* Band s spans grain-chunks [first_task, last_task); as one contiguous
+   * IndexRange that is [range.start + grain*first_task, ... last_task), with
+   * the final band clamped to outer_end. */
+  auto band_start = [&](int s) {
+    const int first_task = int((int64_t(task_count) * s) / submission_count);
+    return range.start + grain_size * first_task;
+  };
+  auto band_end = [&](int s) {
+    const int last_task = int((int64_t(task_count) * (s + 1)) / submission_count);
+    return std::min(range.start + grain_size * last_task, outer_end);
+  };
 
   std::mutex done_mutex;
   std::condition_variable done_cv;
-  std::atomic<int> remaining{submission_count};
+  const int farmed = submission_count - 1; // caller runs the last band itself
+  std::atomic<int> remaining{farmed};
 
-  /* Spread `task_count` chunks evenly across `submission_count`
-   * submissions: submission s_idx handles tasks [first, last). */
-  for (int s_idx = 0; s_idx < submission_count; s_idx++) {
-    const int first_task =
-        int((int64_t(task_count) * s_idx) / submission_count);
-    const int last_task =
-        int((int64_t(task_count) * (s_idx + 1)) / submission_count);
+  /* Each farmed band is a stack-resident task referenced by a function_ref,
+   * which is trivially copyable and small enough to live inline in the queue's
+   * std::function — no per-submission heap allocation. The tasks outlive the
+   * pooled work because the caller blocks below (Joiner) until it has drained. */
+  struct BandTask {
+    int b0, b1;
+    Callback *cb;
+    std::atomic<int> *remaining;
+    std::mutex *done_mutex;
+    std::condition_variable *done_cv;
 
-    run([first_task,
-         last_task,
-         task_count,
-         outer_end,
-         grain_size,
-         range_start = range.start,
-         &cb,
-         &done_mutex,
-         &done_cv,
-         &remaining]() {
-      for (int t = first_task; t < last_task; t++) {
-        const int chunk_start = range_start + grain_size * t;
-        const int chunk_size = (t == task_count - 1) ? (outer_end - chunk_start)
-                                                     : grain_size;
-        cb(IndexRange(chunk_start, chunk_size));
-      }
-
-      /* Last-out signals completion. Take the mutex so we never notify
+    void operator()() const
+    {
+      /* Signal completion on any exit — including a throwing cb — so the
+       * caller's wait can never hang. Take the mutex so we never notify
        * between the waiter's predicate check and its sleep. */
-      if (remaining.fetch_sub(1, std::memory_order_acq_rel) == 1) {
-        std::lock_guard guard(done_mutex);
-        done_cv.notify_one();
-      }
-    });
+      struct Signal {
+        std::atomic<int> &remaining;
+        std::mutex &mutex;
+        std::condition_variable &cv;
+        ~Signal()
+        {
+          if (remaining.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+            std::lock_guard guard(mutex);
+            cv.notify_one();
+          }
+        }
+      } signal{*remaining, *done_mutex, *done_cv};
+
+      (*cb)(IndexRange(b0, b1 - b0));
+    }
+  };
+
+  BandTask tasks[LITESTL_WORKERS_COUNT]{};
+  for (int s = 0; s < farmed; s++) {
+    tasks[s] = BandTask{
+        band_start(s), band_end(s), &cb, &remaining, &done_mutex, &done_cv};
+    detail::pool.submit(detail::pool.next_target(),
+                        util::function_ref<void()>(tasks[s]));
   }
 
-  std::unique_lock lock(done_mutex);
-  done_cv.wait(lock,
-               [&] { return remaining.load(std::memory_order_acquire) == 0; });
+  /* Wait for the farmed bands before this frame unwinds, even if the inline
+   * band throws — the pooled closures reference our stack. */
+  struct Joiner {
+    std::atomic<int> &remaining;
+    std::mutex &mutex;
+    std::condition_variable &cv;
+    int farmed;
+    ~Joiner()
+    {
+      if (farmed > 0) {
+        std::unique_lock lock(mutex);
+        cv.wait(lock, [this] {
+          return remaining.load(std::memory_order_acquire) == 0;
+        });
+      }
+    }
+  } joiner{remaining, done_mutex, done_cv, farmed};
+
+  const int last_start = band_start(farmed);
+  cb(IndexRange(last_start, band_end(farmed) - last_start));
 }
 
 } // namespace litestl::task

@@ -106,9 +106,10 @@ macro(build_wasm_browser target src lib symbols)
   add_executable(${target} "${src}")
   target_link_options(${target} PRIVATE "-sENVIRONMENT=web")
   target_link_options(${target} PRIVATE "-sALLOW_MEMORY_GROWTH=1")
-  # Prewarm the pthread pool. litestl::task uses LITESTL_WORKERS_COUNT (12,
-  # util/task.h — keep this in sync) persistent workers; parallel_for spawns
-  # them then blocks the caller on a condition var. On the browser main
+  # Prewarm the pthread pool. litestl::task spawns up to LITESTL_WORKERS_COUNT
+  # (12, util/task.h — keep this in sync) persistent workers, clamped down to
+  # the core count at runtime; parallel_for spawns them then blocks the caller
+  # on a condition var. On the browser main
   # thread, spawning a worker needs the event loop to run — but the blocked
   # caller never yields, so an unwarmed pool deadlocks (a pool of 8 against
   # 12 workers hung wasm boot inside the first big parallel_for, at

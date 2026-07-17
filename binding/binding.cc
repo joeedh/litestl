@@ -4,6 +4,7 @@
 #include "binding_struct.h"
 #include "binding_types.h"
 #include "litestl/util/string.h"
+#include "litestl/util/vector.h"
 #include "manager.h"
 #include <cstring>
 
@@ -527,6 +528,46 @@ void _rawRelease(void *ptr)
     int *i = static_cast<int *>(ptr) - 2;
     rawAllocSize -= i[0] + 8;
     free(static_cast<void *>(i));
+  }
+}
+
+/* Fill a bound Vector from a raw array -- the JS->C++ direction the seam
+ * otherwise lacks. Bound Vector params are out-params only (getBoundVector
+ * reads one back; nothing could write one), so an app that computed an index
+ * set had no way to hand it to a bound method. MeshLog::selectIndices was
+ * uncallable for exactly this reason.
+ *
+ * Goes through Vector's own clear/reserve/append rather than poking `size`
+ * directly: JS can see the {data*, size} layout, but writing size without
+ * growing capacity overruns the buffer, and Vector's inline storage makes that
+ * sharper still. `count` is elements, not bytes. */
+void IntVector_assign(litestl::util::Vector<int> *vec, const int *data, int count)
+{
+  if (!vec) {
+    return;
+  }
+  vec->clear();
+  if (count <= 0 || !data) {
+    return;
+  }
+  vec->ensure_capacity(size_t(count));
+  for (int i = 0; i < count; i++) {
+    vec->append(data[i]);
+  }
+}
+
+void FloatVector_assign(litestl::util::Vector<float> *vec, const float *data, int count)
+{
+  if (!vec) {
+    return;
+  }
+  vec->clear();
+  if (count <= 0 || !data) {
+    return;
+  }
+  vec->ensure_capacity(size_t(count));
+  for (int i = 0; i < count; i++) {
+    vec->append(data[i]);
   }
 }
 }

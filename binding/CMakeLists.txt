@@ -54,6 +54,8 @@ set(WASMSYM "
   _rawGetAllocSize
   memAlloc
   memRelease
+  IntVector_assign
+  FloatVector_assign
   "
 )
 

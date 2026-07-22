@@ -17,7 +17,8 @@ set(SRC
 )
 endif()
 
-if (NOT BUILD_WASM AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+# linux.cc is generic POSIX (std::chrono/std::thread), so it covers macOS too.
+if (NOT BUILD_WASM AND (CMAKE_SYSTEM_NAME STREQUAL "Linux" OR CMAKE_SYSTEM_NAME STREQUAL "Darwin"))
 set(SRC
     ${SRC}
     linux.cc

@@ -80,7 +80,8 @@ async function main() {
   let vecTest = wasm.manager.construct('test::VecTest') as TSTypes.VecTest
   wasm.snapshotMessages('test::VecTest default constructor')
 
-  wasm.snapshots.log('wasm types', [...wasm.manager.types.keys()])
+  // sorted: the manager's type map iterates in hash order, which is not stable
+  wasm.snapshots.log('wasm types', [...wasm.manager.types.keys()].sort())
 
   wasm.snapshots.log('bound class accessors', vecTest.pos[0].vec[0], vecTest.pos[0].vec[1], vecTest.pos[0].vec[2])
 

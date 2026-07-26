@@ -5,7 +5,7 @@
   },
   {
     "name": "wasm types",
-    "value": "litestl::util::Vector<litestl::math::float3,4>,boolean,test::VecTest,test::Foo,double,litestl::util::String,float,int,litestl::util::Vector<float,4>"
+    "value": "T,boolean,double,float,int16,int32,int64,int8,litestl::util::String,litestl::util::Vector<boolean,4>,litestl::util::Vector<double,4>,litestl::util::Vector<float,4>,litestl::util::Vector<int16,4>,litestl::util::Vector<int32,4>,litestl::util::Vector<int64,4>,litestl::util::Vector<int8,4>,litestl::util::Vector<litestl::math::float3,4>,litestl::util::Vector<pointer,4>,litestl::util::Vector<test::VecTest,4>,litestl::util::Vector<uint16,4>,litestl::util::Vector<uint32,4>,litestl::util::Vector<uint64,4>,pointer,reference,test::Foo,test::VecTest,test::VecTest&,uint16,uint32,uint64,uint8,void"
   },
   {
     "name": "bound class accessors",

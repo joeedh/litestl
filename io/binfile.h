@@ -909,6 +909,21 @@ struct BinFile {
     stream.write(reinterpret_cast<const char *>(&value), 8);
     return *this;
   }
+  /** Writes @p count 32-bit words in one stream call. Each writeUint32 costs a
+   * stream sentry, which dominates for tables of tens of thousands of entries;
+   * the blit is only valid when no byte swap is needed. */
+  BinFile &writeUint32Array(const uint32_t *values, size_t count)
+  {
+    if (littleEndian == hostLittleEndian) {
+      stream.write(reinterpret_cast<const char *>(values), std::streamsize(count * 4));
+      return *this;
+    }
+    for (size_t i = 0; i < count; i++) {
+      writeUint32(values[i]);
+    }
+    return *this;
+  }
+
   BinFile &writeString(const string &value)
   {
     writeUint32(uint32_t(value.size()));

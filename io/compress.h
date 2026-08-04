@@ -13,8 +13,15 @@ using litestl::util::Vector;
  * caller cares more about size than compress throughput. */
 inline constexpr int kDefaultCompressLevel = 9;
 
+/* Plain lz4 instead of lz4hc: ~20x the compress throughput for a modestly
+ * worse ratio. For blobs produced on an interactive path and never written to
+ * disk -- undo snapshots above all -- the ratio is not worth the stall. The
+ * block format is identical, so the decoder does not care which produced it. */
+inline constexpr int kFastCompressLevel = 0;
+
 /* Compress [src, src+srcSize) into @p dst (resized to the compressed bytes).
- * Returns the compressed byte count, or 0 on failure / empty input. */
+ * @p hcLevel of kFastCompressLevel selects plain lz4. Returns the compressed
+ * byte count, or 0 on failure / empty input. */
 size_t compressBlock(const void *src,
                      size_t srcSize,
                      Vector<uint8_t> &dst,

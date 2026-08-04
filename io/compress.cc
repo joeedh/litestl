@@ -15,11 +15,16 @@ size_t compressBlock(const void *src, size_t srcSize, Vector<uint8_t> &dst, int 
   int bound = LZ4_compressBound(int(srcSize));
   dst.resize(size_t(bound));
 
-  int n = LZ4_compress_HC(static_cast<const char *>(src),
-                          reinterpret_cast<char *>(dst.data()),
-                          int(srcSize),
-                          bound,
-                          hcLevel);
+  int n = hcLevel <= kFastCompressLevel ?
+              LZ4_compress_default(static_cast<const char *>(src),
+                                   reinterpret_cast<char *>(dst.data()),
+                                   int(srcSize),
+                                   bound) :
+              LZ4_compress_HC(static_cast<const char *>(src),
+                              reinterpret_cast<char *>(dst.data()),
+                              int(srcSize),
+                              bound,
+                              hcLevel);
   if (n <= 0) {
     dst.resize(0);
     return 0;

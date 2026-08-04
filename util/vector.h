@@ -418,6 +418,22 @@ public:
     return data_ == reinterpret_cast<const T *>(static_storage_);
   }
 
+  /** Relinquishes the heap buffer to the caller — who becomes responsible for
+   * alloc::release'ing it — and resets to empty. Returns nullptr when the
+   * elements are in inline static storage, in which case there is nothing to
+   * hand over and the caller must copy them out. */
+  T *steal_data()
+  {
+    if (hasStaticStorage()) {
+      return nullptr;
+    }
+    T *out = data_;
+    data_ = static_storage();
+    size_ = 0;
+    capacity_ = static_size;
+    return out;
+  }
+
   /** Reallocates vector to have no spare capacity. */
   void contract()
   {

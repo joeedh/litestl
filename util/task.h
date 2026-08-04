@@ -32,6 +32,32 @@ constexpr size_t kCacheLine = std::hardware_destructive_interference_size;
 constexpr size_t kCacheLine = 64;
 #endif
 
+/** One iteration of a wait spin: hints the core to back off without yielding
+ * the OS timeslice. */
+inline void cpu_relax()
+{
+#if defined(__EMSCRIPTEN__)
+  std::this_thread::yield();
+#elif defined(__x86_64__) || defined(__i386__) || defined(_M_X64) || defined(_M_IX86)
+  __builtin_ia32_pause();
+#elif defined(__aarch64__) || defined(__arm__) || defined(_M_ARM64)
+  __asm__ __volatile__("yield" ::: "memory");
+#else
+  std::this_thread::yield();
+#endif
+}
+
+// Spin budgets before falling back to an OS park. Submissions arrive in tight
+// bursts (a sculpt dab runs several parallel_for calls back to back), and a
+// park/wake round trip on Windows costs more than a whole band of work.
+#if defined(__EMSCRIPTEN__)
+constexpr int kIdleSpins = 0;
+constexpr int kJoinSpins = 0;
+#else
+constexpr int kIdleSpins = 4096;
+constexpr int kJoinSpins = 4096;
+#endif
+
 /**
  * One worker's LIFO task queue plus its OS thread.
  *
@@ -190,6 +216,26 @@ struct TaskPool {
         task();
         continue;
       }
+      // Poll `pending` briefly before paying for a park. Stealing is not
+      // retried here — a submitter always bumps `pending` after its pushes, so
+      // the counter is the cheap proxy for "something is queued somewhere".
+      bool retry = false;
+      for (int i = 0; i < kIdleSpins; i++) {
+        if (pending.load(std::memory_order_acquire) > 0) {
+          retry = true;
+          break;
+        }
+        // Leave the spin on stop without retrying: the exit check lives below
+        // the wait, so restarting the loop here would busy-spin forever
+        // instead of letting the thread finish.
+        if (stop_.load(std::memory_order_acquire)) {
+          break;
+        }
+        cpu_relax();
+      }
+      if (retry) {
+        continue;
+      }
       std::unique_lock lock(mutex);
       cv.wait(lock, [this] {
         return pending.load(std::memory_order_acquire) > 0 ||
@@ -203,20 +249,40 @@ struct TaskPool {
     }
   }
 
-  /** Submits @p main to worker @p target and wakes one sleeper. */
-  void submit(int target, ThreadMain main)
+  /** Queues @p main on @p target without announcing it. Every push must be
+   * followed by a matching publish() before the caller waits on the result. */
+  void push(int target, ThreadMain main)
   {
     ensure_started();
     /* push_local happens-before the pending increment, so any worker that
      * observes pending>0 is guaranteed to find the task in a queue. */
     workers[target].push_local(std::move(main));
+  }
+
+  /** Announces @p count freshly pushed tasks and wakes sleepers. A steal that
+   * beats the announcement drives `pending` transiently negative; pushes and
+   * pops still balance, and this publish follows immediately, so no task is
+   * left queued behind a zero counter. */
+  void publish(int count)
+  {
     {
       /* Publish `pending` under the pool mutex so a worker between its
        * predicate check and its sleep can't miss this wakeup. */
       std::lock_guard guard(mutex);
-      pending.fetch_add(1, std::memory_order_release);
+      pending.fetch_add(count, std::memory_order_release);
     }
-    cv.notify_one();
+    if (count == 1) {
+      cv.notify_one();
+    } else {
+      cv.notify_all();
+    }
+  }
+
+  /** Submits @p main to worker @p target and wakes one sleeper. */
+  void submit(int target, ThreadMain main)
+  {
+    push(target, std::move(main));
+    publish(1);
   }
 
   /** Round-robin initial placement; stealing corrects any imbalance. */
@@ -330,8 +396,14 @@ void parallel_for(util::IndexRange range, Callback cb, int grain_size = 1)
   for (int s = 0; s < farmed; s++) {
     tasks[s] = BandTask{
         band_start(s), band_end(s), &cb, &remaining, &done_mutex, &done_cv};
-    detail::pool.submit(detail::pool.next_target(),
-                        util::function_ref<void()>(tasks[s]));
+    detail::pool.push(detail::pool.next_target(),
+                      util::function_ref<void()>(tasks[s]));
+  }
+  // One announcement for the whole fan-out: the pool mutex is global, so a
+  // lock/notify per band serializes the submissions against each other and
+  // against every worker waking up to take one.
+  if (farmed > 0) {
+    detail::pool.publish(farmed);
   }
 
   /* Wait for the farmed bands before this frame unwinds, even if the inline
@@ -343,12 +415,23 @@ void parallel_for(util::IndexRange range, Callback cb, int grain_size = 1)
     int farmed;
     ~Joiner()
     {
-      if (farmed > 0) {
-        std::unique_lock lock(mutex);
-        cv.wait(lock, [this] {
-          return remaining.load(std::memory_order_acquire) == 0;
-        });
+      if (farmed == 0) {
+        return;
       }
+      // The caller ran a band of its own, so the others are usually done —
+      // spin rather than sleep. Taking `mutex` once on the way out proves no
+      // band is still inside notify_one on a cv this frame is about to unwind.
+      for (int i = 0; i < detail::kJoinSpins; i++) {
+        if (remaining.load(std::memory_order_acquire) == 0) {
+          std::lock_guard guard(mutex);
+          return;
+        }
+        detail::cpu_relax();
+      }
+      std::unique_lock lock(mutex);
+      cv.wait(lock, [this] {
+        return remaining.load(std::memory_order_acquire) == 0;
+      });
     }
   } joiner{remaining, done_mutex, done_cv, farmed};
 

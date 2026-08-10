@@ -1,3 +1,5 @@
+#pragma once
+
 #include "boolvector.h"
 #include "compiler_util.h"
 #include "map.h"
@@ -115,6 +117,15 @@ template <typename Key, int static_size = 4> struct OrderedSet {
   size_t size() const
   {
     return size_;
+  }
+
+  /**
+   * Pre-allocates for at least @p n entries without changing the contents.
+   */
+  void reserve(size_t n)
+  {
+    val_to_idx_.reserve(n);
+    idx_to_val_.ensure_capacity(n);
   }
 
   iterator begin() const

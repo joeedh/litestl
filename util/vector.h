@@ -913,15 +913,12 @@ private:
   {
     ensure_size(size_ + 1);
     size_++;
-    if (size_ < 0 || reinterpret_cast<intptr_t>(data_) < 100) {
-      printf("error!\n");
-    }
     return data_[size_ - 1];
   }
 
   void ensure_size(size_t newsize)
   {
-    if (newsize < capacity_) {
+    if (newsize <= capacity_) {
       return;
     }
 

@@ -246,7 +246,6 @@ bool check_mem(void *ptr)
   return true;
 }
 
-/* CLAUDENOTE: diagnostic heap-wide canary sweep (see alloc.h). */
 const char *check_all(void **out_ptr)
 {
   std::lock_guard guard(getMemList()->mutex);

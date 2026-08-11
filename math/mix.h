@@ -1,3 +1,5 @@
+#pragma once
+
 #include "util/compiler_util.h"
 
 namespace litestl::math {

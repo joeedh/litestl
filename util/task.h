@@ -242,7 +242,8 @@ struct TaskPool {
                stop_.load(std::memory_order_acquire);
       });
       if (stop_.load(std::memory_order_acquire) &&
-          pending.load(std::memory_order_acquire) == 0) {
+          pending.load(std::memory_order_acquire) == 0)
+      {
         return;
       }
       /* Woke with work (or spuriously) — loop and try_get_task again. */
@@ -394,10 +395,9 @@ void parallel_for(util::IndexRange range, Callback cb, int grain_size = 1)
 
   BandTask tasks[LITESTL_WORKERS_COUNT]{};
   for (int s = 0; s < farmed; s++) {
-    tasks[s] = BandTask{
-        band_start(s), band_end(s), &cb, &remaining, &done_mutex, &done_cv};
-    detail::pool.push(detail::pool.next_target(),
-                      util::function_ref<void()>(tasks[s]));
+    tasks[s] =
+        BandTask{band_start(s), band_end(s), &cb, &remaining, &done_mutex, &done_cv};
+    detail::pool.push(detail::pool.next_target(), util::function_ref<void()>(tasks[s]));
   }
   // One announcement for the whole fan-out: the pool mutex is global, so a
   // lock/notify per band serializes the submissions against each other and
@@ -429,9 +429,7 @@ void parallel_for(util::IndexRange range, Callback cb, int grain_size = 1)
         detail::cpu_relax();
       }
       std::unique_lock lock(mutex);
-      cv.wait(lock, [this] {
-        return remaining.load(std::memory_order_acquire) == 0;
-      });
+      cv.wait(lock, [this] { return remaining.load(std::memory_order_acquire) == 0; });
     }
   } joiner{remaining, done_mutex, done_cv, farmed};
 

@@ -121,8 +121,7 @@ private:
         n = parentN;
       }
       // Found a parent that is less, no need to move it further.
-      else
-      {
+      else {
         break;
       }
     }
@@ -167,8 +166,7 @@ private:
         n = swap;
       }
       // Otherwise, we are done.
-      else
-      {
+      else {
         break;
       }
     }

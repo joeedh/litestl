@@ -31,6 +31,9 @@ size_t compressBlock(const void *src,
  * @p rawSize (the known uncompressed length). Returns true only when the
  * decoder consumed cleanly and produced exactly @p rawSize bytes. Uses the
  * bounds-checked lz4 decoder so corrupt input can't overrun the buffer. */
-bool decompressBlock(const void *src, size_t compSize, size_t rawSize, Vector<uint8_t> &dst);
+bool decompressBlock(const void *src,
+                     size_t compSize,
+                     size_t rawSize,
+                     Vector<uint8_t> &dst);
 
 } // namespace sculptcore::io

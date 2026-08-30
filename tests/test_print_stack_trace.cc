@@ -2,17 +2,19 @@
 #include "litestl/util/set.h"
 #include "litestl/util/string.h"
 #include "litestl/util/vector.h"
+#include "platform/platform.h"
 #include "test_util.h"
 #include <cstdio>
-#include "platform/platform.h"
 
 test_init;
 
 struct Bleh {
-  ATTR_NO_OPT void A() {
+  ATTR_NO_OPT void A()
+  {
     printf("%s\n", litestl::platform::getStackTrace().c_str());
   }
-  ATTR_NO_OPT void B() {
+  ATTR_NO_OPT void B()
+  {
     A();
   }
 };

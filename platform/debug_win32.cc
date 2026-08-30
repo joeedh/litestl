@@ -7,7 +7,7 @@
 #pragma comment(lib, "dbghelp.lib")
 
 namespace litestl::platform {
-  using std::string;
+using std::string;
 
 string getStackTrace()
 {

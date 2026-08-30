@@ -598,7 +598,7 @@ static void test_struct_data_nested()
   test_assert(inner != nullptr);
   test_assert(inner->getInt32("x") == 42);
   test_assert(inner->getFloat("y") == 6.5f);
-  test_assert(sd->getStruct("tag") == nullptr);  // wrong type → nullptr
+  test_assert(sd->getStruct("tag") == nullptr); // wrong type → nullptr
   delete sd;
   deleteSchema(def);
 }

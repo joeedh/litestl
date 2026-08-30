@@ -169,8 +169,7 @@ public:
     {
       i_++;
 
-      while (i_ < int(map_->table_.size()) &&
-             !hash::swiss::ctrlIsFull(map_->ctrl_[i_])) {
+      while (i_ < int(map_->table_.size()) && !hash::swiss::ctrlIsFull(map_->ctrl_[i_])) {
         i_++;
       }
 
@@ -218,8 +217,7 @@ public:
     {
       i_++;
 
-      while (i_ < int(map_->table_.size()) &&
-             !hash::swiss::ctrlIsFull(map_->ctrl_[i_])) {
+      while (i_ < int(map_->table_.size()) && !hash::swiss::ctrlIsFull(map_->ctrl_[i_])) {
         i_++;
       }
 
@@ -260,8 +258,7 @@ public:
       ctrl_ = static_ctrl_;
     } else {
       table_ = std::span(
-          static_cast<Pair *>(alloc::alloc("copied map table", sizeof(Pair) * cap)),
-          cap);
+          static_cast<Pair *>(alloc::alloc("copied map table", sizeof(Pair) * cap)), cap);
       ctrl_ = static_cast<uint8_t *>(alloc::alloc("copied map ctrl", cap + kGroupWidth));
     }
 
@@ -271,7 +268,8 @@ public:
 
     if constexpr (Pair::is_simple()) {
       std::memcpy(static_cast<void *>(table_.data()),
-                  static_cast<const void *>(b.table_.data()), sizeof(Pair) * cap);
+                  static_cast<const void *>(b.table_.data()),
+                  sizeof(Pair) * cap);
     } else {
       for (size_t i = 0; i < cap; i++) {
         if (hash::swiss::ctrlIsFull(ctrl_[i])) {
@@ -297,7 +295,8 @@ public:
 
       if constexpr (Pair::is_simple()) {
         std::memcpy(static_cast<void *>(get_static()),
-                    static_cast<const void *>(b.table_.data()), sizeof(Pair) * cap);
+                    static_cast<const void *>(b.table_.data()),
+                    sizeof(Pair) * cap);
       } else {
         for (size_t i = 0; i < cap; i++) {
           if (hash::swiss::ctrlIsFull(ctrl_[i])) {
@@ -802,11 +801,10 @@ private:
       uint64_t empty_after = hash::swiss::Group(ctrl_ + index).matchEmpty();
       uint64_t empty_before = hash::swiss::Group(ctrl_ + index_before).matchEmpty();
 
-      bool was_never_full =
-          empty_before && empty_after &&
-          (size_t(std::countr_zero(empty_after) >> 3) +
-               size_t(std::countl_zero(empty_before) >> 3) <
-           size_t(kGroupWidth));
+      bool was_never_full = empty_before && empty_after &&
+                            (size_t(std::countr_zero(empty_after) >> 3) +
+                                 size_t(std::countl_zero(empty_before) >> 3) <
+                             size_t(kGroupWidth));
 
       if (was_never_full) {
         set_ctrl(index, hash::swiss::kEmpty);
@@ -863,7 +861,8 @@ private:
         table_[slot] = old_pairs[i];
       } else {
         new (static_cast<void *>(&table_[slot].key)) Key(std::move(old_pairs[i].key));
-        new (static_cast<void *>(&table_[slot].value)) Value(std::move(old_pairs[i].value));
+        new (static_cast<void *>(&table_[slot].value))
+            Value(std::move(old_pairs[i].value));
         old_pairs[i].~Pair();
       }
 

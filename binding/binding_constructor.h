@@ -57,7 +57,7 @@ struct Constructor : public BindingBase {
   {
     return 0;
   }
-  virtual BindingBase *clone()  const override
+  virtual BindingBase *clone() const override
   {
     return static_cast<BindingBase *>(new Constructor(*this));
   }

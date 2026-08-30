@@ -2,7 +2,7 @@
 #include <memory>
 
 namespace litestl::math {
-template <typename Float = float, int Len, double EPS=1e-18> struct LUT {
+template <typename Float = float, int Len, double EPS = 1e-18> struct LUT {
   Float[Len] data;
 
   struct {
@@ -36,7 +36,7 @@ template <typename Float = float, int Len, double EPS=1e-18> struct LUT {
 
     float a = data[i1];
     float b = data[i2];
-    
+
     t -= float(i1);
     return a + (b - a) * t;
   }

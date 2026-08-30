@@ -35,7 +35,7 @@ struct Union : public BindingBase {
   }
   Union(const Union &u) = default;
   Union &operator=(const Union &u) = default;
-  
+
   template <typename T> void add(string name, T typeValue, const _StructBase *type)
   {
     UnionPair pair = {name, type, {}};

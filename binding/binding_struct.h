@@ -5,9 +5,9 @@
 #include "binding_method.h"
 #include "binding_types.h"
 #include "util/vector.h"
+#include <concepts>
 #include <functional>
 #include <type_traits>
-#include <concepts>
 
 namespace litestl::binding::types {
 using util::Vector;

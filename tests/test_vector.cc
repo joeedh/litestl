@@ -1,6 +1,6 @@
-#include "test_util.h"
 #include "litestl/util/alloc.h"
 #include "litestl/util/vector.h"
+#include "test_util.h"
 #include <cstdio>
 
 test_init;

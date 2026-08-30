@@ -76,11 +76,11 @@ class BoundVector(Generic[T]):
 bool isPyKeyword(const string &s)
 {
   static const char *kws[] = {
-      "False",  "None",   "True",    "and",   "as",     "assert", "async",
-      "await",  "break",  "class",   "continue", "def", "del",    "elif",
-      "else",   "except", "finally", "for",   "from",   "global", "if",
-      "import", "in",     "is",      "lambda", "nonlocal", "not",  "or",
-      "pass",   "raise",  "return",  "try",   "while",  "with",   "yield"};
+      "False",  "None",   "True",    "and",      "as",       "assert", "async",
+      "await",  "break",  "class",   "continue", "def",      "del",    "elif",
+      "else",   "except", "finally", "for",      "from",     "global", "if",
+      "import", "in",     "is",      "lambda",   "nonlocal", "not",    "or",
+      "pass",   "raise",  "return",  "try",      "while",    "with",   "yield"};
   for (const char *kw : kws) {
     if (strcmp(s.c_str(), kw) == 0) {
       return true;
@@ -454,8 +454,7 @@ void PythonGenerator::buildStruct(const types::Struct<void> *st)
       s += "    @overload\n";
       moduleImports.lookup(module).add("from typing import overload");
     }
-    s += "    def " + pyIdent(m->name) + "(" + formatParams(m->params, module) +
-         ") -> ";
+    s += "    def " + pyIdent(m->name) + "(" + formatParams(m->params, module) + ") -> ";
     s += m->returnType ? formatType(m->returnType, module) : string("None");
     s += ": ...\n";
     empty = false;
@@ -556,8 +555,7 @@ util::Map<string, string> *PythonGenerator::generate()
 
 } // namespace
 
-util::Map<util::string, util::string> *generatePython(
-    Vector<const BindingBase *> &types)
+util::Map<util::string, util::string> *generatePython(Vector<const BindingBase *> &types)
 {
   PythonGenerator gen(types);
   return gen.generate();

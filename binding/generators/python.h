@@ -11,7 +11,7 @@ namespace litestl::binding::generators {
  * of generateTypescript). Returns a new Map of relative path -> file content;
  * caller owns it (alloc::Delete).
  */
-util::Map<util::string, util::string> *generatePython(
-    util::Vector<const BindingBase *> &types);
+util::Map<util::string, util::string> *
+generatePython(util::Vector<const BindingBase *> &types);
 
 } // namespace litestl::binding::generators

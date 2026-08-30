@@ -24,7 +24,7 @@ concept LinkedListNode = requires(Node *node, NodeData data) {
   { Node::wrapData(data) } -> std::same_as<Node *>;
 };
 
-template <typename T, LinkedListNode<T> NodeData=T*> struct AtomicLinkedList {
+template <typename T, LinkedListNode<T> NodeData = T *> struct AtomicLinkedList {
   T *first = {nullptr};
   T *last = {nullptr};
   std::recursive_mutex mutex;

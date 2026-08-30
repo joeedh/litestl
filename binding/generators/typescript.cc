@@ -199,9 +199,9 @@ string TypescriptGenerator::formatType(const BindingBase *type,
   }
   if (type->type == BindingType::Union) {
     const Union *u = static_cast<const Union *>(type);
-    const Enum *enumKey = u->disPropType->type == BindingType::Enum ?
-                              static_cast<const Enum *>(u->disPropType) :
-                              nullptr;
+    const Enum *enumKey = u->disPropType->type == BindingType::Enum
+                              ? static_cast<const Enum *>(u->disPropType)
+                              : nullptr;
     Vector<string> typeStrs;
     for (auto &pair : u->structs) {
       string s = formatType(pair.type, true, transformSpecial);
@@ -217,7 +217,8 @@ string TypescriptGenerator::formatType(const BindingBase *type,
             continue;
           }
           if (static_cast<const ParentTemplateParam *>(member.type)->disambiguator ==
-              enumKey) {
+              enumKey)
+          {
             hasDis = true;
             break;
           }
@@ -236,9 +237,8 @@ string TypescriptGenerator::formatType(const BindingBase *type,
             std::string ts = s.c_str();
             // splice ", <Enum.KEY>" before the closing `>` (always present
             // because the variant has at least the C++ template param).
-            ts = ts.substr(0, ts.size() - 1) + "," +
-                 std::string(enumShort.c_str()) + "." + std::string(keyName.c_str()) +
-                 ">";
+            ts = ts.substr(0, ts.size() - 1) + "," + std::string(enumShort.c_str()) +
+                 "." + std::string(keyName.c_str()) + ">";
             s = string(ts.c_str());
           }
         }
@@ -254,8 +254,9 @@ string TypescriptGenerator::formatType(const BindingBase *type,
   // and let the basename search trip over a `:` inside the template suffix.
   std::string filename = type->name.c_str();
   int i = filename.find_last_of(':');
-  string base = (i >= 0) ? string(filename.substr(i + 1).c_str()) :
-                           string(std::regex_replace(filename, std::regex("::"), ".").c_str());
+  string base = (i >= 0)
+                    ? string(filename.substr(i + 1).c_str())
+                    : string(std::regex_replace(filename, std::regex("::"), ".").c_str());
 
   if (addTemplateSuffix && type->type == BindingType::Struct) {
     const _StructBase *st = static_cast<const _StructBase *>(type);
@@ -563,9 +564,8 @@ void TypescriptGenerator::buildUnionMapFile(const types::Union *u)
   {
     std::string fullMapName = u->mapName.c_str();
     auto i = fullMapName.find_last_of(':');
-    mapShortName = (i != std::string::npos) ?
-                       string(fullMapName.substr(i + 1).c_str()) :
-                       string(fullMapName.c_str());
+    mapShortName = (i != std::string::npos) ? string(fullMapName.substr(i + 1).c_str())
+                                            : string(fullMapName.c_str());
   }
 
   Set<string> imports;
@@ -693,7 +693,8 @@ void TypescriptGenerator::buildStructFile(const types::Struct<void> *st)
   const types::Union *disUnion = disEnum ? findUnionForEnum(disEnum) : nullptr;
   string mapShortName;
   if (disUnion) {
-    mapShortName = formatType(disUnion->disPropType); // basename of enum, e.g. "UniformBindType"
+    mapShortName =
+        formatType(disUnion->disPropType); // basename of enum, e.g. "UniformBindType"
     // Replace "UniformBindType" → "UniformBindTypeMap" by using the union's mapName.
     string fullMapName = disUnion->mapName;
     int i = std::string(fullMapName.c_str()).find_last_of(':');
@@ -718,9 +719,10 @@ void TypescriptGenerator::buildStructFile(const types::Struct<void> *st)
       templDecl = string(td.c_str());
     }
     // Import the map and the runtime discriminator symbol.
-    imports.add("import type {" + mapShortName + "} from \"" +
-                path::relative(path::dirname(filename), getModuleName(disUnion->mapName)) +
-                "\";");
+    imports.add(
+        "import type {" + mapShortName + "} from \"" +
+        path::relative(path::dirname(filename), getModuleName(disUnion->mapName)) +
+        "\";");
     imports.add("import {getTypeSymbol} from \"@litestl/typescript-runtime\";");
   }
 

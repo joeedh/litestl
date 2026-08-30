@@ -1,10 +1,10 @@
-#include <windows.h>
 #include "platform/cpu.h"
 #include "platform/time.h"
+#include <windows.h>
 
 #include <chrono>
-#include <thread>
 #include <shellapi.h>
+#include <thread>
 
 namespace litestl::time {
 void sleep_ms(int ms)
@@ -15,7 +15,7 @@ void sleep_ns(int ns)
 {
   std::this_thread::sleep_for(std::chrono::nanoseconds(ns));
 }
-} // namespace sculptcore::time
+} // namespace litestl::time
 
 namespace litestl::platform {
 int cpu_core_count()

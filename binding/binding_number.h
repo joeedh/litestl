@@ -29,7 +29,7 @@ namespace litestl::binding {
     }                                                                                    \
   }
 
-// why do we need signed char and char? 
+// why do we need signed char and char?
 _(char, "int8", Int8);
 _(signed char, "int8", Int8);
 _(unsigned char, "int8", Int8);

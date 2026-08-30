@@ -42,8 +42,7 @@ concept IsVector = requires(T v) {
 template <IsVector VEC> struct Binder<VEC> {
   static const BindingBase *bind()
   {
-    types::Struct<VEC> *st =
-        new types::Struct<VEC>("litestl::util::Vector", sizeof(VEC));
+    types::Struct<VEC> *st = new types::Struct<VEC>("litestl::util::Vector", sizeof(VEC));
     const BindingBase *bindT = Bind<typename VEC::value_type>();
 
     if (bindT->type == BindingType::Pointer) {

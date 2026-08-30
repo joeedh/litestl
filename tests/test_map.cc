@@ -31,7 +31,7 @@ int test_remove()
       keys.remove_at(r, true);
     }
   }
-  
+
   return retval;
 }
 
@@ -45,8 +45,8 @@ int test_no_duplicate_keys()
   using namespace litestl::util;
   Random rand;
   Map<int, int> map;
-  Vector<int> present;     // model of live keys
-  constexpr int key_range = 11;   // tiny range → dense chains + tombstone reuse
+  Vector<int> present;          // model of live keys
+  constexpr int key_range = 11; // tiny range → dense chains + tombstone reuse
   int retval = 0;
 
   for (int iter = 0; iter < 20000; iter++) {

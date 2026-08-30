@@ -5,7 +5,6 @@
 
 #include "util/wasm.h"
 
-
 // use std c++ for wasm
 namespace litestl::time {
 void sleep_ms(int len)

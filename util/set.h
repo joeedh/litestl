@@ -98,8 +98,7 @@ public:
     {
       i_++;
 
-      while (i_ < int(set_->table_.size()) &&
-             !hash::swiss::ctrlIsFull(set_->ctrl_[i_])) {
+      while (i_ < int(set_->table_.size()) && !hash::swiss::ctrlIsFull(set_->ctrl_[i_])) {
         i_++;
       }
 
@@ -131,7 +130,8 @@ public:
 
       if constexpr (is_simple<Key>()) {
         std::memcpy(static_cast<void *>(get_static()),
-                    static_cast<const void *>(b.table_.data()), sizeof(Key) * cap);
+                    static_cast<const void *>(b.table_.data()),
+                    sizeof(Key) * cap);
       } else {
         for (size_t i = 0; i < cap; i++) {
           if (hash::swiss::ctrlIsFull(ctrl_[i])) {
@@ -168,7 +168,8 @@ public:
 
     if constexpr (is_simple<Key>()) {
       std::memcpy(static_cast<void *>(table_.data()),
-                  static_cast<const void *>(b.table_.data()), sizeof(Key) * cap);
+                  static_cast<const void *>(b.table_.data()),
+                  sizeof(Key) * cap);
     } else {
       for (size_t i = 0; i < cap; i++) {
         if (hash::swiss::ctrlIsFull(ctrl_[i])) {
@@ -477,11 +478,10 @@ private:
       uint64_t empty_after = hash::swiss::Group(ctrl_ + index).matchEmpty();
       uint64_t empty_before = hash::swiss::Group(ctrl_ + index_before).matchEmpty();
 
-      bool was_never_full =
-          empty_before && empty_after &&
-          (size_t(std::countr_zero(empty_after) >> 3) +
-               size_t(std::countl_zero(empty_before) >> 3) <
-           size_t(kGroupWidth));
+      bool was_never_full = empty_before && empty_after &&
+                            (size_t(std::countr_zero(empty_after) >> 3) +
+                                 size_t(std::countl_zero(empty_before) >> 3) <
+                             size_t(kGroupWidth));
 
       if (was_never_full) {
         set_ctrl(index, hash::swiss::kEmpty);

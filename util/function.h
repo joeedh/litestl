@@ -29,9 +29,8 @@ template <typename R, typename... Args> struct function_ref<R(Args...)> {
    * constructors when the argument is another function_ref.
    */
   template <typename CallImpl,
-            std::enable_if_t<
-                !std::is_same_v<std::remove_cvref_t<CallImpl>, function_ref>,
-                int> = 0>
+            std::enable_if_t<!std::is_same_v<std::remove_cvref_t<CallImpl>, function_ref>,
+                             int> = 0>
   function_ref(CallImpl &&impl)
       : callback_(callback_impl<std::remove_reference_t<CallImpl>>),
         ptr_(reinterpret_cast<void *>(&impl))
@@ -47,9 +46,8 @@ template <typename R, typename... Args> struct function_ref<R(Args...)> {
 
   /** Rebinds to any callable compatible with @p R(Args...). */
   template <typename CallImpl,
-            std::enable_if_t<
-                !std::is_same_v<std::remove_cvref_t<CallImpl>, function_ref>,
-                int> = 0>
+            std::enable_if_t<!std::is_same_v<std::remove_cvref_t<CallImpl>, function_ref>,
+                             int> = 0>
   function_ref &operator=(CallImpl &&impl)
   {
     callback_ = callback_impl<std::remove_reference_t<CallImpl>>;

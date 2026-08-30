@@ -14,4 +14,4 @@ static int debugBreak()
 #endif
   return 0;
 }
-}
+} // namespace litestl::platform

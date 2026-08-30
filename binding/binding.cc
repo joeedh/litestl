@@ -510,7 +510,8 @@ size_t LSTL_GetMemSize(bool includePermanent)
   return includePermanent ? size + alloc::getPermanentMemorySize() : size;
 }
 
-void LSTL_FreeFormatBlocks(char *s) {
+void LSTL_FreeFormatBlocks(char *s)
+{
   free(s);
 }
 

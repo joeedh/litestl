@@ -96,7 +96,7 @@ Steps to read a file:
 
 The structs are fully deserialized into a simple generic structure, where structs
 are key/value stores of fields (note: internally the keys are field indices
-not strings). 
+not strings).
 
 ```c++
 struct FieldData {
@@ -180,10 +180,10 @@ file to match the latest version of the schema prior invoking any struct io cons
 // parses on Linux. Anything that needs the runtime endianness uses
 // std::endian above instead.
 #ifdef LITTLE_ENDIAN
-#  undef LITTLE_ENDIAN
+#undef LITTLE_ENDIAN
 #endif
 #ifdef BIG_ENDIAN
-#  undef BIG_ENDIAN
+#undef BIG_ENDIAN
 #endif
 
 namespace sculptcore::io {
@@ -393,10 +393,8 @@ struct IOStructDef : public FieldDef {
 
   /** Add a static-size array field with elements described by elemType.
    *  Takes ownership of elemType. */
-  IOStructDef &addStaticArray(const char *fname,
-                              int memberOffset,
-                              FieldDef *elemType,
-                              int staticSize)
+  IOStructDef &
+  addStaticArray(const char *fname, int memberOffset, FieldDef *elemType, int staticSize)
   {
     ArrayDef *def = new ArrayDef();
     litestl::util::cstring::strNcpy(def->name, fname);
@@ -1231,7 +1229,8 @@ struct BinFile {
    * payload), schema at the end, and an 8-byte trailing offset to the
    * schema start.
    */
-  void writeFile(const StructSchema &schema, const std::function<void(BinFile &)> &payload)
+  void writeFile(const StructSchema &schema,
+                 const std::function<void(BinFile &)> &payload)
   {
     writeHeader();
     payload(*this);

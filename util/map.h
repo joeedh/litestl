@@ -49,7 +49,7 @@ concept KeyCopier = requires(Func f, Key k)
 };
 /* clang-format on */
 
-/** Smallest power of two >= n, but never below floor_. */
+/** Returns the smallest power of two that is at least n, never smaller than floor_. */
 constexpr size_t pow2AtLeast(size_t n, size_t floor_)
 {
   size_t v = std::bit_ceil(n < 1 ? size_t(1) : n);

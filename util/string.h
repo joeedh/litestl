@@ -18,15 +18,38 @@ namespace litestl::util {
 // reserve enough space for a guid
 template <typename Char, int static_size = 40> struct String;
 
+/**
+ * StrLiteral: structural type, usable as a non-type template parameter.
+ * N includes the trailing NULL.
+ **/
 template <size_t N> struct StrLiteral {
+  char value[N];
+
   constexpr StrLiteral(const char (&str)[N])
   {
     std::copy_n(str, N, value);
-    value[N] = 0;
   }
 
-  char value[N + 1];
+  constexpr const char *c_str() const
+  {
+    return value;
+  }
+  constexpr std::string_view sv() const
+  {
+    return std::string_view(value, N - 1);
+  }
+
+  template <size_t M> constexpr bool operator==(const StrLiteral<M> &b) const
+  {
+    if constexpr (N != M) {
+      return false;
+    } else {
+      return std::equal(value, value + N, b.value);
+    }
+  }
 };
+
+template <size_t N> StrLiteral(const char (&)[N]) -> StrLiteral<N>;
 
 template <typename Char, int static_size = 32> struct ConstStr {
   constexpr ConstStr()
@@ -328,6 +351,10 @@ public:
     return StringRef<Char>(data_);
   }
 
+  operator std::basic_string_view<Char>() const {
+    return std::basic_string_view<Char>(data_, size_);
+  }
+
   template <size_t N> String(StrLiteral<N> lit)
   {
     data_ = static_storage_;
@@ -342,6 +369,21 @@ public:
     data_[N] = 0;
   }
 
+  String(const std::basic_string<Char> &b)
+  {
+    size_ = 0;
+    data_ = static_storage_;
+
+    size_t size = b.size();
+    ensure_size(size);
+
+    for (int i = 0; i < size; i++) {
+      data_[i] = b[i];
+    }
+    data_[size] = 0;
+    size_ = int(size);
+  }
+  
   String(const String &b)
   {
     data_ = static_storage_;
@@ -469,7 +511,7 @@ public:
     return String(*this).operator+=(b);
   }
 
-  String operator+(const std::string &b) const
+  String operator+(const std::basic_string<Char> &b) const
   {
     return String(*this).operator+=(b);
   }
@@ -504,7 +546,7 @@ public:
     data_[size_] = 0;
     return *this;
   }
-  String &operator+=(const std::string &b)
+  String &operator+=(const std::basic_string<Char> &b)
   {
     operator+=(String(b.c_str()));
     return *this;

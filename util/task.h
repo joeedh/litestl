@@ -19,6 +19,10 @@
 #include <new>
 #include <thread>
 
+#if defined(_MSC_VER) && !defined(__clang__)
+#  include <intrin.h>
+#endif
+
 /** Thread pool and parallel execution utilities. */
 namespace litestl::task {
 using ThreadMain = std::function<void()>;
@@ -38,6 +42,8 @@ inline void cpu_relax()
 {
 #if defined(__EMSCRIPTEN__)
   std::this_thread::yield();
+#elif defined(_MSC_VER) && !defined(__clang__) && (defined(_M_X64) || defined(_M_IX86))
+  _mm_pause();
 #elif defined(__x86_64__) || defined(__i386__) || defined(_M_X64) || defined(_M_IX86)
   __builtin_ia32_pause();
 #elif defined(__aarch64__) || defined(__arm__) || defined(_M_ARM64)

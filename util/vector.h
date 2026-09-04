@@ -49,6 +49,7 @@ template <typename T, VectorSortComparator<T> CB> struct Comparator {
 } // namespace detail
 
 static constexpr int VectorDefaultStaticSize = 4;
+namespace detail {
 /**
  * Small-buffer-optimized dynamic array.
  *
@@ -57,7 +58,7 @@ static constexpr int VectorDefaultStaticSize = 4;
  * static capacity. Supports move semantics, range-based for loops, and
  * std::ranges algorithms.
  */
-template <typename T, int static_size = VectorDefaultStaticSize>
+template <typename T, int static_size, typename is_nullable>
 class alignas(ContainerAlign<T>()) Vector {
 public:
   using value_type = T;
@@ -228,7 +229,7 @@ public:
       return *this;
     }
     // postincrement
-    flatten_inline iterator_base operator++(int arg)
+    flatten_inline iterator_base operator++(int)
     {
       i_++;
       return iterator_base(vec_, i_ - 1);
@@ -240,7 +241,7 @@ public:
       return *this;
     }
     // postincrement
-    flatten_inline iterator_base operator--(int arg)
+    flatten_inline iterator_base operator--(int)
     {
       i_--;
       return iterator_base(vec_, i_ + 1);
@@ -749,7 +750,7 @@ public:
 
     /* Construct new elements. */
     if constexpr (construct_destruct && !shrink_only) {
-      for (int i = 0; i < remain; i++) {
+      for (int i = 0; i < int(remain); i++) {
         if constexpr (!is_simple<T>()) {
           new (&data_[size_ - i - 1]) T;
         } else {
@@ -785,7 +786,7 @@ public:
   }
 
   /** Reverses the vector in-place. Returns a reference to *this. */
-  Vector<T, static_size> &reverse()
+  Vector<T, static_size, is_nullable> &reverse()
   {
     int size = size_ >> 1;
     for (int i = 0; i < size; i++) {
@@ -970,5 +971,15 @@ private:
 #endif
   uint8_t static_storage_[static_size * sizeof(T)];
 };
+
+} // namespace detail
+
+template <typename T, int static_size = VectorDefaultStaticSize>
+class alignas(ContainerAlign<T>()) Vector
+    : public detail::Vector<T, static_size, std::false_type> {};
+
+template <typename T, int static_size = VectorDefaultStaticSize>
+class alignas(ContainerAlign<T>()) NullablePtrVector
+    : public detail::Vector<T, static_size, std::true_type> {};
 
 } // namespace litestl::util

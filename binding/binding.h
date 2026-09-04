@@ -34,8 +34,14 @@ template <> struct Binder<void *> {
 
 template <typename T>
 concept IsVector = requires(T v) {
-  // { Bind<T::value_type>() } -> std::derived_from<const BindingBase *>;
   std::same_as<typename T::is_litestl_vector, std::true_type>;
+  std::same_as<typename T::is_nullable, std::false_type>;
+};
+
+template <typename T>
+concept IsNullablePtrVector = requires(T v) {
+  std::same_as<typename T::is_litestl_vector, std::true_type>;
+  std::same_as<typename T::is_nullable, std::true_type>;
 };
 
 /** vector binding */
@@ -49,7 +55,11 @@ template <IsVector VEC> struct Binder<VEC> {
       // do not allow null for vector elements
       types::Pointer *p = static_cast<types::Pointer *>(
           static_cast<const types::Pointer *>(bindT)->clone());
-      p->isNonNull = true;
+      if constexpr (std::is_same_v<typename VEC::is_nullable, std::true_type>) {
+        p->isNonNull = false;
+      } else {
+        p->isNonNull = true;
+      }
       bindT = p;
     }
 

@@ -233,7 +233,7 @@ Notes:
 | Tight set of flags | `BoolVector<>` |
 | Membership test by key | `Set<Key>` |
 | Key → value lookup | `Map<Key, Value>` |
-| Fixed-size compile-time array | `util::Array<T, N>` (see `util/array.h`) |
+| Fixed-size compile-time array | `util::Array<T, N>` (a `std::array<T, N>` alias, see `util/array.h`) |
 | Non-owning view | `std::span<T>` / `util::Span<T>` |
 
 When in doubt, prefer these over STL equivalents in `source/` — they

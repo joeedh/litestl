@@ -308,7 +308,7 @@ static inline const void *pointer_offset(const void *ptr, int n)
 
 namespace litestl::util {
 namespace detail {
-template <typename T> static constexpr bool is_simple(T *)
+template <typename T> static constexpr bool is_simple(T * = nullptr)
 {
   return std::is_integral_v<T> || std::is_pointer_v<T> || std::is_floating_point_v<T> ||
          is_simple_override<T>::value;

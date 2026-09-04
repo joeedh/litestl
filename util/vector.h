@@ -980,6 +980,6 @@ class alignas(ContainerAlign<T>()) Vector
 
 template <typename T, int static_size = VectorDefaultStaticSize>
 class alignas(ContainerAlign<T>()) NullablePtrVector
-    : public detail::Vector<T, static_size, std::true_type> {};
+    : protected detail::Vector<T, static_size, std::true_type> {};
 
 } // namespace litestl::util

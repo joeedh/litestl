@@ -36,14 +36,11 @@ template <typename T>
 concept IsVector =
     requires { requires std::same_as<typename T::is_litestl_vector, std::true_type>; };
 
-/** vector binding; NullablePtrVector binds under its own name so the two
- * instantiations of one element type do not collide in the manager */
+/** vector binding */
 template <IsVector VEC> struct Binder<VEC> {
   static const BindingBase *bind()
   {
-    const char *name =
-        VEC::isNullable ? "litestl::util::NullablePtrVector" : "litestl::util::Vector";
-    types::Struct<VEC> *st = new types::Struct<VEC>(name, sizeof(VEC));
+    types::Struct<VEC> *st = new types::Struct<VEC>("litestl::util::Vector", sizeof(VEC));
     const BindingBase *bindT = Bind<typename VEC::value_type>();
 
     if (bindT->type == BindingType::Pointer) {
@@ -90,6 +87,13 @@ template <IsVector VEC> struct Binder<VEC> {
     st->addTemplateParam(
         new types::NumLitType(VEC::staticSize, "static_size", Bind<int>()),
         "static_size");
+    // Only nullable vectors carry the third parameter, so every runtime that
+    // keys on "litestl::util::Vector" or reads params 0 and 1 is unaffected,
+    // while the full name still separates the two instantiations.
+    if constexpr (VEC::isNullable) {
+      st->addTemplateParam(new types::BoolLitType(true, "nullable", Bind<bool>()),
+                           "nullable");
+    }
 
     return st;
   }

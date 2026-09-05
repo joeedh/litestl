@@ -49,7 +49,6 @@ template <typename T, VectorSortComparator<T> CB> struct Comparator {
 } // namespace detail
 
 static constexpr int VectorDefaultStaticSize = 4;
-namespace detail {
 /**
  * Small-buffer-optimized dynamic array.
  *
@@ -58,7 +57,7 @@ namespace detail {
  * static capacity. Supports move semantics, range-based for loops, and
  * std::ranges algorithms.
  */
-template <typename T, int static_size, typename is_nullable>
+template <typename T, int static_size = VectorDefaultStaticSize>
 class alignas(ContainerAlign<T>()) Vector {
 public:
   using value_type = T;
@@ -229,7 +228,7 @@ public:
       return *this;
     }
     // postincrement
-    flatten_inline iterator_base operator++(int)
+    flatten_inline iterator_base operator++(int arg)
     {
       i_++;
       return iterator_base(vec_, i_ - 1);
@@ -241,7 +240,7 @@ public:
       return *this;
     }
     // postincrement
-    flatten_inline iterator_base operator--(int)
+    flatten_inline iterator_base operator--(int arg)
     {
       i_--;
       return iterator_base(vec_, i_ + 1);
@@ -750,7 +749,7 @@ public:
 
     /* Construct new elements. */
     if constexpr (construct_destruct && !shrink_only) {
-      for (int i = 0; i < int(remain); i++) {
+      for (int i = 0; i < remain; i++) {
         if constexpr (!is_simple<T>()) {
           new (&data_[size_ - i - 1]) T;
         } else {
@@ -786,7 +785,7 @@ public:
   }
 
   /** Reverses the vector in-place. Returns a reference to *this. */
-  Vector<T, static_size, is_nullable> &reverse()
+  Vector<T, static_size> &reverse()
   {
     int size = size_ >> 1;
     for (int i = 0; i < size; i++) {
@@ -971,15 +970,5 @@ private:
 #endif
   uint8_t static_storage_[static_size * sizeof(T)];
 };
-
-} // namespace detail
-
-template <typename T, int static_size = VectorDefaultStaticSize>
-class alignas(ContainerAlign<T>()) Vector
-    : public detail::Vector<T, static_size, std::false_type> {};
-
-template <typename T, int static_size = VectorDefaultStaticSize>
-class alignas(ContainerAlign<T>()) NullablePtrVector
-    : protected detail::Vector<T, static_size, std::true_type> {};
 
 } // namespace litestl::util

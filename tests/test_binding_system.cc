@@ -164,6 +164,7 @@ extern "C" BindingManager *getBindingManager()
   manager->add(Bind<VecTest>());
   manager->add(Bind<util::Vector<void *>>());
   manager->add(Bind<util::Vector<VecTest>>());
+  manager->add(Bind<util::NullablePtrVector<VecTest *>>());
 
   return manager;
 }

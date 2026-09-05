@@ -33,23 +33,23 @@ template <> struct Binder<void *> {
 };
 
 template <typename T>
-concept IsVector = requires(T v) {
-  // { Bind<T::value_type>() } -> std::derived_from<const BindingBase *>;
-  std::same_as<typename T::is_litestl_vector, std::true_type>;
-};
+concept IsVector =
+    requires { requires std::same_as<typename T::is_litestl_vector, std::true_type>; };
 
-/** vector binding */
+/** vector binding; NullablePtrVector binds under its own name so the two
+ * instantiations of one element type do not collide in the manager */
 template <IsVector VEC> struct Binder<VEC> {
   static const BindingBase *bind()
   {
-    types::Struct<VEC> *st = new types::Struct<VEC>("litestl::util::Vector", sizeof(VEC));
+    const char *name =
+        VEC::isNullable ? "litestl::util::NullablePtrVector" : "litestl::util::Vector";
+    types::Struct<VEC> *st = new types::Struct<VEC>(name, sizeof(VEC));
     const BindingBase *bindT = Bind<typename VEC::value_type>();
 
     if (bindT->type == BindingType::Pointer) {
-      // do not allow null for vector elements
       types::Pointer *p = static_cast<types::Pointer *>(
           static_cast<const types::Pointer *>(bindT)->clone());
-      p->isNonNull = true;
+      p->isNonNull = !VEC::isNullable;
       bindT = p;
     }
 

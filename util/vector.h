@@ -57,11 +57,16 @@ static constexpr int VectorDefaultStaticSize = 4;
  * static capacity. Supports move semantics, range-based for loops, and
  * std::ranges algorithms.
  */
-template <typename T, int static_size = VectorDefaultStaticSize>
+template <typename T, int static_size = VectorDefaultStaticSize, bool nullable = false>
 class alignas(ContainerAlign<T>()) Vector {
+  static_assert(!nullable || std::is_pointer_v<T>,
+                "only pointer elements can be nullable");
+
 public:
   using value_type = T;
   using is_litestl_vector = std::true_type;
+  /** Bindings type pointer elements as optional when set; see NullablePtrVector. */
+  static constexpr bool isNullable = nullable;
 
   // c++ doesn't allow us to shadow template parameters
   static const int staticSize = static_size;
@@ -970,5 +975,13 @@ private:
 #endif
   uint8_t static_storage_[static_size * sizeof(T)];
 };
+
+/**
+ * A Vector of pointers whose elements may be null. Same type as
+ * `Vector<T, static_size, true>`; the flag only changes how the element type
+ * is described to bindings, which otherwise assume vector pointers are set.
+ */
+template <typename T, int static_size = VectorDefaultStaticSize>
+using NullablePtrVector = Vector<T, static_size, true>;
 
 } // namespace litestl::util

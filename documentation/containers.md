@@ -51,6 +51,10 @@ All types live in `namespace litestl::util`.
 Stores up to `static_size` elements inline; grows on the heap past that.
 Supports range-for, `std::ranges` algorithms, and random-access iterators.
 
+`NullablePtrVector<T, static_size>` is an alias of `Vector<T, static_size, true>`
+for pointer elements that may be null. The third parameter only affects the
+binding system, which describes elements of a plain `Vector<T *>` as non-null.
+
 ### Construction
 
 ```cpp

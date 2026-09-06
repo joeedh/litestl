@@ -903,7 +903,7 @@ private:
 
     if constexpr (is_simple<T>()) {
       memmove(
-          static_cast<void *>(data_), static_cast<void *>(data_ + 1), sizeof(T) * size_);
+          static_cast<void *>(data_ + 1), static_cast<void *>(data_), sizeof(T) * size_);
     } else {
       for (int i = size_; i > 0; i--) {
         data_[i] = std::move(data_[i - 1]);

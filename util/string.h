@@ -406,7 +406,7 @@ public:
   {
     size_ = b.size_;
 
-    if (size_ < static_size - 1) {
+    if (b.data_ == b.static_storage_) {
       data_ = static_storage_;
 
       for (int i = 0; i < b.size_; i++) {
@@ -416,11 +416,13 @@ public:
       data_[b.size_] = 0;
     } else {
       data_ = b.data_;
+      capacity_ = b.capacity_;
     }
 
     b.data_ = b.static_storage_;
     b.data_[0] = 0;
     b.size_ = 0;
+    b.capacity_ = static_size;
   }
 
   String &operator=(const String &b)
@@ -473,9 +475,8 @@ public:
     data_[len] = 0;
   }
 
-  String(const StringRef<Char> &ref)
+  String(const StringRef<Char> &ref) : String(ref.c_str())
   {
-    String(ref.c_str());
   }
 
   const char *c_str() const
@@ -710,34 +711,40 @@ public:
     return false;
   }
 
+  size_t capacity() const
+  {
+    return capacity_ - 1;
+  }
+
 private:
-  /* Ensures data has at least size+1 elements, *does not set size_!* */
+  /* Ensures data has at least size+1 elements, *does not set size_!*
+   * Grows geometrically (like Vector) so repeated appends are amortized O(1). */
   void ensure_size(int size)
   {
-    if (size > size_) {
-      Char *data2;
-
-      if (size < static_size - 1) {
-        data2 = static_storage_;
-      } else {
-        data2 = static_cast<Char *>(alloc::alloc("string", size + 1));
-      }
-
-      int i;
-      for (i = 0; i < size_; i++) {
-        data2[i] = data_[i];
-      }
-      data2[size_] = 0;
-
-      if (data_ != static_storage_) {
-        alloc::release(static_cast<void *>(data_));
-      }
-      data_ = data2;
+    if (size + 1 <= capacity_) {
+      return;
     }
+
+    int new_capacity = (size + 1) << 1;
+    new_capacity -= size >> 1;
+
+    Char *data2 = static_cast<Char *>(alloc::alloc("string", new_capacity * sizeof(Char)));
+
+    for (int i = 0; i < size_; i++) {
+      data2[i] = data_[i];
+    }
+    data2[size_] = 0;
+
+    if (data_ != static_storage_) {
+      alloc::release(static_cast<void *>(data_));
+    }
+    data_ = data2;
+    capacity_ = new_capacity;
   }
 
   Char *data_;
   int size_ = 0; /* does not include null-terminating byte. */
+  int capacity_ = static_size; /* elements data_ can hold, including the null byte. */
   Char static_storage_[static_size];
 };
 

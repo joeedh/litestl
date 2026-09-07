@@ -45,5 +45,30 @@ int main(void)
     test_assert(i == string(longtest2));
   }
 
+  {
+    // Appending one character at a time must reallocate a logarithmic number of times.
+    string s;
+    int reallocations = 0;
+    const char *last = s.c_str();
+    for (int i = 0; i < 100000; i++) {
+      s += char('a' + (i % 26));
+      if (s.c_str() != last) {
+        reallocations++;
+        last = s.c_str();
+      }
+    }
+    test_assert(s.size() == 100000);
+    test_assert(reallocations < 40);
+    test_assert(s.capacity() >= s.size());
+    test_assert(s[99999] == char('a' + (99999 % 26)));
+    test_assert(s.c_str()[100000] == 0);
+
+    string moved = std::move(s);
+    test_assert(moved.size() == 100000);
+    test_assert(moved.capacity() >= moved.size());
+    moved += "tail";
+    test_assert(moved.ends_with(string("tail")));
+  }
+
   return test_end();
 }

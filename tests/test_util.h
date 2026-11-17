@@ -5,6 +5,7 @@
 #include "litestl/util/string.h"
 
 #include <cstdio>
+#include <cstdlib>
 
 #ifdef WIN32
 
@@ -44,6 +45,11 @@ static bool test_end()
 ATTR_NO_OPT
 static int test_break()
 {
+  /* Set LITESTL_TEST_NO_BREAK=1 to report every failure instead of trapping on
+   * the first one (useful in CI logs and when bisecting many failures). */
+  if (getenv("LITESTL_TEST_NO_BREAK")) {
+    return 0;
+  }
 #ifdef WIN32
   __debugbreak();
 #else

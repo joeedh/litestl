@@ -26,7 +26,21 @@ target_include_directories(${target} PUBLIC mesh)
 target_include_directories(${target} PUBLIC platform)
 target_include_directories(${target} PUBLIC binding_generators)
 target_include_directories(${target} PUBLIC binding)
+target_compile_definitions(${target} PRIVATE LITESTL_TEST_SCALE_DEFAULT=${LITESTL_TEST_SCALE})
+# Test inputs must not depend on FMA contraction (gcc defaults to -ffp-contract=fast).
+if (CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+  target_compile_options(${target} PRIVATE /fp:precise)
+else()
+  target_compile_options(${target} PRIVATE -ffp-contract=off)
+endif()
 add_test(NAME ${target} COMMAND ${target})
+endmacro()
+
+# Heavy randomized suites: labelled "long" so consumers can skip them
+# (ctest -LE long); case counts scale with LITESTL_TEST_SCALE.
+macro(test_long file extra_lib)
+test(${file} "${extra_lib}")
+set_tests_properties("${file}_out" PROPERTIES LABELS long)
 endmacro()
 
 test(test_boolvector.cc "")
@@ -47,6 +61,7 @@ test(test_binfile.cc "io")
 test(test_print_stack_trace.cc "platform")
 test(test_value_or_errors_union.cc "")
 test(test_value_or_errors_constexpr.cc "")
+test_long(test_wideint.cc "")
 
 include(../build_files/macros.cmake)
 if (BUILD_WASM)

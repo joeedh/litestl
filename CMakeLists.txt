@@ -12,6 +12,10 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE BOOL "Export compile commands")
 
 
 option(BUILD_WASM "Build wasm library" OFF)
+option(LITESTL_BUILD_TESTS "Build litestl's own tests" ON)
+option(LITESTL_NO_INT128 "Force the portable (non-__int128) wide-integer path" OFF)
+set(LITESTL_TEST_SCALE 1 CACHE STRING
+    "Default multiplier for randomized test case counts (env LITESTL_TEST_SCALE overrides)")
 set(EMSDK_PATH "" CACHE PATH "Path to emsdk")
 set(EMCC_PATH "" CACHE PATH "Path to emcc")
 
@@ -27,7 +31,9 @@ add_subdirectory(math)
 add_subdirectory(extern)
 add_subdirectory(binding)
 add_subdirectory(path)
-add_subdirectory(tests)
+if (LITESTL_BUILD_TESTS)
+  add_subdirectory(tests)
+endif()
 add_subdirectory(io)
 
 # build a target that's just litestl

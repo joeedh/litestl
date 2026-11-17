@@ -47,6 +47,7 @@ static int test_break()
 {
   /* Set LITESTL_TEST_NO_BREAK=1 to report every failure instead of trapping on
    * the first one (useful in CI logs and when bisecting many failures). */
+  fflush(stdout); /* keep diagnostics printed so far */
   if (getenv("LITESTL_TEST_NO_BREAK")) {
     return 0;
   }

@@ -21,7 +21,8 @@ in platform/platform.h:
 ```
 litestl/
   util/          containers, hash, alloc, function, task, string, span, ...
-  math/          vector / matrix / quaternion / aabb / geom / math bindings
+  math/          vector / matrix / quaternion / aabb / geom / math bindings,
+                 wideint (Int128/Int256), predicates (+ predicates/ sources)
   platform/      cpu, time, export macros
   path/          path utilities (prefer over std::filesystem in engine code)
   binding/       C++ reflection + TS generator + TS runtime
@@ -31,7 +32,7 @@ litestl/
   tests/         GTest-flavored native tests, driven by DTL
   extern/        vendored eigen (headers only)
   build_files/   shared cmake/macros + WASM helpers
-  documentation/ binding.md, containers.md
+  documentation/ binding.md, containers.md, numerics.md
 ```
 
 The library is built as part of Sculptcore (`source/litestl/` of that
@@ -111,6 +112,18 @@ C++ reflection / type-description layer; see
 - File naming: `test_<thing>.cc` under `tests/`. Wire each new test
   through `tests/CMakeLists.txt` with the `test(<file>.cc, <extra_lib>)`
   macro.
+- Randomized suites: include `test_harness.h` (`test::cases(n)` scales with
+  `LITESTL_TEST_SCALE`; `test::FailureLog` counts failures in bulk loops and
+  asserts once). Generate inputs with `splitmix64.h`, not `litestl::rng`, and
+  check against `bigint_oracle.h` where an exact answer is needed. Register
+  heavy suites with `test_long(...)` (ctest label `long`).
+- `LITESTL_TEST_NO_BREAK=1` reports all failures instead of trapping on the
+  first; `LITESTL_PRINT_GOLDENS=1` prints pinned golden values.
+- Golden values (hash128 IDs, rng streams, `test_determinism_digest`) are part
+  of the determinism contract: change them only deliberately, in the same
+  commit as the code change that requires it.
+- Numerics conventions (predicate domain, FP flags, hash encoding, rng layout):
+  see `documentation/numerics.md`.
 - `test_binding_system.cc` doubles as a WASM-side harness when
   `BUILD_WASM=ON`; the linker config there sets a 900MB initial memory
   and allows growth.

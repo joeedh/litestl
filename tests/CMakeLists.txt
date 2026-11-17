@@ -65,6 +65,7 @@ test_long(test_wideint.cc "")
 test(test_hash128.cc "")
 test(test_rng.cc "")
 test_long(test_predicates.cc predicates_stats)
+test(test_determinism_digest.cc predicates)
 
 include(../build_files/macros.cmake)
 if (BUILD_WASM)

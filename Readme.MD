@@ -17,4 +17,5 @@ based on C++ concepts.
 
 - [Containers](documentation/containers.md)
 - [Binding](documentation/binding.md)
+- [Numerics and determinism](documentation/numerics.md): wide integers, robust predicates, hash128, counter-based RNG, deterministic reduction
 

@@ -13,6 +13,8 @@ return, and moves `insphereexact`'s ~180 KB of scratch arrays to the heap.
 `api.cc` (public wrappers, diagnostics, `fp_selftest`) is hand-written.
 
 Prefer regenerating over hand-editing the generated files. The reference
-source used was the copy at
+source used was the mirror at
 https://github.com/danshapero/predicates/blob/master/src/predicates.c
-(byte-identical to Shewchuk's distribution for the functions ported).
+(Shewchuk's own host, cs.cmu.edu, was not reachable when this was generated;
+the mirror carries Shewchuk's public-domain header and was validated by the
+oracle tests in `tests/test_predicates.cc`).

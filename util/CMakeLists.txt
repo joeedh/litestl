@@ -19,6 +19,7 @@ set(SRC
   PUBLIC vector.h
   PUBLIC type_tags.h
   PUBLIC memory.h
+  PUBLIC hash128.h
   alloc.cc
   util.cc
   task.cc

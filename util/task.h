@@ -30,6 +30,12 @@ using litestl::util::Vector;
 
 namespace detail {
 
+/* True on pool worker threads (set at the top of worker_main). */
+inline thread_local bool tl_in_pool_worker = false;
+/* Per-thread band-count override for parallel_for (0 = default); see
+ * ScopedBandCount. */
+inline thread_local int tl_band_override = 0;
+
 #ifdef __cpp_lib_hardware_interference_size
 constexpr size_t kCacheLine = std::hardware_destructive_interference_size;
 #else
@@ -216,6 +222,7 @@ struct TaskPool {
    */
   void worker_main(int id)
   {
+    tl_in_pool_worker = true;
     for (;;) {
       ThreadMain task;
       if (try_get_task(id, task)) {
@@ -343,8 +350,9 @@ void parallel_for(util::IndexRange range, Callback cb, int grain_size = 1)
   const int outer_end = range.start + range.size;
   const int task_count = (range.size + grain_size - 1) / grain_size;
 
-  const int worker_count = detail::pool.worker_count();
-  const int submission_count = std::min(worker_count, task_count);
+  const int band_limit = detail::tl_band_override > 0 ? detail::tl_band_override :
+                                                       detail::pool.worker_count();
+  const int submission_count = std::min(band_limit, task_count);
 
   /* Band s spans grain-chunks [first_task, last_task); as one contiguous
    * IndexRange that is [range.start + grain*first_task, ... last_task), with
@@ -441,6 +449,106 @@ void parallel_for(util::IndexRange range, Callback cb, int grain_size = 1)
 
   const int last_start = band_start(farmed);
   cb(IndexRange(last_start, band_end(farmed) - last_start));
+}
+
+/** True when called from a pool worker thread. */
+inline bool in_pool_worker()
+{
+  return detail::tl_in_pool_worker;
+}
+
+/**
+ * Overrides, for the calling thread, how many bands parallel_for splits work
+ * into (normally the worker count, which depends on the machine). Clamped to
+ * [1, LITESTL_WORKERS_COUNT]; may exceed the core count (extra bands queue).
+ * For tests and diagnostics: lets a 4-core CI box run the band layouts of a
+ * 12-core machine.
+ */
+class ScopedBandCount {
+public:
+  explicit ScopedBandCount(int n) : prev_(detail::tl_band_override)
+  {
+    detail::tl_band_override = std::clamp(n, 1, LITESTL_WORKERS_COUNT);
+  }
+  ~ScopedBandCount()
+  {
+    detail::tl_band_override = prev_;
+  }
+  ScopedBandCount(const ScopedBandCount &) = delete;
+  ScopedBandCount &operator=(const ScopedBandCount &) = delete;
+
+private:
+  int prev_;
+};
+
+/**
+ * Runs @p cb once per fixed-size chunk:
+ * chunk k = [start + k*chunk, min(end, start + (k+1)*chunk)).
+ * Chunk boundaries depend only on @p chunk, never on the worker count, so
+ * per-chunk results are reproducible on any machine. @p chunk must be a
+ * constant chosen by the caller, not derived from hardware.
+ *
+ * Runs serially when called from a pool worker (nested waits can starve the
+ * pool); the chunking, and therefore any per-chunk result, is unchanged.
+ *
+ * @p cb signature: `[&](int chunk_index, util::IndexRange range) {}`
+ */
+template <typename Callback>
+void parallel_for_chunks(util::IndexRange range, int chunk, Callback cb)
+{
+  using util::IndexRange;
+  if (range.size <= 0) {
+    return;
+  }
+  chunk = std::max(chunk, 1);
+  const int nchunks = int((int64_t(range.size) + chunk - 1) / chunk);
+  const int end = range.start + range.size;
+  auto run_chunk = [&](int k) {
+    const int s = range.start + k * chunk;
+    cb(k, IndexRange(s, std::min(chunk, end - s)));
+  };
+  if (nchunks == 1 || in_pool_worker()) {
+    for (int k = 0; k < nchunks; k++) {
+      run_chunk(k);
+    }
+    return;
+  }
+  parallel_for(
+      IndexRange(0, nchunks),
+      [&](IndexRange ks) {
+        for (int k : ks) {
+          run_chunk(k);
+        }
+      },
+      1);
+}
+
+/**
+ * Deterministic parallel reduction. Each chunk (see parallel_for_chunks) is
+ * mapped to a T; the per-chunk results are stored by chunk index and
+ * left-folded with @p combine on the calling thread. The result is
+ * bit-identical regardless of worker or band count, even for
+ * non-associative (floating point) combine.
+ *
+ * @p map:     `(util::IndexRange) -> T`
+ * @p combine: `(T acc, T chunk_result) -> T`
+ */
+template <typename T, typename Map, typename Combine>
+T parallel_reduce(util::IndexRange range, int chunk, T identity, Map map, Combine combine)
+{
+  if (range.size <= 0) {
+    return identity;
+  }
+  chunk = std::max(chunk, 1);
+  const int nchunks = int((int64_t(range.size) + chunk - 1) / chunk);
+  util::Vector<T> results;
+  results.resize(nchunks);
+  parallel_for_chunks(range, chunk, [&](int k, util::IndexRange r) { results[k] = map(r); });
+  T acc = identity;
+  for (int k = 0; k < nchunks; k++) {
+    acc = combine(acc, results[k]);
+  }
+  return acc;
 }
 
 } // namespace litestl::task

@@ -43,7 +43,7 @@ inline HashInt hash(int i)
 /* splitmix64 finalizer. Separate from hash() (which must stay stable for
  * existing callers); the open-addressing containers run hash() through this so
  * identity-hashed ints don't cluster under power-of-2 bucket masking. */
-inline HashInt mixHash(HashInt h)
+constexpr HashInt mixHash(HashInt h)
 {
   h ^= h >> 33;
   h *= 0xff51afd7ed558ccdULL;

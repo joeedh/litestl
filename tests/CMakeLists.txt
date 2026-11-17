@@ -63,6 +63,7 @@ test(test_value_or_errors_union.cc "")
 test(test_value_or_errors_constexpr.cc "")
 test_long(test_wideint.cc "")
 test(test_hash128.cc "")
+test(test_rng.cc "")
 
 include(../build_files/macros.cmake)
 if (BUILD_WASM)

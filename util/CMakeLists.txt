@@ -20,6 +20,7 @@ set(SRC
   PUBLIC type_tags.h
   PUBLIC memory.h
   PUBLIC hash128.h
+  PUBLIC rng.h
   alloc.cc
   util.cc
   task.cc

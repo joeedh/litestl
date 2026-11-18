@@ -103,6 +103,10 @@ or replaced.
 - **`mix_from(src, …)`** reads from another group, matching columns by name and type
   and creating missing columns with `new_like()`.
 
+**NaN results.** Arithmetic policies return the canonical quiet NaN for NaN results.
+That's because IEEE leaves arithmetic NaN payloads unspecified and compilers may
+swap commutative operands. `CopyFirst` preserves payloads.
+
 **FP determinism.** The `attr` target sets **PUBLIC** `-ffp-contract=off -fno-fast-math
 …` (or `/fp:precise`), and the kernels also open a block-scoped clang contraction
 pragma. A custom `ValueOps` must follow the same rules. `test_attr_digest_fma` checks

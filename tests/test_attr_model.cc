@@ -143,7 +143,7 @@ template <typename T> static T ref_combine(MixPolicy p, const std::vector<T> &sr
         for (auto &s : src) {
           acc += double(comp(s, c));
         }
-        out[c] = E(acc);
+        out[c] = detail::canonical_nan_if(E(acc));
       }
       else {
         using U = std::make_unsigned_t<E>;
@@ -168,7 +168,7 @@ template <typename T> static T ref_combine(MixPolicy p, const std::vector<T> &sr
       acc /= wsum;
     }
     if constexpr (kFloatLike<T>) {
-      out[c] = E(acc);
+      out[c] = detail::canonical_nan_if(E(acc));
     }
     else {
       if (acc != acc) {
@@ -285,11 +285,35 @@ template <typename Col>
 static bool check(const char *name, const Col &c, const Model<typename Col::value_type> &m, int64_t step, int shift)
 {
   bool ok = c.size() == m.v.size();
+  size_t bad = 0;
   for (size_t i = 0; ok && i < m.v.size(); i++) {
     ok = beq(c.get(uint32_t(i)), m.v[i]);
+    bad = i;
   }
   if (!ok) {
-    fprintf(stderr, "[%s shift %d] contents diverge at step %" PRId64 "\n", name, shift, step);
+    fprintf(stderr,
+            "[%s shift %d] contents diverge at step %" PRId64 " (size %u vs %zu, first bad index %zu, page %zu state %d)\n",
+            name,
+            shift,
+            step,
+            c.size(),
+            m.v.size(),
+            bad,
+            bad >> shift,
+            c.size() == m.v.size() ? int(c.page_state(uint32_t(bad >> shift))) : -1);
+    if (c.size() == m.v.size()) {
+      const uint8_t *a = reinterpret_cast<const uint8_t *>(&c.get(uint32_t(bad)));
+      const uint8_t *b = reinterpret_cast<const uint8_t *>(&m.v[bad]);
+      fprintf(stderr, "  column bytes:");
+      for (size_t k = 0; k < std::min<size_t>(sizeof(m.v[0]), 16); k++) {
+        fprintf(stderr, " %02x", a[k]);
+      }
+      fprintf(stderr, "\n  model  bytes:");
+      for (size_t k = 0; k < std::min<size_t>(sizeof(m.v[0]), 16); k++) {
+        fprintf(stderr, " %02x", b[k]);
+      }
+      fprintf(stderr, "\n");
+    }
     return false;
   }
   hash::Hasher128 h(hash::DomainTag::Content);

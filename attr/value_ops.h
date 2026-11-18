@@ -5,7 +5,9 @@
  *   float-like  (float/double scalars, Vec<F,N>, std::array<F,N>)
  *     Interpolate = sum(w*s); WeightedMean = sum(w*s)/sum(w) (CopyFirst when
  *     sum(w) == 0); Sum = sum(s). Accumulated in double, left to right in
- *     source order, converted to T once. Default policy: Interpolate.
+ *     source order, converted to T once. NaN results are canonicalized
+ *     (0x7fc00000 / 0x7ff8000000000000): arithmetic NaN payloads are not
+ *     deterministic. CopyFirst preserves payloads. Default policy: Interpolate.
  *   integral    (integer scalars/vectors/arrays)
  *     Sum accumulates in the column's own width with defined wraparound.
  *     Interpolate/WeightedMean compute in double, round half away from zero
@@ -21,6 +23,7 @@
  * Canonical encoding is the raw little-endian object representation, which
  * is canonical because ColumnValue types are padding-free (paged_store.h). */
 
+#include <bit>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -64,6 +67,22 @@ template <typename T> inline T store(const elem_t<T> *in)
   T v;
   memcpy(static_cast<void *>(&v), static_cast<const void *>(in), sizeof(T));
   return v;
+}
+
+/* IEEE leaves the payload of a NaN produced by arithmetic unspecified, and
+ * compilers may legally swap commutative operands, so arithmetic NaN results
+ * are canonicalized to the default quiet NaN for determinism. */
+template <typename F> inline F canonical_nan_if(F v)
+{
+  if (v == v) {
+    return v;
+  }
+  if constexpr (sizeof(F) == 4) {
+    return std::bit_cast<F>(uint32_t(0x7fc00000u));
+  }
+  else {
+    return std::bit_cast<F>(uint64_t(0x7ff8000000000000ull));
+  }
 }
 
 template <typename I> inline I saturate_round(double x)
@@ -130,7 +149,7 @@ struct ValueOps<T> {
             detail::load(src[i], comps);
             acc += double(comps[c]);
           }
-          out[c] = E(acc);
+          out[c] = detail::canonical_nan_if(E(acc));
         }
         else {
           using U = std::make_unsigned_t<E>;
@@ -166,7 +185,7 @@ struct ValueOps<T> {
         acc = acc / wsum;
       }
       if constexpr (FloatLike<T>) {
-        out[c] = E(acc);
+        out[c] = detail::canonical_nan_if(E(acc));
       }
       else {
         out[c] = detail::saturate_round<E>(acc);

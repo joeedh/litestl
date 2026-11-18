@@ -26,6 +26,24 @@ using hash::DomainTag;
 using hash::Hash128;
 using hash::Hasher128;
 
+/* Function-argument evaluation order is unspecified (clang: left to right,
+ * gcc: right to left), so random draws are always sequenced explicitly. */
+static math::double3 draw3(test::SplitMix64 &rng, int lo, int hi)
+{
+  const double x = rng.finite(lo, hi);
+  const double y = rng.finite(lo, hi);
+  const double z = rng.finite(lo, hi);
+  return math::double3(x, y, z);
+}
+
+static math::int64_3 draw_i3(test::SplitMix64 &rng, int64_t lim)
+{
+  const int64_t x = rng.range(-lim, lim);
+  const int64_t y = rng.range(-lim, lim);
+  const int64_t z = rng.range(-lim, lim);
+  return math::int64_3(x, y, z);
+}
+
 int main()
 {
   Hasher128 digest(DomainTag::Test);
@@ -33,10 +51,13 @@ int main()
 
   /* wide integers */
   for (int i = 0; i < 2000; i++) {
-    const int64_t a = int64_t(rng.next()), b = int64_t(rng.next());
+    const int64_t a = int64_t(rng.next());
+    const int64_t b = int64_t(rng.next());
+    const int s1 = int(rng.below(250));
+    const int s2 = int(rng.below(250));
     const math::Int128 p = math::mul_wide(a, b);
     const math::Int256 q = math::mul_wide(p, p - math::Int128::from(b));
-    const math::Int256 r = (q >> int(rng.below(250))) + (q << int(rng.below(250)));
+    const math::Int256 r = (q >> s1) + (q << s2);
     for (uint64_t w : r.w) {
       digest.u64(w);
     }
@@ -48,12 +69,13 @@ int main()
     const math::double2 c(std::nextafter(0.5 * s, double(i & 63)),
                           std::nextafter(0.5 * s, double(i >> 6)));
     digest.i32(math::pred::orient2d(c, math::double2(12 * s, 12 * s), math::double2(24 * s, 24 * s)));
-    const math::double3 u(rng.finite(-5, 5), rng.finite(-5, 5), rng.finite(-5, 5));
-    const math::double3 v(rng.finite(-5, 5), rng.finite(-5, 5), rng.finite(-5, 5));
+    const math::double3 u = draw3(rng, -5, 5);
+    const math::double3 v = draw3(rng, -5, 5);
     const double e1 = std::ldexp(1.0, int(rng.range(-40, 40)));
     const double e2 = std::ldexp(1.0, int(rng.range(-40, 40)));
+    const int axis = int(rng.below(3));
     math::double3 w = v * e2;
-    w[int(rng.below(3))] = std::nextafter(w[0], 1e300);
+    w[axis] = std::nextafter(w[0], 1e300);
     digest.i32(math::pred::orient3d(u, v, u * e1, w));
     digest.i32(math::pred::incircle(math::double2(u[0], u[1]),
                                     math::double2(u[0] * e1, u[1] * e1),
@@ -61,21 +83,18 @@ int main()
                                     math::double2(w[0], w[1])));
     digest.i32(math::pred::insphere(u, v, u * e1, v * e2, w));
     const int64_t lim = int64_t(1) << 26;
-    auto ri = [&] { return rng.range(-lim, lim); };
-    digest.i32(math::pred::insphere(math::int64_3(ri(), ri(), ri()),
-                                    math::int64_3(ri(), ri(), ri()),
-                                    math::int64_3(ri(), ri(), ri()),
-                                    math::int64_3(ri(), ri(), ri()),
-                                    math::int64_3(ri(), ri(), ri())));
+    math::int64_3 q[5];
+    for (auto &p : q) {
+      p = draw_i3(rng, lim);
+    }
+    digest.i32(math::pred::insphere(q[0], q[1], q[2], q[3], q[4]));
   }
 
   /* hash128 */
   for (int i = 0; i < 256; i++) {
-    const Hash128 h = Hasher128(DomainTag(1000 + i))
-                          .u64(rng.next())
-                          .f64_canonical(rng.finite(-100, 100))
-                          .str("digest")
-                          .finish();
+    const uint64_t k = rng.next();
+    const double f = rng.finite(-100, 100);
+    const Hash128 h = Hasher128(DomainTag(1000 + i)).u64(k).f64_canonical(f).str("digest").finish();
     digest.h128(h);
   }
 

@@ -70,6 +70,8 @@ test_long(test_predicates.cc predicates_stats)
 test(test_determinism_digest.cc predicates)
 test(test_rc_buffer.cc "")
 test(test_bytes.cc "")
+test(test_attr_column.cc attr)
+test_long(test_attr_model.cc attr)
 
 include(../build_files/macros.cmake)
 if (BUILD_WASM)

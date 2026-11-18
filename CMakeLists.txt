@@ -35,6 +35,7 @@ if (LITESTL_BUILD_TESTS)
   add_subdirectory(tests)
 endif()
 add_subdirectory(io)
+add_subdirectory(attr)
 
 # build a target that's just litestl
 if (BUILD_WASM)

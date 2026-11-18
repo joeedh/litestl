@@ -787,6 +787,10 @@ public:
   {
     return data_;
   }
+  const T *data() const
+  {
+    return data_;
+  }
 
   /** Reverses the vector in-place. Returns a reference to *this. */
   Vector<T, static_size> &reverse()

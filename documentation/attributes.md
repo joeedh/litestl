@@ -16,6 +16,7 @@ on.
 | `attr/registry.h` | `ColumnTypeRegistry`: type key → column class |
 | `attr/type_key.h` | Stable value type keys (`f32`, `f64x3`, `h128`, `f32[8]`, …) |
 | `attr/group.h` | `AttrGroup`: named, equally sized columns with builtin slots |
+| `attr/schema.h` | `AttrDef`, `Schema`, `TypedGroup`: compile-time named attributes |
 
 The CMake target is `attr`, which depends on `util` and `math`. It is not part of the
 WASM library list.
@@ -124,6 +125,44 @@ this.
   range, with `kDropped` for removed elements), keeps uniform pages uniform, and gives
   unmapped elements the default. To permute in parallel, call `validate_permutation`
   and then permute `column(i)` yourself.
+
+## Compile-time schemas (`attr/schema.h`)
+
+Client code should not index builtin slots by hand. Instead, declare each attribute
+**once**, as a type that binds a name (a string literal template parameter, using the
+same `util::StrLiteral` as Sculptcore's `BuiltinAttr`), a column type, flags and a
+default:
+
+```cpp
+using Pos = attr::AttrDef<"pos", attr::Column<math::double3>>;
+struct VertEdge : attr::AttrDef<".v.e", attr::Column<uint32_t>, attr::ColumnFlags::Topo> {
+  static uint32_t default_value() { return 0xffffffffu; }   // shadow for a custom default
+};
+using VertexSchema = attr::Schema<Pos, VertEdge>;
+using MyVertexSchema = VertexSchema::extend<attr::AttrDef<"weight", attr::Column<float>>>;
+
+attr::TypedGroup<VertexSchema> verts;
+verts.get<"pos">().set(i, p);          // Column<double3>&, resolved at compile time
+verts.get<VertEdge>()[i];              // or by definition type
+constexpr uint32_t s = attr::TypedGroup<VertexSchema>::slot<".v.e">();
+```
+
+**How it works:**
+- `TypedGroup<S>` registers `S`'s attributes as the group's builtins, in order.
+  `get<"name">()` is a compile-time lookup of the slot plus a typed `builtin<>()` access.
+- `group()` exposes the underlying `AttrGroup` for mixing, permuting and I/O.
+- `read()` verifies that a stream's builtin layout matches the schema.
+
+**Errors caught at compile time** (`tests/compile_fail/`):
+- an unknown name (`get<"position">()`);
+- duplicate names in a schema;
+- a definition that isn't in the schema;
+- a non-column type in `AttrDef`;
+- binding a column to the wrong type.
+
+**Optional (non-builtin) attributes** reuse definitions through
+`attr::ensure<Def>(group)` and `attr::find<Def>(group)`, so a name is never spelled apart
+from its type, default and flags.
 
 ## Canonical hash and serialisation
 

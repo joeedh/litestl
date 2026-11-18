@@ -74,6 +74,26 @@ test(test_alloc.cc "")
 test(test_attr_column.cc attr)
 test_long(test_attr_model.cc attr)
 test(test_attr_group.cc attr)
+test(test_attr_schema.cc attr)
+# Compile-fail tests: each snippet must be rejected by the compiler with the
+# expected diagnostic (attr schemas hoist attribute shape errors to compile
+# time). The control snippet must compile, proving the include setup.
+if (NOT CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+  set(CF_FLAGS -std=c++20 -fsyntax-only
+    -I${CMAKE_CURRENT_SOURCE_DIR}/.. -I${CMAKE_CURRENT_SOURCE_DIR}/../..)
+  add_test(NAME compile_ok_schema_control
+    COMMAND ${CMAKE_CXX_COMPILER} ${CF_FLAGS} ${CMAKE_CURRENT_SOURCE_DIR}/compile_fail/schema_control.cc)
+  macro(compile_fail name regex)
+    add_test(NAME compile_fail_${name}
+      COMMAND ${CMAKE_CXX_COMPILER} ${CF_FLAGS} ${CMAKE_CURRENT_SOURCE_DIR}/compile_fail/${name}.cc)
+    set_tests_properties(compile_fail_${name} PROPERTIES PASS_REGULAR_EXPRESSION "${regex}")
+  endmacro()
+  compile_fail(schema_unknown_name "no attribute named this in the schema")
+  compile_fail(schema_duplicate_name "duplicate attribute names")
+  compile_fail(schema_def_not_in_schema "attribute definition is not in the schema")
+  compile_fail(schema_wrong_column_type "invalid initialization|cannot bind|non-const lvalue reference")
+  compile_fail(schema_not_a_column "constraints not satisfied|not satisfied|AttrDefinition")
+endif()
 test(test_attr_digest.cc attr)
 # A7 probe: same workload compiled asking for FP contraction; attr's PUBLIC
 # flags and the kernels' pragmas must keep the digest identical.

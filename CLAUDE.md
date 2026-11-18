@@ -128,6 +128,10 @@ C++ reflection / type-description layer; see
 - `LITESTL_TEST_SCALE_DIV` divides case counts (sanitizer builds use 4).
   Sanitizer runs use `tests/lsan.supp` (wired via ctest) for intentional
   process-lifetime allocations.
+- Attribute columns: declare builtin attributes with `attr::AttrDef` /
+  `attr::Schema` / `attr::TypedGroup` (`attr/schema.h`) rather than raw slot
+  indices. Compile-time errors are tested by `tests/compile_fail/` snippets
+  (`compile_fail(name regex)` in tests/CMakeLists.txt).
 - Attribute columns: see `documentation/attributes.md` for the copy-on-write,
   reference-invalidation and threading rules. `test_attr_model` is the
   model-based oracle; extend it when adding column behaviour.

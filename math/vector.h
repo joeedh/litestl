@@ -95,21 +95,10 @@ public:
     }
   }
 
-  /** Copy constructor. */
-  constexpr Vec(const Vec &b)
-  {
-    for (int i = 0; i < vec_size; i++) {
-      vec_[i] = b.vec_[i];
-    }
-  }
-
-  /** Copy constructor (non-const overload). */
-  constexpr Vec(Vec &b)
-  {
-    for (int i = 0; i < vec_size; i++) {
-      vec_[i] = b.vec_[i];
-    }
-  }
+  /* Defaulted so Vec is trivially copyable: attribute pages and util::Vector
+   * copy it with memcpy. */
+  constexpr Vec(const Vec &b) = default;
+  constexpr Vec &operator=(const Vec &b) = default;
 
   /** Sets all components to zero. Returns *this for chaining. */
   inline constexpr Vec &zero()

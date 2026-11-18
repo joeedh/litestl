@@ -210,6 +210,15 @@ double insphere(const double *pa, const double *pb, const double *pc, const doub
 '''
 write('predicates/expansion.h', exp_h)
 
+def fix_overreads(code):
+    # predicates.c reads one element past the end of e/f when an index reaches
+    # its length (e.g. `enow = e[++eindex];`); the value is never used, but the
+    # read is out of bounds (UB; found by ASan). Bound it explicitly.
+    code, n = re.subn(r'(\b\w+now) = ([ef])\[\+\+(\w+)\];',
+                      lambda m: f'{m.group(1)} = (++{m.group(3)} < {m.group(2)}len) ? {m.group(2)}[{m.group(3)}] : 0.0;',
+                      code)
+    return code, n
+
 def fix_const(code):
     # helper signatures take const pointers
     code = code.replace('estimate(int elen, double * e)', 'estimate(int elen, const double *e)')
@@ -220,8 +229,10 @@ def fix_const(code):
     return code
 
 ADAPT = ['B', 'T', 'C', 'D']
-exp_cc = PRE + fix_const(port('estimate') + '\n' + port('fast_expansion_sum_zeroelim') + '\n' +
-                         port('scale_expansion_zeroelim')) + POST
+_exp_body, _n_over = fix_overreads(fix_const(port('estimate') + '\n' + port('fast_expansion_sum_zeroelim') + '\n' +
+                                            port('scale_expansion_zeroelim')))
+assert _n_over >= 6, f'expected to bound the e/f over-reads, fixed {_n_over}'
+exp_cc = PRE + _exp_body + POST
 orient_cc = PRE + 'namespace {\n' + port('orient2dadapt', stages=ADAPT, pred='Orient2d') + '\n' + \
     port('orient3dadapt', stages=ADAPT, pred='Orient3d') + '} // namespace\n\n' + \
     port('orient2d', stages=wrapper_stages('orient2d', 'Orient2d'), pred='Orient2d') + '\n' + \

@@ -1,0 +1,11 @@
+# LeakSanitizer suppressions for intentional, process-lifetime allocations.
+# litestl's own leak tracker (alloc::print_blocks via test_end) remains the
+# real leak check for library allocations.
+
+# Per-thread tracker list, deliberately never freed (util/alloc.cc getMemList).
+leak:getMemList
+
+# Binding descriptors are allocated with `new` and intentionally never freed
+# (scaffolding for a future constexpr redesign; see CLAUDE.md "Binding system").
+leak:litestl::binding::
+leak:defineBindings

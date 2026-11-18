@@ -44,6 +44,10 @@ struct BindingBase {
   string cachedFullName;
   bool hasCachedName = false;
 
+  /* Descriptors are deleted through BindingBase pointers
+   * (binding_constructor_builder.h); already polymorphic, so no layout change. */
+  virtual ~BindingBase() = default;
+
   BindingBase(BindingType type, string name) : type(type), name(name)
   {
     //

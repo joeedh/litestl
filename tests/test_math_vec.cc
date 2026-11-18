@@ -5,6 +5,15 @@
 #include <cstring>
 
 #include "litestl/util/compiler_util.h"
+#include <type_traits>
+
+/* Attribute columns (litestl::attr) store Vec in pages copied with memcpy. */
+static_assert(std::is_trivially_copyable_v<litestl::math::float3>);
+static_assert(std::is_trivially_copyable_v<litestl::math::double4>);
+static_assert(std::is_trivially_copyable_v<litestl::math::int2>);
+static_assert(sizeof(litestl::math::float3) == 3 * sizeof(float));
+static_assert(sizeof(litestl::math::double4) == 4 * sizeof(double));
+
 test_init;
 
 int main()

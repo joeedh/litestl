@@ -33,19 +33,19 @@ int fast_expansion_sum_zeroelim(int elen, const double *e, int flen, const doubl
   eindex = findex = 0;
   if ((fnow > enow) == (fnow > -enow)) {
     Q = enow;
-    enow = e[++eindex];
+    enow = (++eindex < elen) ? e[eindex] : 0.0;
   } else {
     Q = fnow;
-    fnow = f[++findex];
+    fnow = (++findex < flen) ? f[findex] : 0.0;
   }
   hindex = 0;
   if ((eindex < elen) && (findex < flen)) {
     if ((fnow > enow) == (fnow > -enow)) {
       Fast_Two_Sum(enow, Q, Qnew, hh);
-      enow = e[++eindex];
+      enow = (++eindex < elen) ? e[eindex] : 0.0;
     } else {
       Fast_Two_Sum(fnow, Q, Qnew, hh);
-      fnow = f[++findex];
+      fnow = (++findex < flen) ? f[findex] : 0.0;
     }
     Q = Qnew;
     if (hh != 0.0) {
@@ -54,10 +54,10 @@ int fast_expansion_sum_zeroelim(int elen, const double *e, int flen, const doubl
     while ((eindex < elen) && (findex < flen)) {
       if ((fnow > enow) == (fnow > -enow)) {
         Two_Sum(Q, enow, Qnew, hh);
-        enow = e[++eindex];
+        enow = (++eindex < elen) ? e[eindex] : 0.0;
       } else {
         Two_Sum(Q, fnow, Qnew, hh);
-        fnow = f[++findex];
+        fnow = (++findex < flen) ? f[findex] : 0.0;
       }
       Q = Qnew;
       if (hh != 0.0) {
@@ -67,7 +67,7 @@ int fast_expansion_sum_zeroelim(int elen, const double *e, int flen, const doubl
   }
   while (eindex < elen) {
     Two_Sum(Q, enow, Qnew, hh);
-    enow = e[++eindex];
+    enow = (++eindex < elen) ? e[eindex] : 0.0;
     Q = Qnew;
     if (hh != 0.0) {
       h[hindex++] = hh;
@@ -75,7 +75,7 @@ int fast_expansion_sum_zeroelim(int elen, const double *e, int flen, const doubl
   }
   while (findex < flen) {
     Two_Sum(Q, fnow, Qnew, hh);
-    fnow = f[++findex];
+    fnow = (++findex < flen) ? f[findex] : 0.0;
     Q = Qnew;
     if (hh != 0.0) {
       h[hindex++] = hh;

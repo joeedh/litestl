@@ -34,6 +34,8 @@ else()
   target_compile_options(${target} PRIVATE -ffp-contract=off)
 endif()
 add_test(NAME ${target} COMMAND ${target})
+set_tests_properties(${target} PROPERTIES ENVIRONMENT
+  "LSAN_OPTIONS=suppressions=${CMAKE_CURRENT_SOURCE_DIR}/lsan.supp")
 endmacro()
 
 # Heavy randomized suites: labelled "long" so consumers can skip them
@@ -66,6 +68,8 @@ test(test_hash128.cc "")
 test(test_rng.cc "")
 test_long(test_predicates.cc predicates_stats)
 test(test_determinism_digest.cc predicates)
+test(test_rc_buffer.cc "")
+test(test_bytes.cc "")
 
 include(../build_files/macros.cmake)
 if (BUILD_WASM)

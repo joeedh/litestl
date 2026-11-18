@@ -5,8 +5,80 @@
 
 test_init;
 
+/* Owning element type: counts live objects and detects double releases. */
+static int g_live = 0, g_double_free = 0;
+struct Owner {
+  int *p = nullptr;
+  Owner() = default;
+  explicit Owner(int v) : p(new int(v))
+  {
+    g_live++;
+  }
+  Owner(Owner &&b) noexcept : p(b.p)
+  {
+    b.p = nullptr;
+  }
+  Owner &operator=(Owner &&b) noexcept
+  {
+    if (this != &b) {
+      release();
+      p = b.p;
+      b.p = nullptr;
+    }
+    return *this;
+  }
+  Owner(const Owner &) = delete;
+  ~Owner()
+  {
+    release();
+  }
+  void release()
+  {
+    if (p) {
+      if (*p < 0) {
+        g_double_free++;
+      }
+      *p = -1;
+      delete p;
+      p = nullptr;
+      g_live--;
+    }
+  }
+};
+
+static void test_remove_owning()
+{
+  for (int remove_idx = 0; remove_idx < 5; remove_idx++) {
+    for (bool swap_end : {false, true}) {
+      {
+        litestl::util::Vector<Owner, 2> v;
+        for (int k = 0; k < 5; k++) {
+          v.append(Owner(k));
+        }
+        test_assert(g_live == 5);
+        v.remove_at(remove_idx, swap_end);
+        test_assert(v.size() == 4 && g_live == 4);
+        for (int k = 0; k < v.size(); k++) {
+          test_assert(v[k].p != nullptr && *v[k].p != remove_idx);
+        }
+        if (!swap_end) {
+          int expect = 0;
+          for (int k = 0; k < v.size(); k++, expect++) {
+            if (expect == remove_idx) {
+              expect++;
+            }
+            test_assert(*v[k].p == expect);
+          }
+        }
+      }
+      test_assert(g_live == 0 && g_double_free == 0);
+    }
+  }
+}
+
 int main()
 {
+  test_remove_owning();
   using namespace litestl::util;
 
   {

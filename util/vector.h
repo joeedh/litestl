@@ -624,10 +624,9 @@ public:
   /** Removes the element at index @p i. See remove() for @p swap_end_only semantics. */
   bool remove_at(int i, bool swap_end_only = false)
   {
-    if constexpr (!is_simple<T>()) {
-      data_[i].~T();
-    }
-
+    /* Move-assignment releases the removed element's old value; only the
+     * vacated last slot is destroyed. (Destroying data_[i] first and then
+     * assigning into it was UB and double-freed owning element types.) */
     if (swap_end_only) {
       if (i != size_ - 1) {
         data_[i] = std::move(data_[size_ - 1]);

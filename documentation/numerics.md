@@ -43,6 +43,27 @@ conventions are Shewchuk's:
 | `incircle(a, b, c, d)` | d is inside the circle through counter-clockwise a, b, c |
 | `insphere(a, b, c, d, e)` | e is inside the sphere through a, b, c, d, where `orient3d(a, b, c, d) > 0` |
 
+**`incircle_sos(a, b, c, d, ra, rb, rc, rd)`** breaks cocircular ties by Simulation of
+Simplicity, for `double`, `float` and `int64<Bits>`:
+- **Perturbation.** Point `i` is lifted to `x² + y² + ε^(rank_i + 1)`.
+- **Ties.** When `incircle` is 0, the result is the sign of the lift-column cofactor of
+  the smallest-rank point:
+
+  | Smallest-rank point | Sign |
+  |---|---|
+  | `a` | `+orient2d(b,c,d)` |
+  | `b` | `−orient2d(a,c,d)` |
+  | `c` | `+orient2d(a,b,d)` |
+  | `d` | `−orient2d(a,b,c)` |
+
+  If that cofactor is 0, the next-smallest rank decides.
+- **Range.** It equals `incircle` whenever `incircle` is nonzero, and is nonzero unless
+  all four points are collinear.
+- **Ranks** must be distinct (for example, lexicographic order). A Delaunay
+  triangulation built on it is then unique.
+- **Tests.** `test_predicates_sos` checks it against a formal-polynomial oracle of
+  big-integer cofactors.
+
 ### `double`
 
 - **Algorithm.** Adaptive-precision exact arithmetic, a mechanical port of

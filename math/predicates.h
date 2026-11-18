@@ -210,4 +210,110 @@ int insphere(const int64_3 &a,
   return det.sign();
 }
 
+/* ---------------- symbolically perturbed incircle ---------------- */
+
+namespace detail {
+/* Sign of incircle(a,b,c,d) when it is exactly 0, with point i lifted by
+ * eps^(rank_i + 1). The perturbed 4x4 determinant det[x y x^2+y^2 1] is
+ * D0 + sum_i eps^(rank_i+1) * C_i with cofactors
+ *   C_a = +orient2d(b,c,d)   C_b = -orient2d(a,c,d)
+ *   C_c = +orient2d(a,b,d)   C_d = -orient2d(a,b,c)
+ * so with D0 = 0 the sign is that of the first nonzero C_i in increasing rank
+ * (a smaller rank is a larger perturbation). */
+template <typename P, typename Orient>
+int incircle_tie(const P &a, const P &b, const P &c, const P &d, const uint64_t (&rank)[4], Orient &&orient)
+{
+  int order[4] = {0, 1, 2, 3};
+  for (int i = 1; i < 4; i++) {
+    for (int j = i; j > 0 && rank[order[j]] < rank[order[j - 1]]; j--) {
+      const int t = order[j];
+      order[j] = order[j - 1];
+      order[j - 1] = t;
+    }
+  }
+  for (int k = 0; k < 4; k++) {
+    int s = 0;
+    switch (order[k]) {
+      case 0:
+        s = orient(b, c, d);
+        break;
+      case 1:
+        s = -orient(a, c, d);
+        break;
+      case 2:
+        s = orient(a, b, d);
+        break;
+      default:
+        s = -orient(a, b, c);
+        break;
+    }
+    if (s != 0) {
+      return s;
+    }
+  }
+  return 0;
+}
+} // namespace detail
+
+/**
+ * incircle with cocircular ties broken by Simulation of Simplicity: point i
+ * is lifted to x^2 + y^2 + eps^(rank_i + 1). The result is nonzero whenever
+ * the four points are distinct and not all collinear; it equals incircle()
+ * whenever that is nonzero. Ranks must be distinct (e.g. lexicographic
+ * order); then a Delaunay triangulation using this predicate is unique.
+ */
+inline int incircle_sos(const double2 &a,
+                        const double2 &b,
+                        const double2 &c,
+                        const double2 &d,
+                        uint64_t ra,
+                        uint64_t rb,
+                        uint64_t rc,
+                        uint64_t rd)
+{
+  if (const int s = incircle(a, b, c, d)) {
+    return s;
+  }
+  const uint64_t r[4] = {ra, rb, rc, rd};
+  return detail::incircle_tie(a, b, c, d, r, [](const double2 &x, const double2 &y, const double2 &z) {
+    return orient2d(x, y, z);
+  });
+}
+
+inline int incircle_sos(const float2 &a,
+                        const float2 &b,
+                        const float2 &c,
+                        const float2 &d,
+                        uint64_t ra,
+                        uint64_t rb,
+                        uint64_t rc,
+                        uint64_t rd)
+{
+  if (const int s = incircle(a, b, c, d)) {
+    return s;
+  }
+  const uint64_t r[4] = {ra, rb, rc, rd};
+  return detail::incircle_tie(
+      a, b, c, d, r, [](const float2 &x, const float2 &y, const float2 &z) { return orient2d(x, y, z); });
+}
+
+template <int Bits = 26>
+int incircle_sos(const int64_2 &a,
+                 const int64_2 &b,
+                 const int64_2 &c,
+                 const int64_2 &d,
+                 uint64_t ra,
+                 uint64_t rb,
+                 uint64_t rc,
+                 uint64_t rd)
+{
+  if (const int s = incircle<Bits>(a, b, c, d)) {
+    return s;
+  }
+  const uint64_t r[4] = {ra, rb, rc, rd};
+  return detail::incircle_tie(a, b, c, d, r, [](const int64_2 &x, const int64_2 &y, const int64_2 &z) {
+    return orient2d<Bits>(x, y, z);
+  });
+}
+
 } // namespace litestl::math::pred

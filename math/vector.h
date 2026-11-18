@@ -50,7 +50,7 @@ public:
     vec_[1] = b;
 
     for (int i = 2; i < vec_size; i++) {
-      vec_[i] = 0.0f;
+      vec_[i] = T(0);
     }
   }
 
@@ -62,7 +62,7 @@ public:
     vec_[2] = c;
 
     for (int i = 3; i < vec_size; i++) {
-      vec_[i] = 0.0f;
+      vec_[i] = T(0);
     }
   }
 
@@ -75,7 +75,7 @@ public:
     vec_[3] = d;
 
     for (int i = 4; i < vec_size; i++) {
-      vec_[i] = 0.0f;
+      vec_[i] = T(0);
     }
   }
 

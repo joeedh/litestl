@@ -16,6 +16,18 @@ static_assert(sizeof(litestl::math::double4) == 4 * sizeof(double));
 
 test_init;
 
+/* Vec must work with strong scalar types that only convert from integers
+ * explicitly (no float literals in the constructors). */
+struct StrongScalar {
+  int64_t v = 0;
+  constexpr StrongScalar() = default;
+  constexpr explicit StrongScalar(int64_t x) : v(x) {}
+  constexpr bool operator==(const StrongScalar &) const = default;
+};
+static_assert(litestl::math::Vec<StrongScalar, 3>(StrongScalar(1), StrongScalar(2))[2] == StrongScalar(0));
+static_assert(litestl::math::Vec<StrongScalar, 4>(StrongScalar(1), StrongScalar(2), StrongScalar(3))[3] ==
+              StrongScalar(0));
+
 int main()
 {
   using namespace litestl;

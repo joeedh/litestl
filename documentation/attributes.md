@@ -68,10 +68,15 @@ canonical encoding of a value is its little-endian object representation.
 
 ## Versions
 
-`version()` returns a process-wide stamp that changes, to a never-before-seen value,
-after any mutation, so stamps from diverged copies never collide. Derived caches
-compare stamps. `AttrGroup::schema_version()` changes when columns are added, removed
-or replaced.
+- **Columns.** `version()` returns a process-wide stamp that changes, to a
+  never-before-seen value, after any mutation, so stamps from diverged copies never
+  collide. Derived caches compare stamps.
+- **Column set.** `AttrGroup::schema_version()` changes when columns are added, removed
+  or replaced.
+- **Whole group.** `AttrGroup::version()` is the maximum of `schema_version()` and every
+  column stamp. Every mutation produces a stamp newer than all stamps issued before it,
+  so this also changes after any mutation. A snapshot has its source's stamp until one
+  of them is mutated.
 
 ## Mixing
 
@@ -177,6 +182,11 @@ element stream:
 - everything else is merged into maximal `Dense` runs.
 
 Equal contents therefore give equal bytes.
+
+**Partial hashes.** `AttrGroup::hash_into(h, keep)` hashes only the columns that the
+filter `keep(name, column)` accepts. It uses the same encoding, so a keep-all filter
+gives the plain hash. Temp and Derived columns are excluded before the filter runs. A
+typical use is a topology hash that leaves out geometry columns.
 
 **Group hash and bytes:**
 - builtins appear in slot order, then dynamic columns sorted by name;

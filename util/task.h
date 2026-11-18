@@ -9,6 +9,7 @@
 #include "util/compiler_util.h"
 #include "util/function.h"
 #include "util/index_range.h"
+#include "util/span.h"
 #include "util/vector.h"
 
 #include <algorithm>
@@ -18,6 +19,7 @@
 #include <mutex>
 #include <new>
 #include <thread>
+#include <type_traits>
 
 #if defined(_MSC_VER) && !defined(__clang__)
 #  include <intrin.h>
@@ -548,6 +550,50 @@ T parallel_reduce(util::IndexRange range, int chunk, T identity, Map map, Combin
   for (int k = 0; k < nchunks; k++) {
     acc = combine(acc, results[k]);
   }
+  return acc;
+}
+
+/**
+ * Deterministic exclusive prefix sum: out[i] = in[0] + ... + in[i-1] (wrapping
+ * unsigned arithmetic), returning the total. Chunk sums are computed in
+ * parallel, folded serially, then each chunk is scanned from its offset.
+ * Integer addition is associative, so the result never depends on @p chunk or
+ * the band count; the fixed chunking only keeps the work split reproducible.
+ * @p out may alias @p in (each element is read before it is written).
+ */
+template <typename T>
+  requires std::is_unsigned_v<T>
+T parallel_exclusive_scan(util::span<const T> in, util::span<T> out, int chunk = 1 << 14)
+{
+  const int n = int(in.size());
+  if (n <= 0) {
+    return T(0);
+  }
+  chunk = std::max(chunk, 1);
+  const int nchunks = int((int64_t(n) + chunk - 1) / chunk);
+  util::Vector<T> sums;
+  sums.resize(nchunks);
+  parallel_for_chunks(util::IndexRange(0, n), chunk, [&](int k, util::IndexRange r) {
+    T s = T(0);
+    for (int i : r) {
+      s = T(s + in[i]);
+    }
+    sums[k] = s;
+  });
+  T acc = T(0);
+  for (int k = 0; k < nchunks; k++) {
+    const T s = sums[k];
+    sums[k] = acc;
+    acc = T(acc + s);
+  }
+  parallel_for_chunks(util::IndexRange(0, n), chunk, [&](int k, util::IndexRange r) {
+    T run = sums[k];
+    for (int i : r) {
+      const T v = in[i];
+      out[i] = run;
+      run = T(run + v);
+    }
+  });
   return acc;
 }
 

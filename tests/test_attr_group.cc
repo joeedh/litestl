@@ -547,6 +547,76 @@ static void test_threaded_snapshots()
   test_assert(bad.load() == 0);
 }
 
+static void test_filtered_hash_and_version()
+{
+  AttrGroup g(4);
+  g.add_builtin<Column<math::double3>>("pos");
+  g.add_builtin<Column<uint32_t>>(".next", 0xffffffffu, ColumnFlags::Topo);
+  g.ensure<Column<float>>("cache", 0.0f, ColumnFlags::Derived);
+  g.resize(30);
+  g.builtin<Column<math::double3>>(0).set(3, math::double3(1, 2, 3));
+  g.builtin<Column<uint32_t>>(1).set(4, 7u);
+
+  /* keep-all filter == plain hash */
+  hash::Hasher128 a(hash::DomainTag::Test), b(hash::DomainTag::Test);
+  g.hash_into(a);
+  g.hash_into(b, [](std::string_view, const ColumnBase &) { return true; });
+  test_assert(a.finish() == b.finish());
+
+  /* a Topo-only hash ignores geometry edits and sees topology edits */
+  auto topo_only = [](std::string_view, const ColumnBase &c) { return has_flag(c.flags(), ColumnFlags::Topo); };
+  auto topo_hash = [&] {
+    hash::Hasher128 h(hash::DomainTag::Test);
+    g.hash_into(h, topo_only);
+    return h.finish();
+  };
+  const hash::Hash128 h0 = topo_hash();
+  test_assert(h0 != a.finish());
+  g.builtin<Column<math::double3>>(0).set(3, math::double3(5, 5, 5));
+  test_assert(topo_hash() == h0);
+  g.builtin<Column<uint32_t>>(1).set(5, 9u);
+  test_assert(topo_hash() != h0);
+
+  /* version: changes after every kind of mutation, never repeats */
+  util::Vector<uint64_t> seen;
+  auto bump = [&](const char *what) {
+    const uint64_t v = g.version();
+    for (uint64_t s : seen) {
+      if (s == v) {
+        fprintf(stderr, "version did not change after %s\n", what);
+        test_assert(false);
+      }
+    }
+    seen.append(v);
+  };
+  bump("start");
+  test_assert(g.version() == seen[0]); /* stable without mutation */
+  g.builtin<Column<math::double3>>(0).set(1, math::double3(1, 1, 1));
+  bump("set");
+  g.resize(31);
+  bump("resize");
+  g.swap(1, 2);
+  bump("swap");
+  g.ensure<Column<int32_t>>("extra");
+  bump("ensure");
+  g.remove("extra");
+  bump("remove");
+  const uint32_t drop[] = {0};
+  g.set_default_list(drop);
+  bump("set_default_list");
+  util::Vector<uint32_t> perm;
+  for (uint32_t i = 0; i < 31; i++) {
+    perm.append(30 - i);
+  }
+  test_assert(g.permute(util::span<const uint32_t>(perm.data(), perm.size()), 31));
+  bump("permute");
+  AttrGroup snap = g;
+  test_assert(snap.version() == g.version()); /* a snapshot has the same stamp */
+  snap.builtin<Column<uint32_t>>(1).set(0, 1u);
+  g.builtin<Column<uint32_t>>(1).set(0, 2u);
+  test_assert(snap.version() != g.version()); /* diverged copies never collide */
+}
+
 int main()
 {
   const size_t baseline = alloc::getMemorySize();
@@ -560,6 +630,7 @@ int main()
   test_stale_reference_detected();
 #endif
   test_threaded_snapshots();
+  test_filtered_hash_and_version();
   test_assert(alloc::getMemorySize() == baseline);
   return test_end();
 }

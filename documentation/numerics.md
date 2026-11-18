@@ -11,7 +11,8 @@ any thread count.
 | `math/predicates.h` | `litestl::math::pred` | `orient2d`, `orient3d`, `incircle`, `insphere` |
 | `util/hash128.h` | `litestl::hash` | `Hash128`, `SipHash128`, `Hasher128`, canonical encoders |
 | `util/rng.h` | `litestl::rng` | `philox4x32`, `Stream` |
-| `util/task.h` | `litestl::task` | `parallel_for_chunks`, `parallel_reduce`, `ScopedBandCount` |
+| `util/task.h` | `litestl::task` | `parallel_for_chunks`, `parallel_reduce`, `parallel_exclusive_scan`, `ScopedBandCount` |
+| `util/sort.h` | `litestl::util` | `sort_unique_keys`, `stable_sort` |
 
 ## Wide integers (`math/wideint.h`)
 
@@ -151,6 +152,24 @@ reproducible. Instead:
 - **`ScopedBandCount(n)`** is a thread-local override of `parallel_for`'s band count,
   clamped to `[1, LITESTL_WORKERS_COUNT]`. Tests use it to reproduce, on a small CI
   machine, the band layouts of a large one.
+- **`parallel_exclusive_scan(in, out, chunk)`** computes an exclusive prefix sum over
+  unsigned integers, with wrapping arithmetic, and returns the total. `out` may alias
+  `in`. Integer addition is associative, so the result never depends on the chunking.
+
+## Deterministic sorting (`util/sort.h`)
+
+The standard library doesn't fix the output order of tied keys: `std::sort` can differ
+between implementations, and so can `std::stable_sort`'s internal strategy, although
+its result can't. litestl offers two reproducible options:
+
+- **`sort_unique_keys(span, less, &tie_index)`** is for comparators that are a strict
+  total order on the input, such as keys ending in a persistent ID.
+  - Any correct sort then gives the same permutation, so it uses `std::sort`.
+  - Ties are checked in **every** build type. A tie returns `false` with its sorted
+    position, because a tie is a caller bug (a duplicate ID), never something to
+    resolve silently.
+- **`stable_sort(span, less)`** is a self-contained bottom-up merge sort, for the rare
+  inputs with genuine ties. Tied elements keep their input order.
 
 ## Tests and determinism digest
 

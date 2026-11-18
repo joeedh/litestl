@@ -295,22 +295,39 @@ util::Vector<int> AttrGroup::canonical_order() const
 
 void AttrGroup::hash_into(hash::Hasher128 &h) const
 {
+  hash_into(h, [](std::string_view, const ColumnBase &) { return true; });
+}
+
+void AttrGroup::hash_into(hash::Hasher128 &h, const ColumnFilter &keep) const
+{
   const util::Vector<int> order = canonical_order();
+  auto included = [&](int i) {
+    const ColumnBase &c = *cols_[i].col;
+    return hashed(c) && keep(std::string_view(cols_[i].name.c_str()), c);
+  };
   h.u32(size_);
   h.u32(builtins_);
   uint32_t n = 0;
   for (int i : order) {
-    n += hashed(*cols_[i].col) ? 1 : 0;
+    n += included(i) ? 1 : 0;
   }
   h.u32(n);
   for (int i : order) {
-    const ColumnBase &c = *cols_[i].col;
-    if (!hashed(c)) {
+    if (!included(i)) {
       continue;
     }
     h.str(std::string_view(cols_[i].name.c_str()));
-    c.hash_into(h);
+    cols_[i].col->hash_into(h);
   }
+}
+
+uint64_t AttrGroup::version() const
+{
+  uint64_t v = schema_version_;
+  for (const Slot &s : cols_) {
+    v = std::max(v, s.col->version());
+  }
+  return v;
 }
 
 hash::Hash128 AttrGroup::content_hash() const

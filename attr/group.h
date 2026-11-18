@@ -136,6 +136,19 @@ public:
   void hash_into(hash::Hasher128 &h) const;
   hash::Hash128 content_hash() const;
 
+  /** Column filter for partial hashes: return true to include the column.
+   * Temp and Derived columns are excluded before the filter is consulted. */
+  using ColumnFilter = util::function_ref<bool(std::string_view name, const ColumnBase &col)>;
+  /** Canonical hash over the columns accepted by @p keep (same encoding as
+   * hash_into, so a filter that keeps everything gives the same hash). */
+  void hash_into(hash::Hasher128 &h, const ColumnFilter &keep) const;
+
+  /** Version stamp of the whole group: changes, to a never-before-seen value,
+   * after any mutation of any column or of the column set. (The maximum of
+   * the column stamps and schema_version(): every mutation produces a stamp
+   * newer than all stamps issued before it.) */
+  uint64_t version() const;
+
   void write(io::ByteWriter &w) const;
   /** Reads a stream written by write(). The stream's builtin layout must
    * match this group's (names, keys, flags, defaults). Parses into a staging

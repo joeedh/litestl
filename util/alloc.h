@@ -129,13 +129,15 @@ inline T *NewArray(const char *tag, size_t size, Args... args)
   }
 
   void *mem = alloc(tag, sizeof(T) * size);
-  T *elem = static_cast<T *>(mem);
+  T *elems = static_cast<T *>(mem);
 
-  for (int i = 0; i < size; i++) {
-    new (elem) T(std::forward<Args>(args)...);
+  /* args are passed as lvalues (not forwarded) so every element is constructed
+   * from the same values rather than from moved-from ones. */
+  for (size_t i = 0; i < size; i++) {
+    new (static_cast<void *>(elems + i)) T(args...);
   }
 
-  return static_cast<T *>(elem);
+  return elems;
 }
 
 /** Destructs and releases a single object allocated with New. */
@@ -151,7 +153,7 @@ template <typename T> inline void Delete(T *arg)
 template <typename T> inline void DeleteArray(T *arg, size_t size)
 {
   if (arg) {
-    for (int i = 0; i < size; i++) {
+    for (size_t i = 0; i < size; i++) {
       arg[i].~T();
     }
 

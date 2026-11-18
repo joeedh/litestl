@@ -12,6 +12,7 @@
 
 #include "attr/mix.h"
 #include "attr/paged_store.h"
+#include "attr/pool_ref.h"
 #include "io/bytes.h"
 #include "util/compiler_util.h"
 #include "util/hash128.h"
@@ -34,6 +35,9 @@ inline bool has_flag(ColumnFlags f, ColumnFlags bit)
 struct ReadLimits {
   uint32_t max_elements = 1u << 30;
   uint32_t max_columns = 1u << 16;
+  /** Test-only: false skips the trailing content-hash check, so fuzzers reach
+   * the structural validation behind it. */
+  bool verify_hash = true;
 };
 
 class ColumnBase;
@@ -121,6 +125,27 @@ public:
   {
     default_policy_ = p;
   }
+
+  /* ---- pool refs (attr/pool_store.h). Columns whose values hold PoolRefs
+   * override these; the defaults describe a column without refs. ---- */
+
+  /** True if values hold PoolRefs. */
+  virtual bool holds_refs() const
+  {
+    return false;
+  }
+  /** Visits the default (count 0), then every element's refs in element order
+   * (a uniform page reports once with count = its live length). */
+  virtual void visit_refs(RefVisitor &) const {}
+  /** Rewrites every ref through m; pages whose refs don't change are left
+   * shared. */
+  virtual void remap_refs(const RefRemap &) {}
+  /** Rewrites the refs of the given elements only. */
+  virtual void remap_refs_rows(const RefRemap &, util::span<const uint32_t>) {}
+  /** Same for one element's bytes (as produced by get_bytes), so holders of
+   * captured bytes (a journal) can visit and remap them. */
+  virtual void visit_elem_refs(const uint8_t *, RefVisitor &) const {}
+  virtual void remap_elem_refs(uint8_t *, const RefRemap &) const {}
 
   /** Sibling slots this column writes itself in Custom mixes (A4). */
   virtual util::span<const uint32_t> claimed_slots() const

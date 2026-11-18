@@ -83,6 +83,7 @@ struct Hash128 {
 enum class DomainTag : uint64_t {
   Content = 1,
   Test = 2,
+  PoolEntry = 3, /* attr::InternPool entry hashes */
 };
 
 /** "litestl.hash128." as two little-endian words. */

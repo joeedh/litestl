@@ -1,3 +1,5 @@
+#pragma once
+
 #include "util/alloc.h"
 #include "util/compiler_util.h"
 #include "util/vector.h"

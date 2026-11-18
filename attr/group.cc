@@ -458,7 +458,7 @@ bool AttrGroup::read(io::ByteReader &r, const ReadLimits &lim, const char **err)
   hash::Hash128 h;
   h.lo = r.u64();
   h.hi = r.u64();
-  if (r.failed() || h != staging.content_hash()) {
+  if (r.failed() || (lim.verify_hash && h != staging.content_hash())) {
     return fail("read: content hash mismatch (corrupt stream)");
   }
   staging.schema_version_ = next_version();

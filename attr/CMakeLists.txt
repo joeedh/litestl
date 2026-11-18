@@ -4,6 +4,7 @@
 add_library(attr STATIC
   registry.cc
   group.cc
+  pool_store.cc
 )
 target_link_libraries(attr PUBLIC util math)
 target_include_directories(attr PUBLIC .. ../..)

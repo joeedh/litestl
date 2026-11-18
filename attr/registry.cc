@@ -23,6 +23,7 @@ void register_builtins(ColumnTypeRegistry &r)
   r.add_or_die<Column<float>>();
   r.add_or_die<Column<double>>();
   r.add_or_die<Column<hash::Hash128>>();
+  r.add_or_die<Column<PoolRef>>();
   r.add_or_die<BoolColumn>();
   add_vecs<float, 2, 3, 4>(r);
   add_vecs<double, 2, 3, 4>(r);

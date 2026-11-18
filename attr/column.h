@@ -33,6 +33,8 @@ template <typename T, typename Ops> std::string column_key()
 
 template <ColumnValue T, typename Ops = ValueOps<T>> class Column : public ColumnBase {
   static_assert(!std::is_same_v<T, bool>, "use BoolColumn for bool columns");
+  static_assert(!is_pool_ref_aggregate<T>::value,
+                "Column<T> only reports refs for T = PoolRef; use a custom column for several refs per element");
 
 public:
   using value_type = T;
@@ -366,6 +368,98 @@ public:
   uint64_t version() const override
   {
     return store.version();
+  }
+
+  /* ---- pool refs (Column<PoolRef>; other value types hold none) ---- */
+  static constexpr bool kHoldsRefs = std::is_same_v<T, PoolRef>;
+
+  bool holds_refs() const override
+  {
+    return kHoldsRefs;
+  }
+
+  void visit_refs(RefVisitor &v) const override
+  {
+    if constexpr (kHoldsRefs) {
+      v.visit(store.default_value(), 0);
+      util::Vector<T> scratch;
+      for (uint32_t p = 0; p < store.page_count(); p++) {
+        const uint32_t live = store.page_live_count(p);
+        if (const T *u = store.page_uniform(p)) {
+          if (live) {
+            v.visit(*u, live);
+          }
+          continue;
+        }
+        for (const T &x : store.page_span(p, scratch)) {
+          v.visit(x, 1);
+        }
+      }
+    }
+  }
+
+  void remap_refs(const RefRemap &m) override
+  {
+    if constexpr (kHoldsRefs) {
+      util::Vector<T> scratch;
+      for (uint32_t p = 0; p < store.page_count(); p++) {
+        const uint32_t live = store.page_live_count(p);
+        const uint32_t base = p << store.page_shift();
+        if (const T *u = store.page_uniform(p)) {
+          const T mapped = m.map(*u);
+          if (live && !bit_equal(mapped, *u)) {
+            store.fill(base, live, mapped);
+          }
+          continue;
+        }
+        /* only pages that change are made unique (keeps other snapshots' pages shared) */
+        const util::span<const T> cur = store.page_span(p, scratch);
+        bool changes = false;
+        for (const T &x : cur) {
+          if (!bit_equal(m.map(x), x)) {
+            changes = true;
+            break;
+          }
+        }
+        if (changes) {
+          for (T &x : store.page_write(p)) {
+            x = m.map(x);
+          }
+        }
+      }
+    }
+  }
+
+  void remap_refs_rows(const RefRemap &m, util::span<const uint32_t> rows) override
+  {
+    if constexpr (kHoldsRefs) {
+      for (uint32_t i : rows) {
+        const T v = store.get(i);
+        const T mapped = m.map(v);
+        if (!bit_equal(mapped, v)) {
+          store.set(i, mapped);
+        }
+      }
+    }
+  }
+
+  void visit_elem_refs(const uint8_t *elem, RefVisitor &v) const override
+  {
+    if constexpr (kHoldsRefs) {
+      T x;
+      memcpy(static_cast<void *>(&x), elem, sizeof(T));
+      v.visit(x, 1);
+    }
+  }
+
+  void remap_elem_refs(uint8_t *elem, const RefRemap &m) const override
+  {
+    if constexpr (kHoldsRefs) {
+      T x;
+      memcpy(static_cast<void *>(&x), elem, sizeof(T));
+      x = m.map(x);
+      memcpy(elem, static_cast<const void *>(&x), sizeof(T));
+    }
   }
 
 protected:

@@ -77,6 +77,10 @@ test(test_attr_column.cc attr)
 test_long(test_attr_model.cc attr)
 test(test_attr_group.cc attr)
 test(test_attr_schema.cc attr)
+test(test_attr_pool.cc attr)
+test_long(test_attr_pool_model.cc attr)
+test(test_attr_pool_threads.cc attr)
+test(test_attr_pool_digest.cc attr)
 # Compile-fail tests: each snippet must be rejected by the compiler with the
 # expected diagnostic (attr schemas hoist attribute shape errors to compile
 # time). The control snippet must compile, proving the include setup.
@@ -134,3 +138,6 @@ endif()
 add_executable(bench_attr bench_attr.cc)
 target_link_libraries(bench_attr PUBLIC attr util math platform)
 target_include_directories(bench_attr PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+add_executable(bench_attr_pool bench_attr_pool.cc)
+target_link_libraries(bench_attr_pool PUBLIC attr util math platform)
+target_include_directories(bench_attr_pool PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

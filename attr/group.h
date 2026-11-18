@@ -133,6 +133,11 @@ public:
                 const void *op = nullptr,
                 const char **err = nullptr);
 
+  /** Column indices in canonical order: builtins in slot order, then dynamic
+   * columns sorted by name (the order of hashes, serialization and
+   * PoolStore::canonicalize). */
+  util::Vector<int> canonical_order() const;
+
   void hash_into(hash::Hasher128 &h) const;
   hash::Hash128 content_hash() const;
 
@@ -167,7 +172,6 @@ private:
                           const void *def,
                           ColumnFlags flags,
                           bool builtin);
-  util::Vector<int> canonical_order() const;
   bool mix_common(const AttrGroup *src, const MixBatch &b, const PolicyFn *policy_of, const void *op, const char **err);
 
   util::Vector<Slot, 8> cols_;

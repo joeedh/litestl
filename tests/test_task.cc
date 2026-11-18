@@ -186,10 +186,11 @@ int main()
     task::parallel_for(
         IndexRange(size),
         [](IndexRange range) {
-          volatile int d = 0;
+          /* unsigned: the busy-work sum wraps (signed overflow is UB) */
+          volatile unsigned d = 0;
 
           for (int i : range) {
-            d += i >> 16;
+            d += unsigned(i >> 16);
           }
         },
         1 << 16);

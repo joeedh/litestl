@@ -170,4 +170,4 @@ reproducible. Instead:
   - gcc Release;
   - clang `-march=x86-64-v3` (FMA available);
   - clang `-DLITESTL_NO_INT128=ON`;
-  - clang Debug with UBSan.
+  - Debug with UBSan (gcc here; clang works too where its UBSan runtime is installed).

@@ -21,6 +21,7 @@ set(SRC
   PUBLIC memory.h
   PUBLIC hash128.h
   PUBLIC rng.h
+  PUBLIC rc_buffer.h
   alloc.cc
   util.cc
   task.cc

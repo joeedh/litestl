@@ -3,6 +3,9 @@
 #include "util/vector.h"
 
 #include <cstdio>
+#include <cstdlib>
+#include <type_traits>
+#include <utility>
 
 namespace litestl::util {
 template <typename T> struct weak_ptr;
@@ -237,5 +240,85 @@ private:
   bool exists_ = false;
   typename SharedPtr::data *ptr_ = nullptr;
 };
+
+/**
+ * Move-only owning pointer over alloc::New / alloc::Delete (leak-tracked).
+ * UniquePtr<Base> may adopt a UniquePtr<Derived> only when the conversion
+ * keeps the pointer value (Base must be the first, non-virtual base):
+ * alloc::release needs the exact block pointer. Deletion goes through
+ * ~Base, which must then be virtual.
+ */
+template <typename T> class UniquePtr {
+  template <typename U> friend class UniquePtr;
+  T *ptr_ = nullptr;
+
+public:
+  UniquePtr() = default;
+  explicit UniquePtr(T *adopt) : ptr_(adopt) {}
+  UniquePtr(const UniquePtr &) = delete;
+  UniquePtr &operator=(const UniquePtr &) = delete;
+  UniquePtr(UniquePtr &&b) noexcept : ptr_(b.ptr_)
+  {
+    b.ptr_ = nullptr;
+  }
+  template <typename U>
+    requires std::is_convertible_v<U *, T *>
+  UniquePtr(UniquePtr<U> &&b) noexcept : ptr_(b.ptr_)
+  {
+    if (ptr_) {
+      /* the block pointer must not move under the base conversion */
+      if (static_cast<void *>(static_cast<T *>(b.ptr_)) != static_cast<void *>(b.ptr_)) {
+        fprintf(stderr, "UniquePtr: base conversion changes the pointer\n");
+        abort();
+      }
+    }
+    b.ptr_ = nullptr;
+  }
+  UniquePtr &operator=(UniquePtr &&b) noexcept
+  {
+    if (this != &b) {
+      reset();
+      ptr_ = b.ptr_;
+      b.ptr_ = nullptr;
+    }
+    return *this;
+  }
+  ~UniquePtr()
+  {
+    reset();
+  }
+  void reset()
+  {
+    alloc::Delete(ptr_);
+    ptr_ = nullptr;
+  }
+  T *release()
+  {
+    T *p = ptr_;
+    ptr_ = nullptr;
+    return p;
+  }
+  T *get() const
+  {
+    return ptr_;
+  }
+  T *operator->() const
+  {
+    return ptr_;
+  }
+  T &operator*() const
+  {
+    return *ptr_;
+  }
+  explicit operator bool() const
+  {
+    return ptr_ != nullptr;
+  }
+};
+
+template <typename T, typename... Args> UniquePtr<T> make_unique(const char *tag, Args &&...args)
+{
+  return UniquePtr<T>(alloc::New<T>(tag, std::forward<Args>(args)...));
+}
 
 } // namespace litestl::util

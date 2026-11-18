@@ -9,6 +9,7 @@ set(SRC
   PUBLIC serial.h
   PUBLIC binfile.h
   PUBLIC compress.h
+  PUBLIC bytes.h
   serial.cc
   compress.cc
 )

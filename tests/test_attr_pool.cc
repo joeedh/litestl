@@ -489,7 +489,10 @@ static void test_custom_ref_column_and_journal()
   RefPairColumn *pc = o.a.ensure<RefPairColumn>("pairs");
   test_assert(pc != nullptr);
   o.a.resize(6);
-  const PoolRef x = o.line({1}), y = o.line({2}), z = o.line({3}), w = o.line({4});
+  /* z is interned first, so canonicalize moves it (slot 0 -> 2): the journal
+   * capture must be remapped */
+  const PoolRef z = o.line({3});
+  const PoolRef x = o.line({1}), y = o.line({2}), w = o.line({4});
   pc->set(2, RefPair{x, y});
   JournalRoot j;
   pc->set(3, RefPair{z, kNoRef});
@@ -499,6 +502,7 @@ static void test_custom_ref_column_and_journal()
   test_assert(o.store.collect(o.roots(util::span<RefRoot *const>(ex, 1))));
   test_assert(o.store.live(x) && o.store.live(y) && o.store.live(z) && !o.store.live(w));
   test_assert(o.store.canonicalize(o.mroots(util::span<RefRoot *const>(ex, 1))));
+  test_assert(o.store.audit(o.roots(util::span<RefRoot *const>(ex, 1)), true));
   /* undo through the journal after renumbering */
   pc->set_bytes(3, j.captures[0].data());
   test_assert(o.store.get<LinePool>(pc->get(3).a).pts[0][0] == 3);

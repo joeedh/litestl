@@ -132,6 +132,10 @@ C++ reflection / type-description layer; see
   `attr::Schema` / `attr::TypedGroup` (`attr/schema.h`) rather than raw slot
   indices. Compile-time errors are tested by `tests/compile_fail/` snippets
   (`compile_fail(name regex)` in tests/CMakeLists.txt).
+- Value pools (`attr/pool_store.h`): `PoolRef` values don't keep entries alive;
+  owners pass every ref holder as a root to `collect`/`canonicalize` (see
+  `documentation/attributes.md`, "Value pools"). `test_attr_pool_model` is the
+  oracle.
 - Attribute columns: see `documentation/attributes.md` for the copy-on-write,
   reference-invalidation and threading rules. `test_attr_model` is the
   model-based oracle; extend it when adding column behaviour.

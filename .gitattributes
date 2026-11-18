@@ -1,0 +1,2 @@
+# LeakSanitizer cannot parse CRLF suppression files (Windows checkouts used from WSL).
+tests/lsan.supp text eol=lf

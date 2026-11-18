@@ -228,6 +228,100 @@ Then provide:
 `tests/test_attr_group.cc` (`TestPairColumn`) is a complete example. Its hash and
 serialisation must follow the same canonical rules.
 
+**A custom column whose values hold `PoolRef`s must override the ref hooks:**
+- `holds_refs`;
+- `visit_refs`, which also visits the default with `count = 0`;
+- `remap_refs`;
+- `remap_refs_rows`;
+- `visit_elem_refs`;
+- `remap_elem_refs`.
+
+Without them its refs are invisible to `PoolStore::collect`, and their entries get
+freed. `RefPairColumn` in `tests/pool_test_types.h` is an example.
+
+## Value pools (`attr/pool.h`, `attr/pool_store.h`)
+
+A `PoolStore` owns immutable, deduplicated entries of any size, one
+`InternPool<T>` per kind. Columns refer to entries with `PoolRef { pool, slot }`
+values (`Column<PoolRef>`, type key `"ref"`). `pool == 0` means none.
+
+**Interning.**
+- `store.intern<P>(pool_id, value)` returns the existing slot when an equal entry is
+  live, and otherwise takes a free slot (LIFO, lowest index first after a collect).
+  So within a pool, ref equality is value equality.
+- **Entries are immutable.** To edit, intern the new value and reassign the column.
+
+**Value types.** `PoolTraits<T>` covers:
+- arithmetic types, `math::Vec` and `std::array` of them (raw bytes);
+- `util::string`;
+- any type with the member protocol: `hash_into`, `equal` (bitwise for floats; not
+  `operator==`), `write`, `static read`, and `static constexpr bool has_refs`. When
+  `has_refs` is true, `for_each_ref` and `remap_refs` are also required.
+
+A struct holding a `PoolRef` must declare `has_refs = true`. Refs inside entries keep
+their targets alive, and they must point into the same store.
+
+**Liveness is mark-and-sweep.** A `PoolRef` value does not keep its entry alive.
+`store.collect(roots)` frees every entry not reachable from:
+- the ref columns of the root groups (Temp and Derived included);
+- the extra roots (`RefRoot`: a journal, a weak cache map via `prune`);
+- refs inside reachable entries.
+
+Rules for owners:
+- **Collect at deterministic points:** operation boundaries, a threshold on
+  `taken_since_collect()`, before `canonicalize` or `write`. Slot reuse depends on
+  where collects happen.
+- **Rooting rule.** Never hold a `PoolRef` anywhere but a root across `collect` or
+  `canonicalize`. A forgotten root has its entry freed, and the slot can then be
+  reused for a different value. `set_reuse_freed(false)` (tests) quarantines freed
+  slots, so `audit` reports such dangling refs.
+- **`collect` validates while marking.** It fails without changes on a dangling,
+  malformed (`{0, s ≠ 0}`) or refused (`Roots::accept`) ref, or on a ref column whose
+  default isn't `kNoRef`.
+
+**Snapshots.**
+- `PoolStore` is a value type, and copying it is O(slot pages):
+  - slot pages and the dedup index are shared copy-on-write;
+  - entry nodes are shared between snapshots through an atomic count.
+- Nothing points into a store, so an owner (store plus groups) keeps defaulted copy
+  and move.
+- Snapshots diverge independently and may be used on different threads.
+- Each store has one writer at a time.
+
+**Canonical form.**
+- `canonicalize(roots)` renumbers slots by first reference, in three phases, each
+  closed over inner refs:
+  1. hashed columns, in group order and `canonical_order()`, elements ascending;
+  2. Temp and Derived columns;
+  3. extra roots.
+
+  It drops unreachable entries and compacts. Only the phase-1 closure is hashed and
+  written, so caches, undo history and sibling snapshots never change the bytes.
+- `hash_into`, `content_hash` and `write` take the roots, and require
+  `canonical(roots)`: neither the store nor any root group may have changed since.
+
+**Owner write:**
+1. copy the owner;
+2. `canonicalize` the copy;
+3. write the store, then the groups.
+
+**Owner read:**
+1. build a fresh owner;
+2. `store.read`, then each group's `read`;
+3. `audit(roots, require_reachable = true)`;
+4. `canonicalize`, which must report `changed == false`;
+5. move-assign.
+
+**Between stores.**
+- **A raw `PoolRef` copied between stores is meaningless.** Use
+  `import(src, ref, memo)` (a deep re-intern with pools matched by key), or
+  `import_rows(column, rows, src, memo)` after a cross-owner `mix_from`.
+- `PoolStore::version()` changes whenever slots may have been reused, so memos keyed
+  by `PoolRef` can detect staleness.
+
+`tests/test_attr_pool*.cc` and `tests/pool_test_types.h` show the whole owner pattern.
+`bench_attr_pool` benchmarks the index and copy costs.
+
 ## Relation to Sculptcore's attributes
 
 | Sculptcore | `litestl::attr` |
@@ -240,4 +334,5 @@ serialisation must follow the same canonical rules.
 | `BuiltinAttr` member pointers | `builtin<Col>(slot)` (survives copies) |
 | `type_dispatch` over a closed `AttrType` set | Open set of `ColumnBase` subclasses |
 
-`DeformPool`-style pools are planned as P1b.
+`DeformPool`-style pools are `InternPool` / `PoolStore` (above), with mark-and-sweep
+instead of refcounts.

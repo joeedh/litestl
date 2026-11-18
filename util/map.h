@@ -468,6 +468,15 @@ public:
 
     return &table_[i].value;
   }
+  const Value *lookup_ptr(const Key &key) const
+  {
+    int i = find_index(key);
+    if (i < 0) {
+      return nullptr;
+    }
+
+    return &table_[i].value;
+  }
 
   /**
    * Inserts @p key only if absent, using @p copy_key to construct the stored

@@ -17,5 +17,6 @@ based on C++ concepts.
 
 - [Containers](documentation/containers.md)
 - [Binding](documentation/binding.md)
+- [Attribute columns](documentation/attributes.md): paged copy-on-write columns, groups, mixing, canonical hashing/serialization
 - [Numerics and determinism](documentation/numerics.md): wide integers, robust predicates, hash128, counter-based RNG, deterministic reduction
 

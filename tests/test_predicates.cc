@@ -576,7 +576,7 @@ static void test_double_suites()
   /* stage coverage */
   if (pred::stats_enabled()) {
     const char *stages = "ABTCD";
-    const int64_t min_hits = 10000;
+    const int64_t min_hits = 10000 / test::scale_div(); /* reduced runs (sanitizers) scale it down */
     for (int p = 0; p < 4; p++) {
       printf("  %s stage hits:", names[p]);
       for (int s = 0; s < int(pred::Stage::Count); s++) {

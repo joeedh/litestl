@@ -28,11 +28,12 @@ litestl/
   binding/       C++ reflection + TS generator + TS runtime
     generators/      backends (currently TypeScript)
     typescriptRuntime/   TS-side counterpart of the C++ descriptors
-  io/            serialization (binfile, serial)
+  io/            serialization (binfile, serial), bytes.h (header-only byte stream)
+  attr/          paged copy-on-write attribute columns and groups (target `attr`)
   tests/         GTest-flavored native tests, driven by DTL
   extern/        vendored eigen (headers only)
   build_files/   shared cmake/macros + WASM helpers
-  documentation/ binding.md, containers.md, numerics.md
+  documentation/ binding.md, containers.md, numerics.md, attributes.md
 ```
 
 The library is built as part of Sculptcore (`source/litestl/` of that
@@ -124,6 +125,12 @@ C++ reflection / type-description layer; see
   commit as the code change that requires it.
 - Numerics conventions (predicate domain, FP flags, hash encoding, rng layout):
   see `documentation/numerics.md`.
+- `LITESTL_TEST_SCALE_DIV` divides case counts (sanitizer builds use 4).
+  Sanitizer runs use `tests/lsan.supp` (wired via ctest) for intentional
+  process-lifetime allocations.
+- Attribute columns: see `documentation/attributes.md` for the copy-on-write,
+  reference-invalidation and threading rules. `test_attr_model` is the
+  model-based oracle; extend it when adding column behaviour.
 - `test_binding_system.cc` doubles as a WASM-side harness when
   `BUILD_WASM=ON`; the linker config there sets a 900MB initial memory
   and allows growth.

@@ -4,7 +4,8 @@
  *
  *  - test::scale() / test::cases(n): randomized case counts scale with the
  *    LITESTL_TEST_SCALE environment variable (or the CMake cache default
- *    baked in as LITESTL_TEST_SCALE_DEFAULT).
+ *    baked in as LITESTL_TEST_SCALE_DEFAULT) and are divided by
+ *    LITESTL_TEST_SCALE_DIV (for slow sanitizer builds).
  *  - test::FailureLog: counts failures in a bulk loop, prints the first few
  *    with caller-supplied detail, then asserts once at the end. Avoids the
  *    trap-on-first-failure behaviour of test_assert inside 10^6-case loops.
@@ -35,9 +36,23 @@ inline int64_t scale()
   return s;
 }
 
+/* LITESTL_TEST_SCALE_DIV divides case counts (e.g. 4 under sanitizers). */
+inline int64_t scale_div()
+{
+  static const int64_t d = [] {
+    if (const char *env = getenv("LITESTL_TEST_SCALE_DIV")) {
+      long long v = atoll(env);
+      return int64_t(v > 0 ? v : 1);
+    }
+    return int64_t(1);
+  }();
+  return d;
+}
+
 inline int64_t cases(int64_t base)
 {
-  return base * scale();
+  const int64_t n = base * scale() / scale_div();
+  return n > 0 ? n : 1;
 }
 
 class FailureLog {

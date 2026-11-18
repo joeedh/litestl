@@ -72,6 +72,16 @@ test(test_rc_buffer.cc "")
 test(test_bytes.cc "")
 test(test_attr_column.cc attr)
 test_long(test_attr_model.cc attr)
+test(test_attr_group.cc attr)
+test(test_attr_digest.cc attr)
+# A7 probe: same workload compiled asking for FP contraction; attr's PUBLIC
+# flags and the kernels' pragmas must keep the digest identical.
+add_executable(test_attr_digest_fma test_attr_digest.cc)
+add_dependencies(test_attr_digest_fma dtl)
+target_link_libraries(test_attr_digest_fma PUBLIC dtl util attr math platform)
+target_include_directories(test_attr_digest_fma PUBLIC util math platform)
+target_compile_options(test_attr_digest_fma PRIVATE -ffp-contract=fast)
+add_test(NAME test_attr_digest_fma COMMAND test_attr_digest_fma)
 
 include(../build_files/macros.cmake)
 if (BUILD_WASM)
@@ -97,3 +107,7 @@ if (BUILD_WASM)
 
 	file(GENERATE OUTPUT "${TARGET_SRC_DIR}/test_binding_system.path.txt" CONTENT "$<TARGET_FILE:test_binding_system>")
 endif()
+# Benchmarks: built, not registered with ctest (run manually in Release).
+add_executable(bench_attr bench_attr.cc)
+target_link_libraries(bench_attr PUBLIC attr util math platform)
+target_include_directories(bench_attr PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

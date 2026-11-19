@@ -39,7 +39,13 @@ public:
   /** Strong refs: kept alive by collect. */
   virtual void visit_refs(RefVisitor &v) const = 0;
   virtual void remap_refs(const RefRemap &m) = 0;
-  /** Called after mark, before sweep: drop weak refs to unmarked entries. */
+  /** Weak pairs (key, value): value is marked once key is marked by anything
+   * else (strong roots, inner refs or other pairs), iterated to a fixpoint.
+   * A weak cache whose entries refer back to their key (an approximation
+   * naming its source) is held this way, so it lives while its key does. */
+  virtual void visit_weak_pairs(WeakPairVisitor &) const {}
+  /** Called by collect and canonicalize after mark, before sweep or
+   * renumbering: drop weak refs to unmarked entries. */
   virtual void prune(const MarkQuery &) {}
 };
 

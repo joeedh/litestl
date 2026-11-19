@@ -67,6 +67,16 @@ protected:
   ~RefRemap() = default;
 };
 
+/** Weak pairs of an extra root (ephemerons): `value` is kept alive exactly
+ * while `key` is reachable without this pair. */
+class WeakPairVisitor {
+public:
+  virtual void visit(PoolRef key, PoolRef value) = 0;
+
+protected:
+  ~WeakPairVisitor() = default;
+};
+
 /** Mark state, handed to RefRoot::prune between mark and sweep. */
 class MarkQuery {
 public:

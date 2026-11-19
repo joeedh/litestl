@@ -596,6 +596,74 @@ static void test_weak_roots_and_version()
   test_assert(o.store.version() != v1);
 }
 
+/* Weak pairs (ephemerons): a cache entry that names its source lives exactly
+ * while the source is reachable otherwise. */
+class EphemeronMap final : public RefRoot {
+public:
+  std::vector<std::pair<PoolRef, PoolRef>> entries; /* key -> value */
+  void visit_refs(RefVisitor &) const override {}
+  void visit_weak_pairs(WeakPairVisitor &v) const override
+  {
+    for (const auto &e : entries) {
+      v.visit(e.first, e.second);
+    }
+  }
+  void remap_refs(const RefRemap &m) override
+  {
+    for (auto &e : entries) {
+      e = {m.map(e.first), m.map(e.second)};
+    }
+  }
+  void prune(const MarkQuery &q) override
+  {
+    std::vector<std::pair<PoolRef, PoolRef>> keep;
+    for (const auto &e : entries) {
+      if (q.marked(e.first) && q.marked(e.second)) {
+        keep.push_back(e);
+      }
+    }
+    entries = keep;
+  }
+};
+
+static void test_weak_pairs()
+{
+  for (const bool canon : {false, true}) {
+    Owner o;
+    o.a.resize(2);
+    const PoolRef s = o.line({1});
+    const PoolRef c1 = o.line({1, 1}, s);  /* a cache of s, naming it */
+    const PoolRef c2 = o.line({1, 1, 1}, c1); /* a cache of the cache */
+    const PoolRef d = o.line({5});
+    const PoolRef dc = o.line({5, 5}, d); /* cache of an unreachable key */
+    EphemeronMap em;
+    /* (c1, c2) first: reaching c2 takes a second round of the fixpoint */
+    em.entries = {{c1, c2}, {s, c1}, {d, dc}};
+    o.curve().set(0, s);
+    RefRoot *ex[] = {&em};
+    const auto run = [&] {
+      if (canon) {
+        test_assert(o.store.canonicalize(o.mroots(util::span<RefRoot *const>(ex, 1))));
+      }
+      else {
+        test_assert(o.store.collect(o.roots(util::span<RefRoot *const>(ex, 1))));
+      }
+    };
+    run();
+    test_assert(em.entries.size() == 2);
+    for (const auto &e : em.entries) {
+      test_assert(o.store.live(e.first) && o.store.live(e.second));
+    }
+    test_assert(o.store.live(o.curve().get(0)) && o.store.live_count() == 3);
+    test_assert(o.store.audit(o.roots(util::span<RefRoot *const>(ex, 1)), true));
+    /* the key's last strong holder goes: the whole chain is freed and pruned */
+    o.curve().set(0, kNoRef);
+    run();
+    test_assert(em.entries.empty() && o.store.live_count() == 0);
+    test_assert(o.store.audit(o.roots(util::span<RefRoot *const>(ex, 1)), true));
+  }
+}
+
 int main()
 {
   const size_t baseline = alloc::getMemorySize();
@@ -611,6 +679,7 @@ int main()
   test_import_rows_and_mix_from();
   test_custom_ref_column_and_journal();
   test_weak_roots_and_version();
+  test_weak_pairs();
   test_assert(alloc::getMemorySize() == baseline);
   return test_end();
 }

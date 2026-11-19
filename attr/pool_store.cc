@@ -154,6 +154,31 @@ public:
       extra[i]->visit_refs(*this);
     }
   }
+
+  /* weak pairs to a fixpoint (after the strong marks are drained) */
+  void visit_weak(util::span<RefRoot *const> extra)
+  {
+    struct V final : WeakPairVisitor {
+      Marker &m;
+      bool any = false;
+      explicit V(Marker &mm) : m(mm) {}
+      void visit(PoolRef k, PoolRef v) override
+      {
+        if (m.marks.marked(k) && !v.none() && !m.marks.marked(v)) {
+          m.visit(v, 1);
+          any = true;
+        }
+      }
+    } vis(*this);
+    do {
+      vis.any = false;
+      for (size_t i = 0; i < extra.size(); i++) {
+        site = RefSite{RefSite::Extra, uint32_t(i), 0};
+        extra[i]->visit_weak_pairs(vis);
+      }
+      drain();
+    } while (vis.any && !failed());
+  }
 };
 
 /* Iterative three-colour DFS over inner refs; false on a cycle. Refs must be
@@ -302,6 +327,44 @@ public:
     }
     drain();
   }
+  bool numbered(PoolRef r) const
+  {
+    return !r.none() && o2n[int(r.pool) - 1][int(r.slot)] != kUnset;
+  }
+  /* weak pairs to a fixpoint (refs already validated by a Marker) */
+  void visit_weak(util::span<RefRoot *const> extra)
+  {
+    struct V final : WeakPairVisitor {
+      Numberer &n;
+      bool any = false;
+      explicit V(Numberer &nn) : n(nn) {}
+      void visit(PoolRef k, PoolRef v) override
+      {
+        if (n.numbered(k) && !v.none() && !n.numbered(v)) {
+          n.visit(v, 1);
+          any = true;
+        }
+      }
+    } vis(*this);
+    do {
+      vis.any = false;
+      for (RefRoot *r : extra) {
+        r->visit_weak_pairs(vis);
+      }
+      drain();
+    } while (vis.any);
+  }
+};
+
+/* The numbered set as mark state (canonicalize's prune). */
+class NumberedQuery final : public MarkQuery {
+public:
+  const Numberer &n;
+  explicit NumberedQuery(const Numberer &nn) : n(nn) {}
+  bool marked(PoolRef r) const override
+  {
+    return n.numbered(r);
+  }
 };
 
 /* Maps src refs to dst refs through an import memo (entries must exist). */
@@ -394,6 +457,7 @@ bool PoolStore::collect(const Roots &roots, const char **err)
   m.drain();
   m.visit_extra(roots.extra);
   m.drain();
+  m.visit_weak(roots.extra);
   if (m.failed()) {
     if (err) {
       static thread_local std::string msg;
@@ -434,6 +498,7 @@ bool PoolStore::audit(const Roots &roots, bool require_reachable, util::Vector<u
   m.drain();
   m.visit_extra(roots.extra);
   m.drain();
+  m.visit_weak(roots.extra);
   /* inner refs of every live entry (reachable or not) must be valid */
   for (int pi = 0; pi < pools_.size(); pi++) {
     const PoolBase &p = *pools_[pi];
@@ -474,6 +539,7 @@ bool PoolStore::canonicalize(const MutRoots &roots, bool *changed, const char **
     m.drain();
     m.visit_extra(roots.extra);
     m.drain();
+    m.visit_weak(roots.extra);
     if (m.failed()) {
       if (err) {
         static thread_local std::string msg;
@@ -500,6 +566,13 @@ bool PoolStore::canonicalize(const MutRoots &roots, bool *changed, const char **
     r->visit_refs(num);
   }
   num.drain();
+  num.visit_weak(roots.extra);
+  {
+    const NumberedQuery q(num);
+    for (RefRoot *r : roots.extra) {
+      r->prune(q);
+    }
+  }
 
   bool any_change = false;
   for (int i = 0; i < np; i++) {

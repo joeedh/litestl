@@ -265,7 +265,20 @@ their targets alive, and they must point into the same store.
 `store.collect(roots)` frees every entry not reachable from:
 - the ref columns of the root groups (Temp and Derived included);
 - the extra roots (`RefRoot`: a journal, a weak cache map via `prune`);
-- refs inside reachable entries.
+- refs inside reachable entries;
+- the values of weak pairs whose key is reachable (below).
+
+**Weak caches.** A `RefRoot` holds weak refs in two ways:
+- **Plain weak refs** are not visited at all. `prune(MarkQuery)` runs between mark
+  and sweep, in both `collect` and `canonicalize`, and the root drops every ref whose
+  entry is unmarked.
+- **Weak pairs** (ephemerons), reported through `visit_weak_pairs`. A pair
+  `(key, value)` marks `value` once `key` is marked by anything else, iterated to a
+  fixpoint. Use this for a cache entry that refers back to its key, such as an
+  approximation naming its source curve as an inner ref. As a strong ref, it would
+  keep its own key alive forever. As a plain weak ref, it would be freed at every
+  collect. As a pair, it lives exactly as long as its key. `prune` still has to drop
+  pairs whose key is gone.
 
 Rules for owners:
 - **Collect at deterministic points:** operation boundaries, a threshold on
@@ -293,7 +306,7 @@ Rules for owners:
   closed over inner refs:
   1. hashed columns, in group order and `canonical_order()`, elements ascending;
   2. Temp and Derived columns;
-  3. extra roots.
+  3. extra roots, then the values of weak pairs whose key is numbered.
 
   It drops unreachable entries and compacts. Only the phase-1 closure is hashed and
   written, so caches, undo history and sibling snapshots never change the bytes.

@@ -96,6 +96,9 @@ export interface IBindingInfo {
       params: number
       isConst: number
       isStatic: number
+      templateParams: number
+      returnPolicy: number
+      jsName: number
     }
     MethodParam: {
       name: number
@@ -210,6 +213,12 @@ export interface INeededWasm extends IWasmBase, IWasmViews {
   LSTL_Union_HasDisPropFunc(unionptr: pointer): boolean
   LSTL_Union_RunDisPropFunc(unionptr: pointer, thisPtr: pointer): number
 
+  /** NULL when the registered functions are consistent, else an error to free with LSTL_FreeFormatBlocks. */
+  LSTL_Manager_CheckFunctions(bindingManager: pointer): cstring
+  LSTL_String_InitAt(dst: pointer, utf8: pointer, len: int): void
+  LSTL_String_DestroyAt(dst: pointer): void
+  LSTL_FreeFormatBlocks(ptr: pointer): void
+
   // various helper stuff, create with createWasmHelpers() below
   bindingInfo: IBindingInfo
 
@@ -234,7 +243,7 @@ export interface INeededWasm extends IWasmBase, IWasmViews {
 }
 
 export function updateWasmViews(wasmBase: IWasmBase & Partial<IWasmViews>, buffer: ArrayBufferLike) {
-  console.warn('updateWasmViews called')
+  wasmBase.HEAPU8 = new Uint8Array(buffer)
   wasmBase.HEAP8 = new Int8Array(buffer)
   wasmBase.HEAP16 = new Int16Array(buffer)
   wasmBase.HEAP32 = new Int32Array(buffer)
@@ -340,10 +349,13 @@ export function createWasmHelpers<T extends IWasmBase>(wasmBase: T, wasmMod: unk
       type: data[i++],
     },
     Method: {
-      returnType: data[i++],
-      params    : data[i++],
-      isConst   : data[i++],
-      isStatic  : data[i++],
+      returnType    : data[i++],
+      params        : data[i++],
+      isConst       : data[i++],
+      isStatic      : data[i++],
+      templateParams: data[i++],
+      returnPolicy  : data[i++],
+      jsName        : data[i++],
     },
     MethodParam: {
       name: data[i++],
@@ -409,47 +421,51 @@ export function createWasmHelpers<T extends IWasmBase>(wasmBase: T, wasmMod: unk
 
   const strPool = new Map<string, pointer>()
 
+  const encoder = new TextEncoder()
+  const decoder = new TextDecoder()
+
+  // Methods read the views through `result`, which is the object
+  // updateWasmViews refreshes when memory grows.
   const result = {
     ...wasm,
+    /** A NUL-terminated UTF-8 copy of `s` that lives for the process. */
     cstring(s: string) {
       let ptr = strPool.get(s)
       if (ptr !== undefined) {
         return ptr
       }
 
-      ptr = wasm._rawAlloc(s.length + 1)
-      const data = wasm.HEAPU8
-      for (let i = 0; i < s.length; i++) {
-        data[ptr + i] = s.charCodeAt(i)
-      }
-      data[ptr + s.length] = 0
+      const bytes = encoder.encode(s)
+      ptr = result._rawAlloc(bytes.length + 1)
+      result.HEAPU8.set(bytes, ptr)
+      result.HEAPU8[ptr + bytes.length] = 0
 
       strPool.set(s, ptr)
       return ptr
     },
     jsString(ptr: pointer) {
-      const data = wasm.HEAPU8
-      let s = ''
-      while (data[ptr]) {
-        s += String.fromCharCode(data[ptr])
-        ptr++
+      const data = result.HEAPU8
+      let end = ptr
+      while (data[end]) {
+        end++
       }
-      return s
+      // TextDecoder rejects views of shared memory; slice() copies.
+      return decoder.decode(data.slice(ptr, end))
     },
     getNumHeap(num: NumberSubtype, unsigned: boolean): ArrayLike<number> | BigUint64Array | BigInt64Array {
       switch (num) {
         case NumberSubtype.Int8:
-          return unsigned ? wasm.HEAPU8 : wasm.HEAP8
+          return unsigned ? result.HEAPU8 : result.HEAP8
         case NumberSubtype.Int16:
-          return unsigned ? wasm.HEAPU16 : wasm.HEAP16
+          return unsigned ? result.HEAPU16 : result.HEAP16
         case NumberSubtype.Int32:
-          return unsigned ? wasm.HEAPU32 : wasm.HEAP32
+          return unsigned ? result.HEAPU32 : result.HEAP32
         case NumberSubtype.Int64:
-          return unsigned ? wasm.HEAPU64 : wasm.HEAP64
+          return unsigned ? result.HEAPU64 : result.HEAP64
         case NumberSubtype.Float32:
-          return wasm.HEAPF32
+          return result.HEAPF32
         case NumberSubtype.Float64:
-          return wasm.HEAPF64
+          return result.HEAPF64
       }
       throw new Error('unknown number type ' + num)
     },
@@ -496,6 +512,30 @@ export function createWasmHelpers<T extends IWasmBase>(wasmBase: T, wasmMod: unk
     const result2 = grow.apply(result.wasmMemory, args)
     updateWasmViews(result, this.buffer)
     return result2
+  }
+
+  // Memory grown from inside the module (malloc) never goes through .grow
+  // above. Loaders that list their exports (wasiLoader) get every export
+  // wrapped to refresh the views after a call that grew memory.
+  const exportNames = (wasmBase as unknown as {__exportNames?: string[]}).__exportNames
+  if (exportNames) {
+    let byteLength = result.wasmMemory.buffer.byteLength
+    const resultAny = result as unknown as Record<string, unknown>
+    for (const name of exportNames) {
+      for (const key of [name, '_' + name, name.startsWith('_') ? name.slice(1) : '']) {
+        const fn = resultAny[key]
+        if (!key || typeof fn !== 'function') continue
+        resultAny[key] = (...args: unknown[]) => {
+          const ret = (fn as (...a: unknown[]) => unknown)(...args)
+          const buffer = result.wasmMemory.buffer
+          if (buffer.byteLength !== byteLength) {
+            byteLength = buffer.byteLength
+            updateWasmViews(result, buffer)
+          }
+          return ret
+        }
+      }
+    }
   }
 
   interface LSTLMemFuncs {

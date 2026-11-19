@@ -20,7 +20,7 @@ const StringBinding: ISpecialGenerator = {
     }
     return {
       get: `this.manager.readLiteStlString(${ptrCode})`,
-      set: '',
+      set: `this.manager.writeLiteStlString(${ptrCode}, value)`,
     }
   },
 }

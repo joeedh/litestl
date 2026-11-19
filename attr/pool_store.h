@@ -58,6 +58,18 @@ public:
     const AcceptFn *accept = nullptr;
   };
 
+  /** The phase-1 (hashed) part of canonicalize's numbering, computed without
+   * changing anything: maps a ref of the closure to the ref it would get.
+   * Refs outside the closure (only Temp/Derived or extra roots hold them) map
+   * to an unset slot. Valid until the store or a root group changes. */
+  class CanonicalMap final : public RefRemap {
+  public:
+    PoolRef map(PoolRef r) const override;
+    /** Entries of the closure per pool, in canonical order (old slots). */
+    util::Vector<util::Vector<uint32_t>> new_to_old;
+    util::Vector<util::Vector<uint32_t>> old_to_new;
+  };
+
   struct ImportMemo {
     util::Map<uint64_t, PoolRef> map; /* (src pool << 32 | slot) -> dst ref */
   };
@@ -184,6 +196,14 @@ public:
                    const PoolStore &src,
                    ImportMemo &memo,
                    const char **err = nullptr);
+
+  /* ---- canonical hashing without canonicalising ---- */
+  /** Builds the map for roots.groups (extra roots don't affect it). Fails,
+   * leaving out empty, on a malformed, dangling or refused ref. */
+  bool canonical_map(const Roots &roots, CanonicalMap &out, const char **err = nullptr) const;
+  /** Equals hash_into(h, roots) of a copy canonicalised with the same groups.
+   * Pair with AttrGroup::hash_into(h, keep, map) for the groups. */
+  void hash_into(hash::Hasher128 &h, const CanonicalMap &m) const;
 
   /* ---- canonical hashing and I/O (require canonical(roots)) ---- */
   void hash_into(hash::Hasher128 &h, const Roots &roots) const;

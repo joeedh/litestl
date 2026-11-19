@@ -259,6 +259,44 @@ static void test_canonical_form()
   test_assert(c0.store.canonicalize(c0.mroots()) && c1.store.canonicalize(c1.mroots()));
   test_assert(c0.store.content_hash(c0.roots()) == c1.store.content_hash(c1.roots()));
 
+  /* canonical_map: the hash a canonicalised copy gives, without touching the
+   * owner; independent of history and of unreferenced entries */
+  {
+    auto all = [](std::string_view, const ColumnBase &) { return true; };
+    auto map_hash = [&](Owner &o) {
+      PoolStore::CanonicalMap m;
+      test_assert(o.store.canonical_map(o.roots(), m));
+      hash::Hasher128 h(hash::DomainTag::Content);
+      o.store.hash_into(h, m);
+      o.a.hash_into(h, all, m);
+      o.b.hash_into(h, all, m);
+      return h.finish();
+    };
+    auto copy_hash = [&](const Owner &o) {
+      Owner c(o);
+      test_assert(c.store.canonicalize(c.mroots()));
+      hash::Hasher128 h(hash::DomainTag::Content);
+      c.store.hash_into(h, c.roots());
+      c.a.hash_into(h);
+      c.b.hash_into(h);
+      return h.finish();
+    };
+    for (Owner *o : {&o0, &o1, &o2, &sibling}) {
+      const uint64_t sv = o->store.version(), av = o->a.version();
+      test_assert(map_hash(*o) == copy_hash(*o));
+      test_assert(o->store.version() == sv && o->a.version() == av);
+    }
+    test_assert(map_hash(o0) == map_hash(o1) && map_hash(o0) == map_hash(o2));
+    test_assert(!(map_hash(o0) == map_hash(sibling)));
+    Owner extra(o0);
+    extra.line({999.0}, extra.line({998.0})); /* unreferenced */
+    test_assert(map_hash(extra) == map_hash(o0));
+    Owner bad(o0);
+    bad.curve().set(3, PoolRef{0, 5}); /* malformed */
+    PoolStore::CanonicalMap m;
+    test_assert(!bad.store.canonical_map(bad.roots(), m));
+  }
+
   /* B1: after canonicalize, intern-hit a Temp-only entry and assign it into a
    * hashed column: write must refuse (groups changed). */
   Owner w(o1);

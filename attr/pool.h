@@ -206,6 +206,8 @@ public:
   virtual uint32_t live_count() const = 0;
   virtual bool live(uint32_t slot) const = 0;
   virtual hash::Hash128 entry_hash(uint32_t slot) const = 0;
+  /** entry_hash of the entry with its inner refs rewritten through m. */
+  virtual hash::Hash128 entry_hash_mapped(uint32_t slot, const RefRemap &m) const = 0;
   virtual void for_each_inner_ref(uint32_t slot, util::function_ref<void(PoolRef)> f) const = 0;
 
   /** Snapshot (shares pages, index and nodes). */
@@ -318,6 +320,22 @@ public:
   }
   hash::Hash128 entry_hash(uint32_t s) const override
   {
+    return node(s)->hash;
+  }
+  hash::Hash128 entry_hash_mapped(uint32_t s, const RefRemap &m) const override
+  {
+    if constexpr (Traits::has_refs) {
+      T v = node(s)->value;
+      bool changed = false;
+      Traits::remap_refs(v, [&](PoolRef r) {
+        const PoolRef mr = m.map(r);
+        changed |= !(mr == r);
+        return mr;
+      });
+      if (changed) {
+        return hash_of(v);
+      }
+    }
     return node(s)->hash;
   }
   void for_each_inner_ref(uint32_t s, util::function_ref<void(PoolRef)> f) const override

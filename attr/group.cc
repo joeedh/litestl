@@ -300,6 +300,16 @@ void AttrGroup::hash_into(hash::Hasher128 &h) const
 
 void AttrGroup::hash_into(hash::Hasher128 &h, const ColumnFilter &keep) const
 {
+  hash_into_impl(h, keep, nullptr);
+}
+
+void AttrGroup::hash_into(hash::Hasher128 &h, const ColumnFilter &keep, const RefRemap &map) const
+{
+  hash_into_impl(h, keep, &map);
+}
+
+void AttrGroup::hash_into_impl(hash::Hasher128 &h, const ColumnFilter &keep, const RefRemap *map) const
+{
   const util::Vector<int> order = canonical_order();
   auto included = [&](int i) {
     const ColumnBase &c = *cols_[i].col;
@@ -317,7 +327,12 @@ void AttrGroup::hash_into(hash::Hasher128 &h, const ColumnFilter &keep) const
       continue;
     }
     h.str(std::string_view(cols_[i].name.c_str()));
-    cols_[i].col->hash_into(h);
+    if (map && cols_[i].col->holds_refs()) {
+      cols_[i].col->hash_into_mapped(h, *map);
+    }
+    else {
+      cols_[i].col->hash_into(h);
+    }
   }
 }
 

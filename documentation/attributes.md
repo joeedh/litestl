@@ -300,6 +300,16 @@ Rules for owners:
 - `hash_into`, `content_hash` and `write` take the roots, and require
   `canonical(roots)`: neither the store nor any root group may have changed since.
 
+**Hashing without canonicalising.**
+- `store.canonical_map(roots, map)` computes the phase-1 numbering that
+  `canonicalize` would give, and changes nothing.
+- Then `store.hash_into(h, map)` and `group.hash_into(h, keep, map)` give the same
+  hash as a canonicalised copy.
+- **Cost:** O(ref rows) plus O(entries in the closure), with no page copies, so an
+  owner can hash after every operation.
+- Unreferenced entries, and refs held only by Temp or Derived columns or by extra
+  roots, don't change the result.
+
 **Owner write:**
 1. copy the owner;
 2. `canonicalize` the copy;

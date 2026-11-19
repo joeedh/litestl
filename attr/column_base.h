@@ -140,6 +140,12 @@ public:
   /** Rewrites every ref through m; pages whose refs don't change are left
    * shared. */
   virtual void remap_refs(const RefRemap &) {}
+  /** hash_into as if every ref had been rewritten through m first (the bytes
+   * hash_into gives after remap_refs(m)); no page is touched. */
+  virtual void hash_into_mapped(hash::Hasher128 &h, const RefRemap &) const
+  {
+    hash_into(h);
+  }
   /** Rewrites the refs of the given elements only. */
   virtual void remap_refs_rows(const RefRemap &, util::span<const uint32_t>) {}
   /** Same for one element's bytes (as produced by get_bytes), so holders of

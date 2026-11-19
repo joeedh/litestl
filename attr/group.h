@@ -147,6 +147,9 @@ public:
   /** Canonical hash over the columns accepted by @p keep (same encoding as
    * hash_into, so a filter that keeps everything gives the same hash). */
   void hash_into(hash::Hasher128 &h, const ColumnFilter &keep) const;
+  /** hash_into(h, keep) with every ref column hashed through @p map
+   * (PoolStore::CanonicalMap: the hash a canonicalised copy would give). */
+  void hash_into(hash::Hasher128 &h, const ColumnFilter &keep, const RefRemap &map) const;
 
   /** Version stamp of the whole group: changes, to a never-before-seen value,
    * after any mutation of any column or of the column set. (The maximum of
@@ -162,6 +165,7 @@ public:
   bool read(io::ByteReader &r, const ReadLimits &lim = {}, const char **err = nullptr);
 
 private:
+  void hash_into_impl(hash::Hasher128 &h, const ColumnFilter &keep, const RefRemap *map) const;
   struct Slot {
     util::string name;
     util::UniquePtr<ColumnBase> col;

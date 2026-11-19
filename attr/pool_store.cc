@@ -762,6 +762,11 @@ PoolRef PoolStore::CanonicalMap::map(PoolRef r) const
   if (r.none()) {
     return r;
   }
+  /* total: a ref outside the map (a foreign store's, or any ref of an empty
+   * map left by a failed canonical_map) maps to an unset slot */
+  if (r.pool > uint32_t(old_to_new.size()) || r.slot >= uint32_t(old_to_new[int(r.pool) - 1].size())) {
+    return PoolRef{r.pool, kUnset};
+  }
   return PoolRef{r.pool, old_to_new[int(r.pool) - 1][int(r.slot)]};
 }
 

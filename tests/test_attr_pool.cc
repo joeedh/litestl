@@ -295,6 +295,10 @@ static void test_canonical_form()
     bad.curve().set(3, PoolRef{0, 5}); /* malformed */
     PoolStore::CanonicalMap m;
     test_assert(!bad.store.canonical_map(bad.roots(), m));
+    /* map is total: a ref outside the map (here, any ref of the map a failed
+     * canonical_map leaves) gives an unset slot, never an out-of-range read */
+    test_assert(m.map(PoolRef{1, 3}).pool == 1 && m.map(PoolRef{1, 3}).slot == 0xffffffffu);
+    test_assert(m.map(PoolRef{200, 0}).slot == 0xffffffffu && m.map(kNoRef).none());
   }
 
   /* B1: after canonicalize, intern-hit a Temp-only entry and assign it into a

@@ -261,6 +261,14 @@ values (`Column<PoolRef>`, type key `"ref"`). `pool == 0` means none.
 A struct holding a `PoolRef` must declare `has_refs = true`. Refs inside entries keep
 their targets alive, and they must point into the same store.
 
+**Schema migration.** To read a stream written with an older builtin layout, read it
+into a group of the old schema, then call `new_group.migrate_from(old_group, keep)`.
+- Kept columns move by name and are shared copy-on-write. Dynamic columns come along.
+- New builtins keep their defaults.
+- The call refuses a kept column whose type, flags, default or page size differs
+  from its counterpart, and a kept old builtin that has no new builtin. In both
+  cases nothing changes.
+
 **Liveness is mark-and-sweep.** A `PoolRef` value does not keep its entry alive.
 `store.collect(roots)` frees every entry not reachable from:
 - the ref columns of the root groups (Temp and Derived included);

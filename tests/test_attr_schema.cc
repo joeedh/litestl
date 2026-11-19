@@ -80,8 +80,46 @@ static void run()
   test_assert(other.get<"temperature">()[4] == 20.0f && other.get<"pos">().size() == 5);
 }
 
+/* Schema migration: an old layout's columns move into a new layout. */
+struct OldRef : AttrDef<".v.old", Column<uint32_t>, ColumnFlags::Topo> {};
+struct NewRef : AttrDef<".v.new", Column<math::double2>, ColumnFlags::Topo> {};
+using OldSchema = Schema<Pos, OldRef, VertEdge, Select>;
+using NewSchema = Schema<Pos, VertEdge, NewRef, Select>;
+struct WrongEdge : AttrDef<".v.e", Column<float>, ColumnFlags::Topo> {};
+using WrongSchema = Schema<Pos, WrongEdge, Select>;
+
+static void run_migrate()
+{
+  TypedGroup<OldSchema> old(4);
+  old.resize(7);
+  old.get<"pos">().set(3, math::double3(1, 2, 3));
+  old.get<".v.e">().set(5, 42);
+  old.get<".v.old">().set(1, 9);
+  set_bool(old.get<"select">(), 6, true);
+  ensure<Uv>(old.group())->set(2, math::float2(0.5f, 0.25f));
+  auto keep = [](std::string_view n, const ColumnBase &) { return n != ".v.old"; };
+  TypedGroup<NewSchema> nw(4);
+  const char *err = nullptr;
+  test_assert(nw.group().migrate_from(old.group(), keep, &err));
+  test_assert(nw.size() == 7 && nw.get<"pos">()[3][2] == 3.0 && nw.get<".v.e">()[5] == 42);
+  test_assert(nw.get<".v.e">()[0] == 0xffffffffu && get_bool(nw.get<"select">(), 6));
+  test_assert(nw.get<".v.new">()[4][0] == 0.0 && nw.get<".v.new">().size() == 7);
+  test_assert(find<Uv>(nw.group()) && (*find<Uv>(nw.group()))[2][1] == 0.25f && !nw.group().find_any(".v.old"));
+  /* shared copy-on-write: writing one side leaves the other */
+  nw.get<".v.e">().set(5, 7);
+  test_assert(old.get<".v.e">()[5] == 42);
+  /* an old builtin with no counterpart, kept: refused */
+  auto all = [](std::string_view, const ColumnBase &) { return true; };
+  TypedGroup<NewSchema> nw2(4);
+  test_assert(!nw2.group().migrate_from(old.group(), all, &err) && nw2.size() == 0);
+  /* a type mismatch: refused, nothing changed */
+  TypedGroup<WrongSchema> wr(4);
+  test_assert(!wr.group().migrate_from(old.group(), keep, &err) && wr.size() == 0);
+}
+
 int main()
 {
   run();
+  run_migrate();
   return test_end();
 }

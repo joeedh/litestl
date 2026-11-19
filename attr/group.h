@@ -164,6 +164,16 @@ public:
    * dynamic columns are dropped. */
   bool read(io::ByteReader &r, const ReadLimits &lim = {}, const char **err = nullptr);
 
+  /** Schema migration (an old stream read into a group of the old schema,
+   * moved into one of the new schema). Resizes this group to src's size and
+   * gives each column of src that `keep` accepts to this group's column of
+   * the same name (shared copy-on-write), or adds it as a dynamic column when
+   * there is none. This group's builtins that src lacks keep their defaults.
+   * Fails, changing nothing, when a kept column differs from its counterpart
+   * here (type, flags, default, page size) or a kept builtin of src has no
+   * builtin counterpart. */
+  bool migrate_from(const AttrGroup &src, const ColumnFilter &keep, const char **err = nullptr);
+
 private:
   void hash_into_impl(hash::Hasher128 &h, const ColumnFilter &keep, const RefRemap *map) const;
   struct Slot {

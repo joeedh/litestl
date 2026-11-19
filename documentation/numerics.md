@@ -116,6 +116,26 @@ range-checked, aborting on violation, unless `LITESTL_PRED_CHECK_RANGE=0`.
 - **Counters are opt-in.** They are only non-zero when linking `predicates_stats`
   instead of `predicates`. Link one or the other.
 
+## Deterministic elementary functions (`math/detmath.h`, target `detmath`)
+
+`std::` transcendental functions differ between libm implementations and versions,
+so code whose results feed decisions or goldens uses `detmath` instead.
+
+- **Functions:** `sin`, `cos`, `sincos`, `reduce_angle` (to (−π, π]), `exp`, `log`,
+  `log1p`, `sinh`, `cosh`, `asinh`, plus `ulp`.
+- **How:** Cody–Waite argument reduction with exactly generated split constants,
+  Taylor kernels truncated below 2⁻⁶⁰, and only + − × ÷, `sqrt` and exact scaling.
+  The library is compiled with the same strict flags as the predicates, so the
+  consumer's flags don't matter.
+- **Same bits everywhere:** `test_detmath` pins a digest of the outputs, and GCC,
+  clang and MSVC (`/fp:precise`) produce the same one.
+- **Error bounds** are constants in the header (`kExpUlp`, `kSinCosAbs`, …), which
+  callers may use in error budgets. Under GCC the test checks them against
+  libquadmath. The measured worst cases are a third to a half of the stated bounds.
+- **Domain:** the trigonometric functions accept |x| ≤ 1.5·2²⁰ and return NaN
+  beyond. The rest follow IEEE conventions for NaN, infinities and overflow.
+  Subnormal results lose the relative bound.
+
 ## Hashing (`util/hash128.h`)
 
 - **`SipHash128` / `hash128()`** implement SipHash-2-4 with 128-bit output, as defined

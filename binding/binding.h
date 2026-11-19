@@ -53,9 +53,6 @@ template <IsVector VEC> struct Binder<VEC> {
     BIND_STRUCT_DEFAULT_CONSTRUCTOR(st);
     BIND_STRUCT_CONSTRUCTOR(st, "ptrWithCount", typename VEC::value_type *, int);
 
-    st->constructors[1]->params[0].type =
-        new types::ParentTemplateParam("T", 0, st->constructors[1]->params[0].type);
-
     // resize is a templated method, build manually
     types::Method *m = new types::Method("resize");
     m->params.append({"newsize", Bind<int>()});
@@ -105,6 +102,31 @@ template <> struct Binder<litestl::util::string> {
   {
     return new types::Struct<litestl::util::string>("litestl::util::String",
                                                     sizeof(litestl::util::string));
+  }
+};
+
+/* Null-terminated C string. Crosses as a JS string: copied in for the
+ * duration of a call, copied out (and never freed) when returned. */
+template <> struct Binder<const char *> {
+  static const BindingBase *bind()
+  {
+    return new types::_StructBase("litestl::util::CString", sizeof(const char *));
+  }
+};
+
+/* Dynamic-extent span. Built from a JS array or typed array for the duration
+ * of a call; a non-const span's contents are copied back afterwards. The
+ * runtimes rely on every dynamic span being laid out as {T *data; size_t size}. */
+template <typename E> struct Binder<std::span<E>> {
+  static_assert(sizeof(std::span<E>) == sizeof(void *) * 2, "unexpected std::span layout");
+
+  static const BindingBase *bind()
+  {
+    auto *st = new types::_StructBase("litestl::util::Span", sizeof(std::span<E>));
+    st->templateParams.append({"T", Bind<std::remove_cv_t<E>>()});
+    st->templateParams.append(
+        {"readonly", new types::BoolLitType(std::is_const_v<E>, "readonly", Bind<bool>())});
+    return st;
   }
 };
 } // namespace litestl::binding

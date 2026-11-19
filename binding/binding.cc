@@ -7,6 +7,8 @@
 #include "litestl/util/vector.h"
 #include "manager.h"
 #include <cstring>
+#include <memory>
+#include <string>
 
 extern "C" {
 struct [[gnu::packed]] WasmOffsets {
@@ -80,6 +82,9 @@ struct [[gnu::packed]] WasmOffsets {
     int params;
     int isConst;
     int isStatic;
+    int templateParams;
+    int returnPolicy;
+    int jsName;
   } Method;
   struct {
     int name;
@@ -202,6 +207,9 @@ BindingInfo *LSTL_GetBindingInfo()
   info->offsets.Method.params = offsetof(Method, params);
   info->offsets.Method.isConst = offsetof(Method, isConst);
   info->offsets.Method.isStatic = offsetof(Method, isStatic);
+  info->offsets.Method.templateParams = offsetof(Method, templateParams);
+  info->offsets.Method.returnPolicy = offsetof(Method, returnPolicy);
+  info->offsets.Method.jsName = offsetof(Method, jsName);
 
   info->offsets.MethodParam.name = offsetof(MethodParam, name);
   info->offsets.MethodParam.type = offsetof(MethodParam, type);
@@ -263,7 +271,37 @@ extern "C" {
  * incompatible change to the LSTL_* functions or the descriptor structs. */
 int LSTL_AbiVersion()
 {
-  return 1;
+  return 2;
+}
+
+/** NULL when the registered functions are consistent, else an error message
+ * (see BindingManager::checkFunctions). Free with LSTL_FreeFormatBlocks. */
+char *LSTL_Manager_CheckFunctions(BindingManager *m)
+{
+  string error;
+  if (m->checkFunctions(&error)) {
+    return nullptr;
+  }
+  char *out = static_cast<char *>(malloc(error.size() + 1));
+  memcpy(out, error.c_str(), error.size() + 1);
+  return out;
+}
+
+/** Construct a util::string in place at `dst` (sizeof(util::string) bytes)
+ * from `len` bytes of UTF-8. */
+void LSTL_String_InitAt(void *dst, const char *s, int len)
+{
+  new (dst) util::string(std::string(s, size_t(len)));
+}
+void LSTL_String_DestroyAt(void *dst)
+{
+  std::destroy_at(static_cast<util::string *>(dst));
+}
+/** Size in bytes of a util::string's contents; read them from its data
+ * pointer (offset 0). */
+int LSTL_String_Size(const util::string *s)
+{
+  return int(s->size());
 }
 
 const char *LSTL_Binding_GetKeys(BindingManager *m)

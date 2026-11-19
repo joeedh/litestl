@@ -53,10 +53,9 @@ template <math::isMathAABB T> struct Binder<T> {
 
     st->addTemplateParam(Bind<typename T::value_type>(), "T");
 
-    types::ParentTemplateParam *p =
-        new types::ParentTemplateParam("T", 0, Bind<typename T::value_type>());
-    st->add("min", offsetof(T, min), p);
-    st->add("max", offsetof(T, max), p);
+    // The TS generator infers that min/max are `T` by comparing instantiations.
+    st->add("min", offsetof(T, min), Bind<typename T::value_type>());
+    st->add("max", offsetof(T, max), Bind<typename T::value_type>());
     BIND_STRUCT_DEFAULT_CONSTRUCTOR(st);
 
     return st;

@@ -180,13 +180,11 @@ export class MyClass {
 }
 ```
 
-When a nested struct references one of its enclosing template's parameters
-(rather than a concrete type), the binding records that with a
-`types::ParentTemplateParam`. It carries the original parameter name, a
-parent-depth index (how many levels up the parameter was declared), and the
-resolved concrete type for the current instantiation. The TS generator emits
-the parameter name; the runtime can still recover the concrete type via
-`ParentTemplateParam::concreteType` when it needs sizes/layouts.
+Members, method signatures and constructor parameters bind their concrete
+types (`Bind<T>()`, not a marker). The generator recovers `T` by comparing the
+registered instantiations; see "Template inference" below. The one remaining use
+of `types::ParentTemplateParam` is the discriminated-union back-reference
+(`disambiguator`), which needs a name the instantiations can't supply.
 
 ## Methods
 
@@ -233,6 +231,98 @@ pipeline.
 descriptor to flip pointer-nullability flags on the return type or a named
 argument. By default `MethodBuilder::fillParams` sets every pointer argument
 to non-null; use `argIsNullable` to relax that.
+
+Static and template methods:
+
+- `BIND_STRUCT_STATIC_METHOD(st, make, MARGS("x", "y"))` binds a static member
+  function. JS reaches it as `Vec2.make(...)`, a `bindStatic` entry in the
+  generated module.
+- `BIND_STRUCT_METHOD_TEMPLATE(st, dotAs, TNAMES("T"), MARGS("b"), float, double)`
+  binds one method per listed type. Each records its template arguments
+  (`Method::templateParams`), and its full name is `dotAs<float>[fixture::Vec2&]`.
+  JS sees a single `dotAs` that dispatches among them.
+- Inside a class template, these macros need `def->template ...` (handled by the
+  macros). MSVC and delayed template parsing hide a missing `template` keyword;
+  strict clang and gcc don't, so the build passes
+  `-fno-delayed-template-parsing` to every clang.
+
+Parameter and return conventions (`detail::bindParam` / `bindReturn`):
+
+- `const T&` to a value-like type (`util::string`, `std::span`) binds as `T`;
+  other references bind as `Reference`.
+- Pointers bind as non-null `Pointer`s; `argIsNullable` relaxes them.
+- `const char *` binds as `litestl::util::CString` (a JS string).
+- A returned pointer is borrowed by default. `Method::returnsOwned()` marks it
+  as allocated with `litestl::alloc` and owned by the caller; JS then frees it
+  on dispose or GC.
+
+The thunk ABI (`void(*)(void *self, void **args, void *ret)`):
+
+- `args[i]` points at the value for value and reference parameters, and at a
+  pointer-sized slot for pointer parameters.
+- The return is placement-constructed into `ret`; a reference return stores the
+  referent's address.
+
+## Free functions
+
+Free functions register on the manager under their fully qualified C++ name.
+Namespaces stay part of the name; there is no module descriptor:
+
+```cpp
+BIND_FUNCTION(mgr, "fixture::addInts", addInts, MARGS("a", "b"));
+BIND_FUNCTION(mgr, "fixture::makeShape", makeShape, MARGS("id")).returnsOwned();
+BIND_FUNCTION_SIG(mgr, "fixture::overloaded", overloaded, float, (float), MARGS("v"))
+    .setJsName("overloadedF");
+BIND_FUNCTION_TEMPLATE(mgr, "fixture::makeBox", makeBox, TNAMES("T"), MARGS("lo", "hi"),
+                       float, double);
+```
+
+- Keys have the form `ns::name<template args>[param types]`, e.g.
+  `fixture::makeBox<float>[float,float]`. Registering a key twice aborts.
+- Functions sharing a JS name must be instantiations of one template. A plain
+  overload needs its own name (`setJsName`). `BindingManager::validate()`
+  checks this; call it after registration, since `setJsName` chains after
+  `add`.
+- `BIND_FUNCTION_INSTANCE(mgr, name, fn, ARGNAMES, TARG(float, "T"), ...)`
+  registers a single instantiation with named template arguments.
+- The generator writes `ns/functions.ts`, with one `bindFunction("ns::name")`
+  export per JS name.
+
+### Dispatch among instantiations
+
+`binding_dispatch.h`, mirrored by `typescriptRuntime/dispatch.ts`, decides how
+one JS call picks an instantiation:
+
+- **Single**: one candidate.
+- **Infer**: every candidate has a distinct list of struct-typed parameters, so
+  the bound objects passed in decide (`boxExtent(b)` picks `Box<double>` from
+  `b`).
+- **Select**: otherwise the caller passes a selector key first. The key is the
+  template arguments' full names, comma-joined: `makeBox("double", 1, 4)`.
+  For a static method of a template struct, the key starts with the struct's
+  own arguments: `Box.unit("float")`.
+
+### Template inference
+
+The generator renders every registered instantiation of a struct, function or
+method together. Where a position's type varies across instantiations in step
+with a template parameter, it writes the parameter name:
+
+```ts
+export const boxExtent = bindFunction("fixture::boxExtent") as
+  <T extends (double | float)>(b: Box<T>) => T;
+export type makeBox_Args = {"double": [double], "float": [float]};
+export const makeBox = bindFunction("fixture::makeBox") as
+  <K extends keyof makeBox_Args>(_t: K, lo: makeBox_Args[K][0], hi: makeBox_Args[K][0]) =>
+    Box<makeBox_Args[K][0]> | undefined;
+```
+
+- In Infer mode it emits `<T extends (a | b)>` generics. In Select mode it emits
+  a key-to-argument-types map and a `K extends keyof Map` generic.
+- With a single instantiation there is nothing to compare, so the concrete
+  types are used (`lo: float`).
+- A position that matches more than one template parameter is ambiguous, and
+  the generator aborts.
 
 ## Constructors
 
@@ -320,7 +410,15 @@ with `{[disPropName]: <literal>}`.
   This is what the TS-side `BoundVector` and `findVectorClass` consume.
 - **`litestl::util::string`** — registered as an opaque `Struct<string>` with
   no members; the TS runtime reads it via `readLiteStlString` using
-  layout-specific offsets.
+  layout-specific offsets. In JS it is a `string` (UTF-8 on the C++ side).
+- **`litestl::util::CString`** — `const char *`, a JS `string`. A returned
+  `const char *` is copied and never freed.
+- **`litestl::util::Span<T, readonly>`** — `std::span<T>`, an `ArrayLike<T>`
+  in JS. A matching typed array is passed in place where the backend can.
+  Otherwise the runtime copies into a temporary, and copies a non-const span
+  back to the JS array after the call.
+- Vector parameters accept a JS array. A returned `Vector<uint8_t>` becomes a
+  `Uint8Array`, and other returned vectors become JS arrays.
 
 `BindingManager`'s constructor pre-registers the numeric primitives,
 `void *`, and `Vector<T>` for each of those primitives, so most TS-side code
@@ -389,6 +487,72 @@ encounters them, and provides `construct<K extends keyof AllBoundTypes>()`,
 `findVectorClass<K>(elementName, staticSize)`, and the
 `BoundVector` / `BoundArray` helpers for working with `litestl::util::Vector`
 and fixed-size arrays from JS.
+
+## Backends: WASM and N-API
+
+Generated TypeScript calls through `IBindingBackend`
+(`typescriptRuntime/backend.ts`), which two backends implement with the same
+JS-visible behaviour:
+
+- **WASM**: `WasmBindingBackend` over the TS `BindingManager`, which reads the
+  descriptors out of the module's heap.
+- **N-API**: `binding/napi/napi_runtime.{h,cc}` (target `binding_napi`) reads
+  the descriptors natively. An addon installs it in its init function (see the
+  header). Pointers never reach JS as numbers.
+
+```ts
+setBindingBackend(addon)                                   // N-API: the addon's exports
+setBindingBackend(new WasmBindingBackend(manager))         // WASM
+```
+
+The interface:
+
+- `construct` / `constructWith(type, ctorName, ...args)`.
+- `getFunction("ns::name")` and `getStatic("ns::Struct", "name")`, which the
+  generated `bindFunction` / `bindStatic` resolve lazily, on first call.
+- `getClass`, `typeName(obj)`, `bindingKeys`, `generateTypeScript`, `getMemSize`.
+
+Behaviour both backends share:
+
+- **Ownership.** Constructed objects, by-value struct returns and `returnsOwned`
+  pointers own their object. `[Symbol.dispose]()` or garbage collection runs the
+  destructor and `alloc::release`. Members, borrowed returns and vector or array
+  elements are live views that never free.
+- **Argument checks.** A wrong argument count, a wrong scalar type, the wrong
+  struct type, a null non-null pointer or an unknown selector throws a
+  `TypeError`.
+- **int64** values cross as `bigint` (numbers are accepted as arguments). A null
+  pointer reads as `undefined`.
+
+### Building WASM without Emscripten
+
+`build_files/wasm-clang.cmake` (the `wasm` preset) builds with a stock clang and
+the wasi sysroot:
+
+- `node configureEnv.mjs --fetch-deps` downloads the sysroot, compiler-rt and
+  node-api headers into `build/deps`.
+- The target is `wasm32-wasip1-threads`, because the allocator and task system
+  need `std::mutex` / `std::thread`. Modules are reactors that import a shared
+  memory.
+- `typescriptRuntime/wasiLoader.ts` (`instantiateWasi`) supplies the few WASI
+  calls libc makes. Its result goes to `createWasmHelpers` as before.
+- `LSTL_*` exports are listed per target with `--export`. See
+  `tests/bindings/CMakeLists.txt`.
+
+### Conformance tests
+
+`tests/bindings/` holds one fixture (`fixture.h`), registered once and built
+three ways:
+
+- `binding_fixture_gen_ts` writes the generated TS.
+- `binding_fixture_wasm` is the fixture as a WASM module.
+- `binding_fixture_napi` is the fixture as a Node addon.
+
+`tests/bindings/js/run.mjs` type-checks the generated TS against the runtime
+with `tsc`, then runs `conformance.test.ts` (node:test) against each backend
+with identical expectations. The ctest `binding_conformance` runs it against
+the N-API addon, plus the WASM module when `LITESTL_CONFORMANCE_WASM` points at
+one. It needs `npm ci` in `tests/bindings/js` first.
 
 ## Design trajectory
 

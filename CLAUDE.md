@@ -28,19 +28,30 @@ litestl/
   binding/       C++ reflection + TS generator + TS runtime
     generators/      backends (currently TypeScript)
     typescriptRuntime/   TS-side counterpart of the C++ descriptors
+    napi/            N-API runtime (target `binding_napi`)
   io/            serialization (binfile, serial), bytes.h (header-only byte stream)
   attr/          paged copy-on-write attribute columns and groups (target `attr`)
   tests/         GTest-flavored native tests, driven by DTL
+    bindings/        binding fixture + WASM/N-API conformance suite (js/)
   extern/        vendored eigen (headers only)
   build_files/   shared cmake/macros + WASM helpers
   documentation/ binding.md, containers.md, numerics.md, attributes.md
 ```
 
 The library is built as part of Sculptcore (`source/litestl/` of that
-project), but `CMakePresets.json` here lets you configure it standalone
-for IDE use (`cmake --preset debug` etc.). Standalone configures the
-native build; WASM still goes through Sculptcore's `make.mjs` so the
-emsdk environment is set up correctly.
+project), and also builds standalone:
+
+- `node configureEnv.mjs --fetch-deps` downloads the wasi sysroot,
+  compiler-rt and node-api headers into `build/deps` (`LITESTL_DEPS_DIR`).
+- `node configureEnv.mjs <cmd>` runs `<cmd>` inside the vcvars64
+  environment on Windows; elsewhere it runs `<cmd>` unchanged.
+- Presets (`build/<preset>/`): `msvc` and `vs-clang` (VS's clang-cl) on
+  Windows; `gcc` and `clang` elsewhere; `wasm` (stock clang + wasi
+  sysroot, no Emscripten, `build_files/wasm-clang.cmake`).
+- Every clang gets `-fno-delayed-template-parsing`, so clang-cl rejects
+  what gcc rejects. Write `def->template foo<...>` in dependent contexts.
+- Sculptcore's WASM build still uses Emscripten via its `make.mjs`; keep
+  `__EMSCRIPTEN__` paths (util/wasm.h, util/task.h) working.
 
 ## Containers and hot-path conventions
 
@@ -139,6 +150,13 @@ C++ reflection / type-description layer; see
 - Attribute columns: see `documentation/attributes.md` for the copy-on-write,
   reference-invalidation and threading rules. `test_attr_model` is the
   model-based oracle; extend it when adding column behaviour.
+- Binding backends: `tests/bindings/fixture.h` is the one fixture for the
+  generator test (`test_binding_functions`), the WASM module and the N-API
+  addon. The ctest `binding_conformance` runs `tests/bindings/js` against
+  the addon, and also against the WASM module when
+  `LITESTL_CONFORMANCE_WASM` is set. It needs `npm ci` in
+  `tests/bindings/js`. Extend the fixture and `conformance.test.ts`
+  together; both backends must pass identical expectations.
 - `test_binding_system.cc` doubles as a WASM-side harness when
   `BUILD_WASM=ON`; the linker config there sets a 900MB initial memory
   and allows growth.

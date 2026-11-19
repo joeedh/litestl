@@ -301,6 +301,29 @@ static void test_canonical_form()
     test_assert(m.map(PoolRef{200, 0}).slot == 0xffffffffu && m.map(kNoRef).none());
   }
 
+  /* the pool-limited hash (UberTopo's format-3 reading): the full hash at or
+   * above the pool count; refused, with h untouched, while a pool past the
+   * limit has a reachable entry; accepted once it has none */
+  {
+    Owner o(o0);
+    PoolStore::CanonicalMap m;
+    test_assert(o.store.canonical_map(o.roots(), m));
+    hash::Hasher128 full(hash::DomainTag::Content), lim(hash::DomainTag::Content);
+    o.store.hash_into(full, m);
+    test_assert(o.store.hash_into(lim, m, 3) && lim.finish() == full.finish());
+    hash::Hasher128 h1(hash::DomainTag::Content), fresh(hash::DomainTag::Content);
+    test_assert(!o.store.hash_into(h1, m, 1)); /* names (pool 2) are reachable */
+    test_assert(h1.finish() == fresh.finish());
+    for (uint32_t i = 0; i < 8; i++) {
+      o.name().set(i, kNoRef);
+    }
+    test_assert(o.store.canonical_map(o.roots(), m));
+    hash::Hasher128 h2(hash::DomainTag::Content), h3(hash::DomainTag::Content);
+    test_assert(o.store.hash_into(h2, m, 1));
+    o.store.hash_into(h3, m);
+    test_assert(!(h2.finish() == h3.finish())); /* the pool count differs */
+  }
+
   /* B1: after canonicalize, intern-hit a Temp-only entry and assign it into a
    * hashed column: write must refuse (groups changed). */
   Owner w(o1);

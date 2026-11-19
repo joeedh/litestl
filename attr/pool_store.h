@@ -210,6 +210,10 @@ public:
   /** Equals hash_into(h, roots) of a copy canonicalised with the same groups.
    * Pair with AttrGroup::hash_into(h, keep, map) for the groups. */
   void hash_into(hash::Hasher128 &h, const CanonicalMap &m) const;
+  /** The same hash over the first pool_limit pools only: the hash a store
+   * with just those pools had, for reading streams written before pools were
+   * appended. False (h untouched) if a later pool has a reachable entry. */
+  bool hash_into(hash::Hasher128 &h, const CanonicalMap &m, uint32_t pool_limit) const;
 
   /* ---- canonical hashing and I/O (require canonical(roots)) ---- */
   void hash_into(hash::Hasher128 &h, const Roots &roots) const;

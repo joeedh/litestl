@@ -1,5 +1,6 @@
 #include "attr/pool_store.h"
 
+#include <algorithm>
 #include <string>
 
 namespace litestl::attr {
@@ -795,8 +796,19 @@ bool PoolStore::canonical_map(const Roots &roots, CanonicalMap &out, const char 
 
 void PoolStore::hash_into(hash::Hasher128 &h, const CanonicalMap &m) const
 {
-  h.u32(uint32_t(pools_.size()));
-  for (int i = 0; i < pools_.size(); i++) {
+  hash_into(h, m, uint32_t(pools_.size()));
+}
+
+bool PoolStore::hash_into(hash::Hasher128 &h, const CanonicalMap &m, uint32_t pool_limit) const
+{
+  const int n = int(std::min(pool_limit, uint32_t(pools_.size())));
+  for (int i = n; i < pools_.size(); i++) {
+    if (m.new_to_old[i].size() != 0) {
+      return false;
+    }
+  }
+  h.u32(uint32_t(n));
+  for (int i = 0; i < n; i++) {
     const PoolBase &p = *pools_[i];
     const util::Vector<uint32_t> &order = m.new_to_old[i];
     h.str(p.key());
@@ -806,6 +818,7 @@ void PoolStore::hash_into(hash::Hasher128 &h, const CanonicalMap &m) const
       h.h128(p.has_refs() ? p.entry_hash_mapped(s, m) : p.entry_hash(s));
     }
   }
+  return true;
 }
 
 hash::Hash128 PoolStore::content_hash(const Roots &roots) const

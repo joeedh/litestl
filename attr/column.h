@@ -430,6 +430,35 @@ public:
     }
   }
 
+  void hash_into_mapped(hash::Hasher128 &h, const RefRemap &m) const override
+  {
+    if constexpr (!kHoldsRefs) {
+      hash_into(h);
+    }
+    else {
+      h.str(type().key);
+      h.u32(uint32_t(flags_));
+      h.u32(store.size());
+      const T d = m.map(store.default_value());
+      h.raw_bytes(&d, sizeof(T));
+      util::Vector<T> scratch;
+      for (uint32_t p = 0; p < store.page_count(); p++) {
+        const uint32_t live = store.page_live_count(p);
+        if (const T *u = store.page_uniform(p)) {
+          const T mu = m.map(*u);
+          for (uint32_t k = 0; k < live; k++) {
+            h.raw_bytes(&mu, sizeof(T));
+          }
+          continue;
+        }
+        for (const T &x : store.page_span(p, scratch)) {
+          const T mx = m.map(x);
+          h.raw_bytes(&mx, sizeof(T));
+        }
+      }
+    }
+  }
+
   void remap_refs_rows(const RefRemap &m, util::span<const uint32_t> rows) override
   {
     if constexpr (kHoldsRefs) {

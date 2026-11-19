@@ -39,7 +39,13 @@ public:
   /** Strong refs: kept alive by collect. */
   virtual void visit_refs(RefVisitor &v) const = 0;
   virtual void remap_refs(const RefRemap &m) = 0;
-  /** Called after mark, before sweep: drop weak refs to unmarked entries. */
+  /** Weak pairs (key, value): value is marked once key is marked by anything
+   * else (strong roots, inner refs or other pairs), iterated to a fixpoint.
+   * A weak cache whose entries refer back to their key (an approximation
+   * naming its source) is held this way, so it lives while its key does. */
+  virtual void visit_weak_pairs(WeakPairVisitor &) const {}
+  /** Called by collect and canonicalize after mark, before sweep or
+   * renumbering: drop weak refs to unmarked entries. */
   virtual void prune(const MarkQuery &) {}
 };
 
@@ -56,6 +62,18 @@ public:
     util::span<AttrGroup *const> groups;
     util::span<RefRoot *const> extra;
     const AcceptFn *accept = nullptr;
+  };
+
+  /** The phase-1 (hashed) part of canonicalize's numbering, computed without
+   * changing anything: maps a ref of the closure to the ref it would get.
+   * Refs outside the closure (only Temp/Derived or extra roots hold them) map
+   * to an unset slot. Valid until the store or a root group changes. */
+  class CanonicalMap final : public RefRemap {
+  public:
+    PoolRef map(PoolRef r) const override;
+    /** Entries of the closure per pool, in canonical order (old slots). */
+    util::Vector<util::Vector<uint32_t>> new_to_old;
+    util::Vector<util::Vector<uint32_t>> old_to_new;
   };
 
   struct ImportMemo {
@@ -184,6 +202,18 @@ public:
                    const PoolStore &src,
                    ImportMemo &memo,
                    const char **err = nullptr);
+
+  /* ---- canonical hashing without canonicalising ---- */
+  /** Builds the map for roots.groups (extra roots don't affect it). Fails,
+   * leaving out empty, on a malformed, dangling or refused ref. */
+  bool canonical_map(const Roots &roots, CanonicalMap &out, const char **err = nullptr) const;
+  /** Equals hash_into(h, roots) of a copy canonicalised with the same groups.
+   * Pair with AttrGroup::hash_into(h, keep, map) for the groups. */
+  void hash_into(hash::Hasher128 &h, const CanonicalMap &m) const;
+  /** The same hash over the first pool_limit pools only: the hash a store
+   * with just those pools had, for reading streams written before pools were
+   * appended. False (h untouched) if a later pool has a reachable entry. */
+  bool hash_into(hash::Hasher128 &h, const CanonicalMap &m, uint32_t pool_limit) const;
 
   /* ---- canonical hashing and I/O (require canonical(roots)) ---- */
   void hash_into(hash::Hasher128 &h, const Roots &roots) const;

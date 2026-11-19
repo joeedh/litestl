@@ -335,11 +335,37 @@ int test_pointer_keys()
   return retval;
 }
 
+/* lookup_ptr on a const map: the same slot as the mutable overload, and
+ * nullptr for a missing or removed key */
+int test_const_lookup_ptr()
+{
+  using namespace litestl::util;
+  int retval = 0;
+  Map<int, int> map;
+  for (int i = 0; i < 100; i++) {
+    map.add(i, i * 3);
+  }
+  map.remove(7);
+  const Map<int, int> &cm = map;
+  for (int i = 0; i < 100; i++) {
+    const int *v = cm.lookup_ptr(i);
+    if (i == 7) {
+      test_assert(v == nullptr);
+    }
+    else {
+      test_assert(v != nullptr && *v == i * 3 && v == map.lookup_ptr(i));
+    }
+  }
+  test_assert(cm.lookup_ptr(1000) == nullptr);
+  return retval;
+}
+
 int main()
 {
   using namespace litestl::util;
 
   test_remove();
+  test_const_lookup_ptr();
   test_no_duplicate_keys();
   test_move_copy();
   test_rehash_bucket_overflow();

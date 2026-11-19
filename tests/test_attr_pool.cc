@@ -259,6 +259,71 @@ static void test_canonical_form()
   test_assert(c0.store.canonicalize(c0.mroots()) && c1.store.canonicalize(c1.mroots()));
   test_assert(c0.store.content_hash(c0.roots()) == c1.store.content_hash(c1.roots()));
 
+  /* canonical_map: the hash a canonicalised copy gives, without touching the
+   * owner; independent of history and of unreferenced entries */
+  {
+    auto all = [](std::string_view, const ColumnBase &) { return true; };
+    auto map_hash = [&](Owner &o) {
+      PoolStore::CanonicalMap m;
+      test_assert(o.store.canonical_map(o.roots(), m));
+      hash::Hasher128 h(hash::DomainTag::Content);
+      o.store.hash_into(h, m);
+      o.a.hash_into(h, all, m);
+      o.b.hash_into(h, all, m);
+      return h.finish();
+    };
+    auto copy_hash = [&](const Owner &o) {
+      Owner c(o);
+      test_assert(c.store.canonicalize(c.mroots()));
+      hash::Hasher128 h(hash::DomainTag::Content);
+      c.store.hash_into(h, c.roots());
+      c.a.hash_into(h);
+      c.b.hash_into(h);
+      return h.finish();
+    };
+    for (Owner *o : {&o0, &o1, &o2, &sibling}) {
+      const uint64_t sv = o->store.version(), av = o->a.version();
+      test_assert(map_hash(*o) == copy_hash(*o));
+      test_assert(o->store.version() == sv && o->a.version() == av);
+    }
+    test_assert(map_hash(o0) == map_hash(o1) && map_hash(o0) == map_hash(o2));
+    test_assert(!(map_hash(o0) == map_hash(sibling)));
+    Owner extra(o0);
+    extra.line({999.0}, extra.line({998.0})); /* unreferenced */
+    test_assert(map_hash(extra) == map_hash(o0));
+    Owner bad(o0);
+    bad.curve().set(3, PoolRef{0, 5}); /* malformed */
+    PoolStore::CanonicalMap m;
+    test_assert(!bad.store.canonical_map(bad.roots(), m));
+    /* map is total: a ref outside the map (here, any ref of the map a failed
+     * canonical_map leaves) gives an unset slot, never an out-of-range read */
+    test_assert(m.map(PoolRef{1, 3}).pool == 1 && m.map(PoolRef{1, 3}).slot == 0xffffffffu);
+    test_assert(m.map(PoolRef{200, 0}).slot == 0xffffffffu && m.map(kNoRef).none());
+  }
+
+  /* the pool-limited hash (UberTopo's format-3 reading): the full hash at or
+   * above the pool count; refused, with h untouched, while a pool past the
+   * limit has a reachable entry; accepted once it has none */
+  {
+    Owner o(o0);
+    PoolStore::CanonicalMap m;
+    test_assert(o.store.canonical_map(o.roots(), m));
+    hash::Hasher128 full(hash::DomainTag::Content), lim(hash::DomainTag::Content);
+    o.store.hash_into(full, m);
+    test_assert(o.store.hash_into(lim, m, 3) && lim.finish() == full.finish());
+    hash::Hasher128 h1(hash::DomainTag::Content), fresh(hash::DomainTag::Content);
+    test_assert(!o.store.hash_into(h1, m, 1)); /* names (pool 2) are reachable */
+    test_assert(h1.finish() == fresh.finish());
+    for (uint32_t i = 0; i < 8; i++) {
+      o.name().set(i, kNoRef);
+    }
+    test_assert(o.store.canonical_map(o.roots(), m));
+    hash::Hasher128 h2(hash::DomainTag::Content), h3(hash::DomainTag::Content);
+    test_assert(o.store.hash_into(h2, m, 1));
+    o.store.hash_into(h3, m);
+    test_assert(!(h2.finish() == h3.finish())); /* the pool count differs */
+  }
+
   /* B1: after canonicalize, intern-hit a Temp-only entry and assign it into a
    * hashed column: write must refuse (groups changed). */
   Owner w(o1);
@@ -558,6 +623,74 @@ static void test_weak_roots_and_version()
   test_assert(o.store.version() != v1);
 }
 
+/* Weak pairs (ephemerons): a cache entry that names its source lives exactly
+ * while the source is reachable otherwise. */
+class EphemeronMap final : public RefRoot {
+public:
+  std::vector<std::pair<PoolRef, PoolRef>> entries; /* key -> value */
+  void visit_refs(RefVisitor &) const override {}
+  void visit_weak_pairs(WeakPairVisitor &v) const override
+  {
+    for (const auto &e : entries) {
+      v.visit(e.first, e.second);
+    }
+  }
+  void remap_refs(const RefRemap &m) override
+  {
+    for (auto &e : entries) {
+      e = {m.map(e.first), m.map(e.second)};
+    }
+  }
+  void prune(const MarkQuery &q) override
+  {
+    std::vector<std::pair<PoolRef, PoolRef>> keep;
+    for (const auto &e : entries) {
+      if (q.marked(e.first) && q.marked(e.second)) {
+        keep.push_back(e);
+      }
+    }
+    entries = keep;
+  }
+};
+
+static void test_weak_pairs()
+{
+  for (const bool canon : {false, true}) {
+    Owner o;
+    o.a.resize(2);
+    const PoolRef s = o.line({1});
+    const PoolRef c1 = o.line({1, 1}, s);  /* a cache of s, naming it */
+    const PoolRef c2 = o.line({1, 1, 1}, c1); /* a cache of the cache */
+    const PoolRef d = o.line({5});
+    const PoolRef dc = o.line({5, 5}, d); /* cache of an unreachable key */
+    EphemeronMap em;
+    /* (c1, c2) first: reaching c2 takes a second round of the fixpoint */
+    em.entries = {{c1, c2}, {s, c1}, {d, dc}};
+    o.curve().set(0, s);
+    RefRoot *ex[] = {&em};
+    const auto run = [&] {
+      if (canon) {
+        test_assert(o.store.canonicalize(o.mroots(util::span<RefRoot *const>(ex, 1))));
+      }
+      else {
+        test_assert(o.store.collect(o.roots(util::span<RefRoot *const>(ex, 1))));
+      }
+    };
+    run();
+    test_assert(em.entries.size() == 2);
+    for (const auto &e : em.entries) {
+      test_assert(o.store.live(e.first) && o.store.live(e.second));
+    }
+    test_assert(o.store.live(o.curve().get(0)) && o.store.live_count() == 3);
+    test_assert(o.store.audit(o.roots(util::span<RefRoot *const>(ex, 1)), true));
+    /* the key's last strong holder goes: the whole chain is freed and pruned */
+    o.curve().set(0, kNoRef);
+    run();
+    test_assert(em.entries.empty() && o.store.live_count() == 0);
+    test_assert(o.store.audit(o.roots(util::span<RefRoot *const>(ex, 1)), true));
+  }
+}
+
 int main()
 {
   const size_t baseline = alloc::getMemorySize();
@@ -573,6 +706,7 @@ int main()
   test_import_rows_and_mix_from();
   test_custom_ref_column_and_journal();
   test_weak_roots_and_version();
+  test_weak_pairs();
   test_assert(alloc::getMemorySize() == baseline);
   return test_end();
 }

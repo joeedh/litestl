@@ -300,6 +300,16 @@ void AttrGroup::hash_into(hash::Hasher128 &h) const
 
 void AttrGroup::hash_into(hash::Hasher128 &h, const ColumnFilter &keep) const
 {
+  hash_into_impl(h, keep, nullptr);
+}
+
+void AttrGroup::hash_into(hash::Hasher128 &h, const ColumnFilter &keep, const RefRemap &map) const
+{
+  hash_into_impl(h, keep, &map);
+}
+
+void AttrGroup::hash_into_impl(hash::Hasher128 &h, const ColumnFilter &keep, const RefRemap *map) const
+{
   const util::Vector<int> order = canonical_order();
   auto included = [&](int i) {
     const ColumnBase &c = *cols_[i].col;
@@ -317,7 +327,12 @@ void AttrGroup::hash_into(hash::Hasher128 &h, const ColumnFilter &keep) const
       continue;
     }
     h.str(std::string_view(cols_[i].name.c_str()));
-    cols_[i].col->hash_into(h);
+    if (map && cols_[i].col->holds_refs()) {
+      cols_[i].col->hash_into_mapped(h, *map);
+    }
+    else {
+      cols_[i].col->hash_into(h);
+    }
   }
 }
 
@@ -377,6 +392,58 @@ void AttrGroup::write(io::ByteWriter &w) const
   const hash::Hash128 h = content_hash();
   w.u64(h.lo);
   w.u64(h.hi);
+}
+
+bool AttrGroup::migrate_from(const AttrGroup &src, const ColumnFilter &keep, const char **err)
+{
+  auto fail = [&](const char *msg) {
+    if (err) {
+      *err = msg;
+    }
+    return false;
+  };
+  for (uint32_t i = 0; i < src.column_count(); i++) {
+    const ColumnBase &c = src.column(i);
+    if (!keep(src.name(i), c)) {
+      continue;
+    }
+    if (c.page_shift() != uint32_t(page_shift_)) {
+      return fail("migrate: page size differs");
+    }
+    const int j = index_of(src.name(i));
+    if (j < 0) {
+      if (i < src.builtins_) {
+        return fail("migrate: a builtin has no counterpart");
+      }
+      continue;
+    }
+    const ColumnBase &mine = *cols_[j].col;
+    std::vector<uint8_t> da(c.elem_size()), db(mine.elem_size());
+    c.default_bytes(da.data());
+    mine.default_bytes(db.data());
+    if (&mine.type() != &c.type() || mine.flags() != c.flags() || da != db ||
+        (i < src.builtins_) != (uint32_t(j) < builtins_))
+    {
+      return fail("migrate: column differs from its counterpart");
+    }
+  }
+  resize(src.size());
+  for (uint32_t i = 0; i < src.column_count(); i++) {
+    const ColumnBase &c = src.column(i);
+    if (!keep(src.name(i), c)) {
+      continue;
+    }
+    const int j = index_of(src.name(i));
+    if (j >= 0) {
+      cols_[j].col = c.share();
+    }
+    else {
+      std::string tmp(src.name(i));
+      cols_.append(Slot{util::string(tmp.c_str()), c.share()});
+    }
+  }
+  schema_version_ = next_version();
+  return true;
 }
 
 bool AttrGroup::read(io::ByteReader &r, const ReadLimits &lim, const char **err)

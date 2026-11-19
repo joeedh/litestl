@@ -1,5 +1,6 @@
 #include "attr/pool_store.h"
 
+#include <algorithm>
 #include <string>
 
 namespace litestl::attr {
@@ -154,6 +155,31 @@ public:
       extra[i]->visit_refs(*this);
     }
   }
+
+  /* weak pairs to a fixpoint (after the strong marks are drained) */
+  void visit_weak(util::span<RefRoot *const> extra)
+  {
+    struct V final : WeakPairVisitor {
+      Marker &m;
+      bool any = false;
+      explicit V(Marker &mm) : m(mm) {}
+      void visit(PoolRef k, PoolRef v) override
+      {
+        if (m.marks.marked(k) && !v.none() && !m.marks.marked(v)) {
+          m.visit(v, 1);
+          any = true;
+        }
+      }
+    } vis(*this);
+    do {
+      vis.any = false;
+      for (size_t i = 0; i < extra.size(); i++) {
+        site = RefSite{RefSite::Extra, uint32_t(i), 0};
+        extra[i]->visit_weak_pairs(vis);
+      }
+      drain();
+    } while (vis.any && !failed());
+  }
 };
 
 /* Iterative three-colour DFS over inner refs; false on a cycle. Refs must be
@@ -243,6 +269,102 @@ public:
       return r;
     }
     return PoolRef{r.pool, old_to_new[int(r.pool) - 1][int(r.slot)]};
+  }
+};
+
+/* Numbering in order of first reference; the queue is drained (BFS) through
+ * inner refs per phase (canonicalize, canonical_map). */
+class Numberer final : public RefVisitor {
+public:
+  const util::Vector<util::UniquePtr<PoolBase>> &pools;
+  util::Vector<util::Vector<uint32_t>> &o2n, &n2o;
+  util::Vector<PoolRef> queue;
+  int qpos = 0;
+  Numberer(const util::Vector<util::UniquePtr<PoolBase>> &p,
+           util::Vector<util::Vector<uint32_t>> &a,
+           util::Vector<util::Vector<uint32_t>> &b)
+      : pools(p), o2n(a), n2o(b)
+  {
+    o2n.resize(pools.size());
+    n2o.resize(pools.size());
+    for (int i = 0; i < pools.size(); i++) {
+      o2n[i].resize(int(pools[i]->slot_count()));
+      for (int s = 0; s < o2n[i].size(); s++) {
+        o2n[i][s] = kUnset;
+      }
+    }
+  }
+  void visit(PoolRef r, uint64_t count) override
+  {
+    if (count == 0 || r.none()) {
+      return;
+    }
+    uint32_t &n = o2n[int(r.pool) - 1][int(r.slot)];
+    if (n == kUnset) {
+      n = uint32_t(n2o[int(r.pool) - 1].size());
+      n2o[int(r.pool) - 1].append(r.slot);
+      queue.append(r);
+    }
+  }
+  void drain()
+  {
+    while (qpos < queue.size()) {
+      const PoolRef r = queue[qpos++];
+      if (pools[int(r.pool) - 1]->has_refs()) {
+        pools[int(r.pool) - 1]->for_each_inner_ref(r.slot, [&](PoolRef ir) { visit(ir, 1); });
+      }
+    }
+  }
+  /* the hashed (phase 1) or unhashed (phase 2) ref columns of the groups */
+  template <typename G> void visit_groups(util::span<G *const> groups, bool want_hashed)
+  {
+    for (const AttrGroup *g : groups) {
+      for (int ci : g->canonical_order()) {
+        const ColumnBase &c = g->column(uint32_t(ci));
+        if (c.holds_refs() && hashed(c) == want_hashed) {
+          c.visit_refs(*this);
+        }
+      }
+    }
+    drain();
+  }
+  bool numbered(PoolRef r) const
+  {
+    return !r.none() && o2n[int(r.pool) - 1][int(r.slot)] != kUnset;
+  }
+  /* weak pairs to a fixpoint (refs already validated by a Marker) */
+  void visit_weak(util::span<RefRoot *const> extra)
+  {
+    struct V final : WeakPairVisitor {
+      Numberer &n;
+      bool any = false;
+      explicit V(Numberer &nn) : n(nn) {}
+      void visit(PoolRef k, PoolRef v) override
+      {
+        if (n.numbered(k) && !v.none() && !n.numbered(v)) {
+          n.visit(v, 1);
+          any = true;
+        }
+      }
+    } vis(*this);
+    do {
+      vis.any = false;
+      for (RefRoot *r : extra) {
+        r->visit_weak_pairs(vis);
+      }
+      drain();
+    } while (vis.any);
+  }
+};
+
+/* The numbered set as mark state (canonicalize's prune). */
+class NumberedQuery final : public MarkQuery {
+public:
+  const Numberer &n;
+  explicit NumberedQuery(const Numberer &nn) : n(nn) {}
+  bool marked(PoolRef r) const override
+  {
+    return n.numbered(r);
   }
 };
 
@@ -336,6 +458,7 @@ bool PoolStore::collect(const Roots &roots, const char **err)
   m.drain();
   m.visit_extra(roots.extra);
   m.drain();
+  m.visit_weak(roots.extra);
   if (m.failed()) {
     if (err) {
       static thread_local std::string msg;
@@ -376,6 +499,7 @@ bool PoolStore::audit(const Roots &roots, bool require_reachable, util::Vector<u
   m.drain();
   m.visit_extra(roots.extra);
   m.drain();
+  m.visit_weak(roots.extra);
   /* inner refs of every live entry (reachable or not) must be valid */
   for (int pi = 0; pi < pools_.size(); pi++) {
     const PoolBase &p = *pools_[pi];
@@ -416,6 +540,7 @@ bool PoolStore::canonicalize(const MutRoots &roots, bool *changed, const char **
     m.drain();
     m.visit_extra(roots.extra);
     m.drain();
+    m.visit_weak(roots.extra);
     if (m.failed()) {
       if (err) {
         static thread_local std::string msg;
@@ -428,54 +553,9 @@ bool PoolStore::canonicalize(const MutRoots &roots, bool *changed, const char **
 
   const int np = pools_.size();
   util::Vector<util::Vector<uint32_t>> old_to_new, new_to_old;
-  old_to_new.resize(np);
-  new_to_old.resize(np);
-  for (int i = 0; i < np; i++) {
-    old_to_new[i].resize(int(pools_[i]->slot_count()));
-    for (int s = 0; s < old_to_new[i].size(); s++) {
-      old_to_new[i][s] = kUnset;
-    }
-  }
-
-  /* numbering in order of first reference; queue drained (BFS) per phase */
-  class Numberer final : public RefVisitor {
-  public:
-    util::Vector<util::Vector<uint32_t>> &o2n, &n2o;
-    util::Vector<PoolRef> queue;
-    int qpos = 0;
-    Numberer(util::Vector<util::Vector<uint32_t>> &a, util::Vector<util::Vector<uint32_t>> &b) : o2n(a), n2o(b) {}
-    void visit(PoolRef r, uint64_t count) override
-    {
-      if (count == 0 || r.none()) {
-        return;
-      }
-      uint32_t &n = o2n[int(r.pool) - 1][int(r.slot)];
-      if (n == kUnset) {
-        n = uint32_t(n2o[int(r.pool) - 1].size());
-        n2o[int(r.pool) - 1].append(r.slot);
-        queue.append(r);
-      }
-    }
-  } num(old_to_new, new_to_old);
-
-  auto drain = [&]() {
-    while (num.qpos < num.queue.size()) {
-      const PoolRef r = num.queue[num.qpos++];
-      if (pools_[int(r.pool) - 1]->has_refs()) {
-        pools_[int(r.pool) - 1]->for_each_inner_ref(r.slot, [&](PoolRef ir) { num.visit(ir, 1); });
-      }
-    }
-  };
+  Numberer num(pools_, old_to_new, new_to_old);
   for (const bool want_hashed : {true, false}) {
-    for (AttrGroup *g : roots.groups) {
-      for (int ci : g->canonical_order()) {
-        const ColumnBase &c = g->column(uint32_t(ci));
-        if (c.holds_refs() && hashed(c) == want_hashed) {
-          c.visit_refs(num);
-        }
-      }
-    }
-    drain();
+    num.visit_groups(roots.groups, want_hashed);
     if (want_hashed) {
       canon_k_.resize(np);
       for (int i = 0; i < np; i++) {
@@ -486,7 +566,14 @@ bool PoolStore::canonicalize(const MutRoots &roots, bool *changed, const char **
   for (RefRoot *r : roots.extra) {
     r->visit_refs(num);
   }
-  drain();
+  num.drain();
+  num.visit_weak(roots.extra);
+  {
+    const NumberedQuery q(num);
+    for (RefRoot *r : roots.extra) {
+      r->prune(q);
+    }
+  }
 
   bool any_change = false;
   for (int i = 0; i < np; i++) {
@@ -669,6 +756,69 @@ void PoolStore::hash_into(hash::Hasher128 &h, const Roots &roots) const
     abort();
   }
   hash_pools(h, pools_, canon_k_, uint32_t(pools_.size()));
+}
+
+PoolRef PoolStore::CanonicalMap::map(PoolRef r) const
+{
+  if (r.none()) {
+    return r;
+  }
+  /* total: a ref outside the map (a foreign store's, or any ref of an empty
+   * map left by a failed canonical_map) maps to an unset slot */
+  if (r.pool > uint32_t(old_to_new.size()) || r.slot >= uint32_t(old_to_new[int(r.pool) - 1].size())) {
+    return PoolRef{r.pool, kUnset};
+  }
+  return PoolRef{r.pool, old_to_new[int(r.pool) - 1][int(r.slot)]};
+}
+
+bool PoolStore::canonical_map(const Roots &roots, CanonicalMap &out, const char **err) const
+{
+  out.new_to_old.clear();
+  out.old_to_new.clear();
+  {
+    Marks marks;
+    Marker m(pools_, marks, roots.accept, nullptr);
+    m.visit_groups(roots.groups);
+    m.drain();
+    if (m.failed()) {
+      if (err) {
+        static thread_local std::string msg;
+        msg = "canonical_map: " + m.first_error;
+        *err = msg.c_str();
+      }
+      return false;
+    }
+  }
+  Numberer num(pools_, out.old_to_new, out.new_to_old);
+  num.visit_groups(roots.groups, true);
+  return true;
+}
+
+void PoolStore::hash_into(hash::Hasher128 &h, const CanonicalMap &m) const
+{
+  hash_into(h, m, uint32_t(pools_.size()));
+}
+
+bool PoolStore::hash_into(hash::Hasher128 &h, const CanonicalMap &m, uint32_t pool_limit) const
+{
+  const int n = int(std::min(pool_limit, uint32_t(pools_.size())));
+  for (int i = n; i < pools_.size(); i++) {
+    if (m.new_to_old[i].size() != 0) {
+      return false;
+    }
+  }
+  h.u32(uint32_t(n));
+  for (int i = 0; i < n; i++) {
+    const PoolBase &p = *pools_[i];
+    const util::Vector<uint32_t> &order = m.new_to_old[i];
+    h.str(p.key());
+    h.u32(p.traits_version());
+    h.u32(uint32_t(order.size()));
+    for (uint32_t s : order) {
+      h.h128(p.has_refs() ? p.entry_hash_mapped(s, m) : p.entry_hash(s));
+    }
+  }
+  return true;
 }
 
 hash::Hash128 PoolStore::content_hash(const Roots &roots) const

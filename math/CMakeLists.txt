@@ -49,3 +49,15 @@ foreach(pred_target predicates predicates_stats)
   endif()
 endforeach()
 target_compile_definitions(predicates_stats PRIVATE LITESTL_PRED_STATS)
+
+# Deterministic elementary functions (detmath.h): strict IEEE flags, so the
+# results do not depend on the consumer's flags or on the platform libm.
+add_library(detmath STATIC detmath.cc detmath.h)
+target_include_directories(detmath PUBLIC .. ../..)
+if (CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+  target_compile_options(detmath PRIVATE /fp:precise)
+else()
+  target_compile_options(detmath PRIVATE
+    -ffp-contract=off -fno-fast-math -fno-associative-math
+    -fno-unsafe-math-optimizations -fno-reciprocal-math)
+endif()

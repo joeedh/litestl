@@ -2,50 +2,101 @@
   "version": 6,
   "cmakeMinimumRequired": {
     "major": 3,
-    "minor": 15,
+    "minor": 25,
     "patch": 0
   },
   "configurePresets": [
     {
-      "name": "debug",
-      "displayName": "Debug",
-      "binaryDir": "${sourceDir}/build/debug",
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "true"
       }
     },
     {
+      "name": "debug",
+      "displayName": "Debug (default compiler)",
+      "inherits": "base"
+    },
+    {
       "name": "release",
-      "displayName": "Release",
-      "binaryDir": "${sourceDir}/build/release",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_EXPORT_COMPILE_COMMANDS": "true"
-      }
+      "displayName": "Release (default compiler)",
+      "inherits": "base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
     },
     {
       "name": "relwithdebinfo",
-      "displayName": "RelWithDebInfo",
-      "binaryDir": "${sourceDir}/build/relwithdebinfo",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "CMAKE_EXPORT_COMPILE_COMMANDS": "true"
-      }
+      "displayName": "RelWithDebInfo (default compiler)",
+      "inherits": "base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo" }
+    },
+    {
+      "name": "windows",
+      "hidden": true,
+      "inherits": "base",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }
+    },
+    {
+      "name": "msvc",
+      "displayName": "MSVC (run under `node configureEnv.mjs`)",
+      "inherits": "windows",
+      "cacheVariables": { "CMAKE_C_COMPILER": "cl", "CMAKE_CXX_COMPILER": "cl" }
+    },
+    {
+      "name": "vs-clang",
+      "displayName": "Visual Studio's bundled clang-cl (run under `node configureEnv.mjs`)",
+      "inherits": "windows",
+      "cacheVariables": { "CMAKE_C_COMPILER": "clang-cl", "CMAKE_CXX_COMPILER": "clang-cl" }
+    },
+    {
+      "name": "linux",
+      "hidden": true,
+      "inherits": "base",
+      "condition": { "type": "notEquals", "lhs": "${hostSystemName}", "rhs": "Windows" }
+    },
+    {
+      "name": "gcc",
+      "displayName": "gcc",
+      "inherits": "linux",
+      "cacheVariables": { "CMAKE_C_COMPILER": "gcc", "CMAKE_CXX_COMPILER": "g++" }
+    },
+    {
+      "name": "clang",
+      "displayName": "clang",
+      "inherits": "linux",
+      "cacheVariables": { "CMAKE_C_COMPILER": "clang", "CMAKE_CXX_COMPILER": "clang++" }
+    },
+    {
+      "name": "wasm",
+      "displayName": "WASM: plain clang + wasi sysroot (needs `node configureEnv.mjs --fetch-deps`)",
+      "inherits": "base",
+      "toolchainFile": "${sourceDir}/build_files/wasm-clang.cmake"
     }
   ],
   "buildPresets": [
+    { "name": "debug", "configurePreset": "debug" },
+    { "name": "release", "configurePreset": "release" },
+    { "name": "relwithdebinfo", "configurePreset": "relwithdebinfo" },
+    { "name": "msvc", "configurePreset": "msvc" },
+    { "name": "vs-clang", "configurePreset": "vs-clang" },
+    { "name": "gcc", "configurePreset": "gcc" },
+    { "name": "clang", "configurePreset": "clang" },
+    { "name": "wasm", "configurePreset": "wasm" }
+  ],
+  "testPresets": [
     {
-      "name": "debug",
-      "configurePreset": "debug"
+      "name": "base",
+      "hidden": true,
+      "output": { "outputOnFailure": true },
+      "execution": { "timeout": 1800 },
+      "environment": { "LITESTL_TEST_NO_BREAK": "1" }
     },
-    {
-      "name": "release",
-      "configurePreset": "release"
-    },
-    {
-      "name": "relwithdebinfo",
-      "configurePreset": "relwithdebinfo"
-    }
+    { "name": "msvc", "inherits": "base", "configurePreset": "msvc" },
+    { "name": "vs-clang", "inherits": "base", "configurePreset": "vs-clang" },
+    { "name": "gcc", "inherits": "base", "configurePreset": "gcc" },
+    { "name": "clang", "inherits": "base", "configurePreset": "clang" }
   ]
 }

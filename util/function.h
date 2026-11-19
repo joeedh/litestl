@@ -21,7 +21,7 @@ using std::function;
  * function_ref is trivially copyable, so wrapping one in a std::function stores
  * it inline in the small-object buffer rather than heap-allocating.
  */
-template <typename function_base> class function_ref;
+template <typename function_base> struct function_ref;
 template <typename R, typename... Args> struct function_ref<R(Args...)> {
   /**
    * Constructs from any callable compatible with @p R(Args...). The same-type

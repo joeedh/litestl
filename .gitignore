@@ -3,4 +3,4 @@ tests/ts
 .turbo
 tests/test_binding_system.path.txt
 diff.diff
-
+/build/

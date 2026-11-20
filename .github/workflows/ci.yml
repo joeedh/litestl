@@ -95,7 +95,7 @@ jobs:
 
       - name: Build WASM fixture
         run: |
-          cmake -S litestl -B build-wasm -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_TOOLCHAIN_FILE=litestl/build_files/wasm-clang.cmake
+          cmake -S litestl -B build-wasm -G Ninja -DCMAKE_BUILD_TYPE=Debug "-DCMAKE_TOOLCHAIN_FILE=$PWD/litestl/build_files/wasm-clang.cmake"
           cmake --build build-wasm --target binding_fixture_wasm --parallel 4
 
       - name: Build native fixture

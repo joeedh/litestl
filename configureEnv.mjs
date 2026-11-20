@@ -139,7 +139,9 @@ async function fetchDeps() {
     return
   }
 
-  const tmp = fs.mkdtempSync(Path.join(os.tmpdir(), 'litestl-deps-'))
+  // Extract next to the destination: renameSync can't cross drives (CI's temp
+  // dir is on C:, the workspace on D:).
+  const tmp = fs.mkdtempSync(Path.join(DEPS_DIR, '.tmp-'))
   try {
     const sysroot = Path.join(DEPS_DIR, 'wasi-sysroot')
     const builtins = Path.join(DEPS_DIR, 'wasi-builtins')

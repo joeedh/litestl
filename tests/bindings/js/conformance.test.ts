@@ -129,6 +129,10 @@ describe(`binding conformance (${backend.kind})`, () => {
     assert.equal(backend.typeName(f), 'fixture::Box<float>')
     close(fx.boxExtent(f), 1.5)
     f[Symbol.dispose]()
+
+    // Value-struct parameters (here a span) don't drive inference.
+    assert.equal(fx.sumSpan('double', [1, 2.25]), 3.25)
+    close(fx.sumSpan('float', new Float32Array([0.5, 0.25])), 0.75)
   })
 
   test('ownership', () => {

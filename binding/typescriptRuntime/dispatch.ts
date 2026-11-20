@@ -4,8 +4,10 @@
  * runtime use.
  *
  * - Single: one candidate, nothing to choose.
- * - Infer:  every candidate has a different list of struct-typed parameters, so
- *           the bound objects passed in identify the instantiation.
+ * - Infer:  every candidate has a different list of bound-struct parameters, so
+ *           the bound objects passed in identify the instantiation. Value
+ *           structs (strings, spans, vectors) arrive as plain JS values and
+ *           don't count.
  * - Select: the caller passes a selector key as the first argument: the full
  *           names of the template arguments joined with ',' ("float",
  *           "float,int32").
@@ -18,12 +20,21 @@ export enum DispatchMode {
   Select,
 }
 
-/** The struct a parameter carries, by value, pointer or reference. */
+const valueStructs = new Set([
+  'litestl::util::String',
+  'litestl::util::CString',
+  'litestl::util::Span',
+  'litestl::util::Vector',
+])
+
+/** The bound struct a parameter carries, by value, pointer or reference.
+ * Value structs (strings, spans, vectors) arrive as plain JS values, so they
+ * can't identify an instantiation and don't count. */
 export function paramStruct(t: Binding): StructType | undefined {
   if (t.type === BindingType.Pointer || t.type === BindingType.Reference) {
     t = t.ptrType as Binding
   }
-  return t.type === BindingType.Struct ? t : undefined
+  return t.type === BindingType.Struct && !valueStructs.has(t.name) ? t : undefined
 }
 
 export function selectorKey(m: MethodType, owner?: StructType): string {
@@ -103,7 +114,7 @@ export class CallGroup {
           }
           const ok = m.methodArgs.every(({type}, k) => {
             const st = paramStruct(stripParentTemplate(type))
-            if (!st || st.name === 'litestl::util::String' || st.name === 'litestl::util::CString') {
+            if (!st) {
               return true
             }
             return typeNameOf(args[k]) === st.buildFullName()

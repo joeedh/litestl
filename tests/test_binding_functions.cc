@@ -194,6 +194,8 @@ static void testDispatch(BindingManager *mgr)
   test_assert(dispatch::mode(findGroup(mgr, "fixture::addInts")) == Mode::Single);
   test_assert(dispatch::mode(findGroup(mgr, "fixture::makeBox")) == Mode::Select);
   test_assert(dispatch::mode(findGroup(mgr, "fixture::boxExtent")) == Mode::Infer);
+  // Spans arrive as plain arrays, so they can't drive inference.
+  test_assert(dispatch::mode(findGroup(mgr, "fixture::sumSpan")) == Mode::Select);
 
   const types::Method *m = findFunction(mgr, "fixture::makeBox<double>[double,double]");
   test_assert(m && strcmp(dispatch::selectorKey(m).c_str(), "double") == 0);

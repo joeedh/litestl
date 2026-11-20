@@ -280,6 +280,8 @@ void registerFixture(BindingManager *mgr)
       mgr, "fixture::makeBox", fixture::makeBox, TNAMES("T"), MARGS("lo", "hi"), float, double);
   BIND_FUNCTION_TEMPLATE(
       mgr, "fixture::boxExtent", fixture::boxExtent, TNAMES("T"), MARGS("b"), float, double);
+  BIND_FUNCTION_TEMPLATE(
+      mgr, "fixture::sumSpan", fixture::sumSpan, TNAMES("T"), MARGS("v"), float, double);
   // makeBox returns owned boxes; flag every instantiation.
   for (const types::Method *m : mgr->getFunctions()) {
     if (strcmp(m->name.c_str(), "fixture::makeBox") == 0) {

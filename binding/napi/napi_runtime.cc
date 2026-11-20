@@ -1132,9 +1132,7 @@ napi_value Runtime::call(CallGroup *g, napi_value thisArg, size_t argc, napi_val
       bool ok = true;
       for (int k = 0; k < m->params.size() && ok; k++) {
         const _StructBase *st = dispatch::paramStruct(m->params[k].type);
-        if (!st || nameIs(st->name, "litestl::util::String") ||
-            nameIs(st->name, "litestl::util::CString"))
-        {
+        if (!st) {
           continue;
         }
         Wrapped *w = unwrap(argv[k]);

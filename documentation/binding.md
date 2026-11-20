@@ -296,7 +296,8 @@ one JS call picks an instantiation:
 - **Single**: one candidate.
 - **Infer**: every candidate has a distinct list of struct-typed parameters, so
   the bound objects passed in decide (`boxExtent(b)` picks `Box<double>` from
-  `b`).
+  `b`). Strings, spans and vectors don't count: JS passes them as plain
+  values, so `sumSpan<T>(std::span<const T>)` needs a selector.
 - **Select**: otherwise the caller passes a selector key first. The key is the
   template arguments' full names, comma-joined: `makeBox("double", 1, 4)`.
   For a static method of a template struct, the key starts with the struct's

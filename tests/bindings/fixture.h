@@ -142,6 +142,16 @@ template <typename T> T boxExtent(const Box<T> &b)
 {
   return b.extent();
 }
+/** Instantiations differ only in a span, which JS passes as an array, so the
+ * call needs a selector key. */
+template <typename T> T sumSpan(std::span<const T> v)
+{
+  T sum = 0;
+  for (T x : v) {
+    sum += x;
+  }
+  return sum;
+}
 
 /** Registers everything above with `mgr`. */
 void registerFixture(binding::BindingManager *mgr);

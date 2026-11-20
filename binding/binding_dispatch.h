@@ -6,8 +6,10 @@
  * typescriptRuntime/dispatch.ts that must agree with it.
  *
  * - Single: one candidate, nothing to choose.
- * - Infer:  every candidate has a different list of struct-typed parameters,
- *           so the bound objects passed in identify the instantiation.
+ * - Infer:  every candidate has a different list of bound-struct parameters,
+ *           so the bound objects passed in identify the instantiation. Value
+ *           structs (strings, spans, vectors) arrive as plain JS values and
+ *           don't count.
  * - Select: the caller passes a selector key as the first argument: the full
  *           names of the template arguments joined with ',' ("float",
  *           "float,int32").
@@ -15,11 +17,27 @@
 
 #include "binding.h"
 
+#include <cstring>
+
 namespace litestl::binding::dispatch {
 
 enum class Mode { Single, Infer, Select };
 
-/** The struct a parameter carries, by value, pointer or reference. */
+/** Structs JS passes as plain values (strings, arrays) rather than as bound
+ * objects, so a call's arguments can't identify their instantiation. */
+inline bool isValueStruct(const types::_StructBase *st)
+{
+  for (const char *name : {"litestl::util::String", "litestl::util::CString",
+                           "litestl::util::Span", "litestl::util::Vector"})
+  {
+    if (strcmp(st->name.c_str(), name) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** The bound struct a parameter carries, by value, pointer or reference. */
 inline const types::_StructBase *paramStruct(const BindingBase *t)
 {
   if (t->type == BindingType::Pointer) {
@@ -27,8 +45,11 @@ inline const types::_StructBase *paramStruct(const BindingBase *t)
   } else if (t->type == BindingType::Reference) {
     t = static_cast<const types::Reference *>(t)->refType;
   }
-  return t->type == BindingType::Struct ? static_cast<const types::_StructBase *>(t)
-                                        : nullptr;
+  if (t->type != BindingType::Struct) {
+    return nullptr;
+  }
+  const auto *st = static_cast<const types::_StructBase *>(t);
+  return isValueStruct(st) ? nullptr : st;
 }
 
 /** Selector key for a candidate: the owner struct's template arguments (for

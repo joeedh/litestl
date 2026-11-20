@@ -1,3 +1,5 @@
+#pragma once
+
 #include "binding_base.h"
 #include "binding_struct.h"
 

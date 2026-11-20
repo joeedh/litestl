@@ -72,13 +72,13 @@ public:
   static const int staticSize = static_size;
 
   template <typename Iter> struct iterator_diff {
-    flatten_inline iterator_diff()
+    LSTL_FLATTEN iterator_diff()
     {
     }
-    flatten_inline iterator_diff(int i) : i_(i)
+    LSTL_FLATTEN iterator_diff(int i) : i_(i)
     {
     }
-    flatten_inline iterator_diff(const iterator_diff &b) : i_(b.i_)
+    LSTL_FLATTEN iterator_diff(const iterator_diff &b) : i_(b.i_)
     {
     }
 
@@ -87,79 +87,79 @@ public:
       return i_;
     }
 
-    flatten_inline iterator_diff &operator=(iterator_diff &b)
+    LSTL_FLATTEN iterator_diff &operator=(iterator_diff &b)
     {
       i_ = b.i_;
       return *this;
     }
-    flatten_inline iterator_diff &operator=(int b)
+    LSTL_FLATTEN iterator_diff &operator=(int b)
     {
       i_ = b;
       return *this;
     }
 
-    flatten_inline Iter operator+(const Iter &b) const
+    LSTL_FLATTEN Iter operator+(const Iter &b) const
     {
       return Iter(b.vector(), i_ + b.index());
     }
-    flatten_inline iterator_diff operator+(const iterator_diff &b) const
+    LSTL_FLATTEN iterator_diff operator+(const iterator_diff &b) const
     {
       return iterator_diff(i_ + b.i_);
     }
-    flatten_inline iterator_diff operator+(int b) const
+    LSTL_FLATTEN iterator_diff operator+(int b) const
     {
       return iterator_diff(i_ + b);
     }
-    flatten_inline iterator_diff &operator+=(const Iter &b)
+    LSTL_FLATTEN iterator_diff &operator+=(const Iter &b)
     {
       i_ += b.index();
       return *this;
     }
-    flatten_inline iterator_diff &operator+=(const iterator_diff &b)
+    LSTL_FLATTEN iterator_diff &operator+=(const iterator_diff &b)
     {
       i_ += b.i_;
       return *this;
     }
-    flatten_inline iterator_diff &operator+=(int b)
+    LSTL_FLATTEN iterator_diff &operator+=(int b)
     {
       i_ += b;
       return *this;
     }
 
-    flatten_inline Iter operator-(const Iter &b) const
+    LSTL_FLATTEN Iter operator-(const Iter &b) const
     {
       return Iter(b.vector(), i_ - b.index());
     }
-    flatten_inline iterator_diff operator-(const iterator_diff &b) const
+    LSTL_FLATTEN iterator_diff operator-(const iterator_diff &b) const
     {
       return iterator_diff(i_ - b.i_);
     }
-    flatten_inline iterator_diff operator-(int b) const
+    LSTL_FLATTEN iterator_diff operator-(int b) const
     {
       return iterator_diff(i_ - b);
     }
-    flatten_inline iterator_diff &operator-=(const Iter &b)
+    LSTL_FLATTEN iterator_diff &operator-=(const Iter &b)
     {
       i_ -= b.index();
       return *this;
     }
-    flatten_inline iterator_diff &operator-=(const iterator_diff &b)
+    LSTL_FLATTEN iterator_diff &operator-=(const iterator_diff &b)
     {
       i_ -= b.i_;
       return *this;
     }
-    flatten_inline iterator_diff &operator-=(int b)
+    LSTL_FLATTEN iterator_diff &operator-=(int b)
     {
       i_ -= b;
       return *this;
     }
 
-    flatten_inline auto operator<=>(const iterator_diff &b) const
+    LSTL_FLATTEN auto operator<=>(const iterator_diff &b) const
     {
       return i_ <=> b.i_;
     }
 
-    flatten_inline int value() const
+    LSTL_FLATTEN int value() const
     {
       return i_;
     }
@@ -171,29 +171,29 @@ public:
     using difference_type = int;
     using value_type = QualT;
 
-    flatten_inline QualifiedVector &vector()
+    LSTL_FLATTEN QualifiedVector &vector()
     {
       return *vec_;
     }
-    flatten_inline int index()
+    LSTL_FLATTEN int index()
     {
       return i_;
     }
 
     // default constructor deliberately creates uninitialized memory
-    flatten_inline iterator_base()
+    LSTL_FLATTEN iterator_base()
     {
     }
 
-    flatten_inline iterator_base(QualifiedVector &vec, int i) : i_(i), vec_(&vec)
+    LSTL_FLATTEN iterator_base(QualifiedVector &vec, int i) : i_(i), vec_(&vec)
     {
     }
 
-    flatten_inline iterator_base(const iterator_base &b) : i_(b.i_), vec_(b.vec_)
+    LSTL_FLATTEN iterator_base(const iterator_base &b) : i_(b.i_), vec_(b.vec_)
     {
     }
 
-    flatten_inline iterator_base(iterator_base &&b) : i_(b.i_), vec_(b.vec_)
+    LSTL_FLATTEN iterator_base(iterator_base &&b) : i_(b.i_), vec_(b.vec_)
     {
       b.vec_ = nullptr;
     }
@@ -212,62 +212,62 @@ public:
       return *this;
     }
 
-    flatten_inline bool operator==(const iterator_base &b) const
+    LSTL_FLATTEN bool operator==(const iterator_base &b) const
     {
       return b.i_ == i_;
     }
-    flatten_inline bool operator!=(const iterator_base &b) const
+    LSTL_FLATTEN bool operator!=(const iterator_base &b) const
     {
       return b.i_ != i_;
     }
 
-    flatten_inline QualT &operator*() const
+    LSTL_FLATTEN QualT &operator*() const
     {
       return vec_->data_[i_];
     }
     // preincrement
-    flatten_inline iterator_base &operator++()
+    LSTL_FLATTEN iterator_base &operator++()
     {
       iterator_base a = 5 - *this;
       i_++;
       return *this;
     }
     // postincrement
-    flatten_inline iterator_base operator++(int arg)
+    LSTL_FLATTEN iterator_base operator++(int arg)
     {
       i_++;
       return iterator_base(vec_, i_ - 1);
     }
     // preincrement
-    flatten_inline iterator_base &operator--()
+    LSTL_FLATTEN iterator_base &operator--()
     {
       i_--;
       return *this;
     }
     // postincrement
-    flatten_inline iterator_base operator--(int arg)
+    LSTL_FLATTEN iterator_base operator--(int arg)
     {
       i_--;
       return iterator_base(vec_, i_ + 1);
     }
 
-    flatten_inline auto operator<=>(const iterator_base &b) const
+    LSTL_FLATTEN auto operator<=>(const iterator_base &b) const
     {
       return i_ <=> b.i_;
     }
 
-    flatten_inline iterator_base &operator+=(difference_type b)
+    LSTL_FLATTEN iterator_base &operator+=(difference_type b)
     {
       i_ += b;
       return *this;
     }
-    flatten_inline iterator_base &operator-=(difference_type b)
+    LSTL_FLATTEN iterator_base &operator-=(difference_type b)
     {
       i_ -= b;
       return *this;
     }
 
-    flatten_inline QualT &operator[](int i) const
+    LSTL_FLATTEN QualT &operator[](int i) const
     {
       return vec_->data_[i];
     }
@@ -303,7 +303,7 @@ public:
   using span = std::span<T>;
   using const_span = const std::span<const T>;
 
-  flatten_inline Vector(std::initializer_list<T> list)
+  LSTL_FLATTEN Vector(std::initializer_list<T> list)
   {
     if (list.size() > static_size) {
       data_ = static_cast<T *>(alloc::alloc("Vector data", sizeof(T) * list.size()));
@@ -827,7 +827,7 @@ public:
     if (end < 0) {
       end += int(size_);
     }
-    end = std::min(std::max(end, 0), int(size_));
+    end = (std::min)((std::max)(end, 0), int(size_));
 
     Vector result;
     for (int i = start; i < end; i++) {
@@ -891,7 +891,7 @@ public:
   }
 
 private:
-  flatten_inline void deconstruct_all()
+  LSTL_FLATTEN void deconstruct_all()
   {
     if constexpr (!is_simple<T>()) {
       for (int i = 0; i < size_; i++) {
@@ -963,7 +963,7 @@ private:
     }
   }
 
-  flatten_inline T *static_storage()
+  LSTL_FLATTEN T *static_storage()
   {
     return reinterpret_cast<T *>(static_storage_);
   }

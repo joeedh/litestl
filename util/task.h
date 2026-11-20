@@ -354,7 +354,7 @@ void parallel_for(util::IndexRange range, Callback cb, int grain_size = 1)
 
   const int band_limit = detail::tl_band_override > 0 ? detail::tl_band_override :
                                                        detail::pool.worker_count();
-  const int submission_count = std::min(band_limit, task_count);
+  const int submission_count = (std::min)(band_limit, task_count);
 
   /* Band s spans grain-chunks [first_task, last_task); as one contiguous
    * IndexRange that is [range.start + grain*first_task, ... last_task), with
@@ -365,7 +365,7 @@ void parallel_for(util::IndexRange range, Callback cb, int grain_size = 1)
   };
   auto band_end = [&](int s) {
     const int last_task = int((int64_t(task_count) * (s + 1)) / submission_count);
-    return std::min(range.start + grain_size * last_task, outer_end);
+    return (std::min)(range.start + grain_size * last_task, outer_end);
   };
 
   std::mutex done_mutex;
@@ -502,12 +502,12 @@ void parallel_for_chunks(util::IndexRange range, int chunk, Callback cb)
   if (range.size <= 0) {
     return;
   }
-  chunk = std::max(chunk, 1);
+  chunk = (std::max)(chunk, 1);
   const int nchunks = int((int64_t(range.size) + chunk - 1) / chunk);
   const int end = range.start + range.size;
   auto run_chunk = [&](int k) {
     const int s = range.start + k * chunk;
-    cb(k, IndexRange(s, std::min(chunk, end - s)));
+    cb(k, IndexRange(s, (std::min)(chunk, end - s)));
   };
   if (nchunks == 1 || in_pool_worker()) {
     for (int k = 0; k < nchunks; k++) {
@@ -541,7 +541,7 @@ T parallel_reduce(util::IndexRange range, int chunk, T identity, Map map, Combin
   if (range.size <= 0) {
     return identity;
   }
-  chunk = std::max(chunk, 1);
+  chunk = (std::max)(chunk, 1);
   const int nchunks = int((int64_t(range.size) + chunk - 1) / chunk);
   util::Vector<T> results;
   results.resize(nchunks);
@@ -569,7 +569,7 @@ T parallel_exclusive_scan(util::span<const T> in, util::span<T> out, int chunk =
   if (n <= 0) {
     return T(0);
   }
-  chunk = std::max(chunk, 1);
+  chunk = (std::max)(chunk, 1);
   const int nchunks = int((int64_t(n) + chunk - 1) / chunk);
   util::Vector<T> sums;
   sums.resize(nchunks);

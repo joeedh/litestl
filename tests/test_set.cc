@@ -191,7 +191,7 @@ int main()
 
     Set<string> strset;
 
-    for (int i = 0; i < array_size(strings); i++) {
+    for (int i = 0; i < LSTL_ARRAY_SIZE(strings); i++) {
       strset.add(strings[i]);
     }
 

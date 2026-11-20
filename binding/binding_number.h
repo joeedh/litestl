@@ -41,5 +41,6 @@ _(int64_t, "int64", Int64);
 _(uint64_t, "int64", Int64);
 _(float, "float", Float32);
 _(double, "double", Float64);
+#undef _
 
 } // namespace litestl::binding

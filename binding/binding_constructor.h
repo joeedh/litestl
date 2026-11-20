@@ -63,10 +63,10 @@ struct Constructor : public BindingBase {
   }
 };
 
-inline const Constructor *_StructBase::findConstructor(const string &name) const
+inline const Constructor *_StructBase::findConstructor(const string &ctorName) const
 {
   for (const Constructor *c : constructors) {
-    if (c->name == name) {
+    if (c->name == ctorName) {
       return c;
     }
   }

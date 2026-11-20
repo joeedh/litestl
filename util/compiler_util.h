@@ -76,7 +76,7 @@ static inline const void *pointer_offset(const void *ptr, int n)
 }
 
 /** Returns the number of elements in an array. */
-#define array_size(Array) (sizeof(Array) / sizeof(*(Array)))
+#define LSTL_ARRAY_SIZE(Array) (sizeof(Array) / sizeof(*(Array)))
 
 #ifdef __clang__
 #define ATTR_NO_OPT __attribute__((optnone))
@@ -88,15 +88,16 @@ static inline const void *pointer_offset(const void *ptr, int n)
 #define ATTR_NO_OPT
 #endif
 
-#if defined(MSVC) && !defined(__clang__)
-#define flatten_inline [[msvc::flatten]]
-#define force_inline [[forceinline]]
+/* _MSC_VER, not MSVC: CMake's MSVC variable is not a preprocessor macro. */
+#if defined(_MSC_VER) && !defined(__clang__)
+#define LSTL_FLATTEN [[msvc::flatten]]
+#define LSTL_FORCE_INLINE [[msvc::forceinline]]
 #elif defined(__clang__)
-#define flatten_inline [[gnu::flatten]]
-#define force_inline [[clang::always_inline]]
+#define LSTL_FLATTEN [[gnu::flatten]]
+#define LSTL_FORCE_INLINE [[clang::always_inline]]
 #else
-#define flatten_inline [[gnu::flatten]]
-#define force_inline [[clang::always_inline]]
+#define LSTL_FLATTEN [[gnu::flatten]]
+#define LSTL_FORCE_INLINE [[gnu::always_inline]]
 #endif
 
 // TODO: remove this, this is duplicative with MAKE_FLAGS_CLASS.

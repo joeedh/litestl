@@ -118,8 +118,8 @@ public:
           for (int k : r) {
             const uint32_t p = p0 + uint32_t(k);
             const uint32_t base = p << shift;
-            const uint32_t lo = std::max(first, base) - base;
-            const uint32_t hi = std::min(first + n, base + uint32_t(spans[k].size())) - base;
+            const uint32_t lo = (std::max)(first, base) - base;
+            const uint32_t hi = (std::min)(first + n, base + uint32_t(spans[k].size())) - base;
             f(spans[k].subspan(lo, hi - lo), base + lo);
           }
         },

@@ -56,7 +56,7 @@ template <IsVector VEC> struct Binder<VEC> {
     // resize is a templated method, build manually
     types::Method *m = new types::Method("resize");
     m->params.append({"newsize", Bind<int>()});
-    m->thunk = [](void *self, void **args, void *ret) {
+    m->thunk = [](void *self, void **args, void * /*ret*/) {
       VEC *v = static_cast<VEC *>(self);
       int *newsize = static_cast<int *>(args[0]);
       v->resize(*newsize);
@@ -69,7 +69,7 @@ template <IsVector VEC> struct Binder<VEC> {
     // resize but don't invoke constructors or destructors
     m = new types::Method("resize_no_construct_destruct");
     m->params.append({"newsize", Bind<int>()});
-    m->thunk = [](void *self, void **args, void *ret) {
+    m->thunk = [](void *self, void **args, void * /*ret*/) {
       VEC *v = static_cast<VEC *>(self);
       int *newsize = static_cast<int *>(args[0]);
       v->template resize<false>(*newsize);

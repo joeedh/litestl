@@ -3,6 +3,7 @@
 #include "test_harness.h"
 
 #include <string>
+#include <thread>
 
 test_init;
 
@@ -55,8 +56,34 @@ static void test_new_array()
   alloc::DeleteArray(ints, 5);
 }
 
+/* A guard on one thread must not mark another thread's allocations permanent, or it
+ * would hide that thread's leaks. */
+static void test_permanent_guard_is_per_thread()
+{
+  const size_t normalBefore = alloc::getMemorySize();
+  const size_t permBefore = alloc::getPermanentMemorySize();
+  void *mine = nullptr;
+  void *theirs = nullptr;
+  {
+    alloc::PermanentGuard guard;
+    mine = alloc::alloc("permanent block", 64);
+    std::thread other([&theirs]() { theirs = alloc::alloc("ordinary block", 64); });
+    other.join();
+  }
+  const size_t permDelta = alloc::getPermanentMemorySize() - permBefore;
+  const size_t normalDelta = alloc::getMemorySize() - normalBefore;
+  test_assert(permDelta > 0);
+  test_assert(normalDelta == permDelta);
+
+  alloc::release(mine);
+  alloc::release(theirs);
+  test_assert(alloc::getMemorySize() == normalBefore);
+  test_assert(alloc::getPermanentMemorySize() == permBefore);
+}
+
 int main()
 {
   test_new_array();
+  test_permanent_guard_is_per_thread();
   return test_end();
 }

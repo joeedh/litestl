@@ -44,8 +44,8 @@ void print_block(const void *mem);
 size_t getMemorySize();
 /** Returns the total permanent memory allocated by all threads. */
 size_t getPermanentMemorySize();
-/** Begins a permanent allocation scope. Allocations made while active are excluded from
- * leak reports. */
+/** Begins a permanent allocation scope on the calling thread. That thread's allocations
+ * made while it is active are excluded from leak reports; other threads are unaffected. */
 void pushPermanentAlloc();
 /** Ends a permanent allocation scope. */
 void popPermanentAlloc();

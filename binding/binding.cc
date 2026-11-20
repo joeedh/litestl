@@ -22,6 +22,7 @@ struct [[gnu::packed]] WasmOffsets {
     int constructors;
     int templateParams;
     int structSize;
+    int isInterface;
   } Struct;
   struct {
     int ownerType;
@@ -60,9 +61,11 @@ struct [[gnu::packed]] WasmOffsets {
   struct {
     int ptrType;
     int isNonNull;
+    int isConst;
   } Pointer;
   struct {
     int refType;
+    int isConst;
   } Reference;
   struct {
     int name;
@@ -85,6 +88,7 @@ struct [[gnu::packed]] WasmOffsets {
     int templateParams;
     int returnPolicy;
     int jsName;
+    int isOptional;
   } Method;
   struct {
     int name;
@@ -164,6 +168,7 @@ BindingInfo *LSTL_GetBindingInfo()
   info->offsets.Struct.constructors = offsetof(_StructBase, constructors);
   info->offsets.Struct.templateParams = offsetof(_StructBase, templateParams);
   info->offsets.Struct.structSize = offsetof(_StructBase, structSize);
+  info->offsets.Struct.isInterface = offsetof(_StructBase, isInterface);
 
   info->offsets.Constructor.ownerType = offsetof(Constructor, ownerType);
   info->offsets.Constructor.params = offsetof(Constructor, params);
@@ -192,7 +197,9 @@ BindingInfo *LSTL_GetBindingInfo()
 
   info->offsets.Pointer.ptrType = offsetof(Pointer, ptrType);
   info->offsets.Pointer.isNonNull = offsetof(Pointer, isNonNull);
+  info->offsets.Pointer.isConst = offsetof(Pointer, isConst);
   info->offsets.Reference.refType = offsetof(Reference, refType);
+  info->offsets.Reference.isConst = offsetof(Reference, isConst);
 
   info->offsets.EnumItem.name = offsetof(EnumItem, name);
   info->offsets.EnumItem.value = offsetof(EnumItem, value);
@@ -210,6 +217,7 @@ BindingInfo *LSTL_GetBindingInfo()
   info->offsets.Method.templateParams = offsetof(Method, templateParams);
   info->offsets.Method.returnPolicy = offsetof(Method, returnPolicy);
   info->offsets.Method.jsName = offsetof(Method, jsName);
+  info->offsets.Method.isOptional = offsetof(Method, isOptional);
 
   info->offsets.MethodParam.name = offsetof(MethodParam, name);
   info->offsets.MethodParam.type = offsetof(MethodParam, type);
@@ -271,7 +279,7 @@ extern "C" {
  * incompatible change to the LSTL_* functions or the descriptor structs. */
 int LSTL_AbiVersion()
 {
-  return 2;
+  return 3; // 3: Struct.isInterface/typeKey, Method.isOptional, Pointer/Reference.isConst
 }
 
 /** NULL when the registered functions are consistent, else an error message

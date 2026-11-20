@@ -29,7 +29,7 @@ public:
     if (((static_size >> block_shift) << block_shift) != static_size) {
       vector_size_++;
     }
-    vector_size_ = std::max(vector_size_, 1);
+    vector_size_ = (std::max)(vector_size_, 1);
 
     for (int i = 0; i < vector_size_; i++) {
       vector_[i] = 0;
@@ -155,7 +155,7 @@ private:
 
   void realloc(int new_vec_size)
   {
-    new_vec_size = std::max(new_vec_size, 1);
+    new_vec_size = (std::max)(new_vec_size, 1);
     BlockInt *old = vector_;
 
     vector_ = static_cast<BlockInt *>(

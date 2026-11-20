@@ -51,7 +51,7 @@ template <typename T, typename Less> void stable_sort(span<T> s, Less less)
   /* Insertion-sort runs of 16 first: stable, and cheap on short runs. */
   constexpr size_t kRun = 16;
   for (size_t lo = 0; lo < n; lo += kRun) {
-    const size_t hi = std::min(n, lo + kRun);
+    const size_t hi = (std::min)(n, lo + kRun);
     for (size_t i = lo + 1; i < hi; i++) {
       T v = s[i];
       size_t j = i;
@@ -71,8 +71,8 @@ template <typename T, typename Less> void stable_sort(span<T> s, Less less)
   T *dst = buf.data();
   for (size_t width = kRun; width < n; width *= 2) {
     for (size_t lo = 0; lo < n; lo += 2 * width) {
-      const size_t mid = std::min(n, lo + width);
-      const size_t hi = std::min(n, lo + 2 * width);
+      const size_t mid = (std::min)(n, lo + width);
+      const size_t hi = (std::min)(n, lo + 2 * width);
       size_t a = lo, b = mid, o = lo;
       while (a < mid && b < hi) {
         /* take from the right run only if strictly less: keeps stability */

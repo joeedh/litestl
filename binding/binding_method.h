@@ -144,9 +144,9 @@ struct Method : public BindingBase {
     jsName = n;
     return *this;
   }
-  Method &addTemplateParam(const BindingBase *type, string paramName)
+  Method &addTemplateParam(const BindingBase *paramType, string paramName)
   {
-    templateParams.append({paramName, type});
+    templateParams.append({paramName, paramType});
     hasCachedName = false;
     return *this;
   }

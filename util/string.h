@@ -334,7 +334,7 @@ private:
 };
 
 // default for static_size is defined in forward declaration at the top of this file
-template <typename Char, int static_size> class alignas(8) String {
+template <typename Char, int static_size> struct alignas(8) String {
 public:
   using value_type = Char;
   using iterator = detail::StringIter<String, Char>;
@@ -659,7 +659,7 @@ public:
     if (count < 0) {
       count += size();
     }
-    count = std::min(count, int(size()) - start);
+    count = (std::min)(count, int(size()) - start);
     for (int i = start; i < start + count; i++) {
       b += data_[i];
     }

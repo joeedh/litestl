@@ -110,7 +110,7 @@ static bool aabbRayEnter(const AABB<T> &aabb,
 {
   using value_type = typename T::value_type;
   value_type t0 = value_type(0);
-  value_type t1 = std::numeric_limits<value_type>::max();
+  value_type t1 = (std::numeric_limits<value_type>::max)();
 
   for (int axis = 0; axis < 3; axis++) {
     if (std::fabs(dir[axis]) < value_type(1e-12)) {
@@ -125,8 +125,8 @@ static bool aabbRayEnter(const AABB<T> &aabb,
     if (ta > tb) {
       std::swap(ta, tb);
     }
-    t0 = std::max(t0, ta);
-    t1 = std::min(t1, tb);
+    t0 = (std::max)(t0, ta);
+    t1 = (std::min)(t1, tb);
     if (t0 > t1) {
       return false;
     }
@@ -236,8 +236,8 @@ static bool aabbSphereIsect(const T &p, typename T::value_type r, const AABB<T> 
     int i2 = ((i + 1) % 3);
     int i3 = ((i + 2) % 3);
     p2arr[i] = p2arr[i] < 0.0 ? lminarr[i] : lmaxarr[i];
-    p2arr[i2] = std::min(std::max(p2arr[i2], lminarr[i2]), lmaxarr[i2]);
-    p2arr[i3] = std::min(std::max(p2arr[i3], lminarr[i3]), lmaxarr[i3]);
+    p2arr[i2] = (std::min)((std::max)(p2arr[i2], lminarr[i2]), lmaxarr[i2]);
+    p2arr[i3] = (std::min)((std::max)(p2arr[i3], lminarr[i3]), lmaxarr[i3]);
     bool isect2 = p2arr.distanceSqr(lp) <= r;
     if (isect2) {
       return true;
@@ -257,7 +257,7 @@ static T closestPointOnSegment(
   auto t = len2 > 1e-17 ? (p - a).dot(ab) / len2 : typename T::value_type(0);
 
   if (clip) {
-    t = std::min(std::max(t, typename T::value_type(0)), typename T::value_type(1));
+    t = (std::min)((std::max)(t, typename T::value_type(0)), typename T::value_type(1));
   }
 
   t_out = t;

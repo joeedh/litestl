@@ -29,9 +29,9 @@ public:
   using is_math_vector = std::true_type;
 
   static constexpr T negative_limit = std::numeric_limits<T>::lowest();
-  static constexpr T positive_limit = std::numeric_limits<T>::max();
+  static constexpr T positive_limit = (std::numeric_limits<T>::max)();
   /** smallest possible positive value */
-  static constexpr T smallest_limit = std::numeric_limits<T>::min();
+  static constexpr T smallest_limit = (std::numeric_limits<T>::min)();
 
   static constexpr int size = vec_size;
 
@@ -205,20 +205,20 @@ public:
 #endif
 
   /** Component-wise minimum with @p b. Modifies in-place. */
-  constexpr Vec &min(const Vec &b)
+  constexpr Vec &(min)(const Vec &b)
   {
     for (int i = 0; i < vec_size; i++) {
-      vec_[i] = std::min(vec_[i], b.vec_[i]);
+      vec_[i] = (std::min)(vec_[i], b.vec_[i]);
     }
 
     return *this;
   }
 
   /** Component-wise maximum with @p b. Modifies in-place. */
-  constexpr Vec &max(const Vec &b)
+  constexpr Vec &(max)(const Vec &b)
   {
     for (int i = 0; i < vec_size; i++) {
-      vec_[i] = std::max(vec_[i], b.vec_[i]);
+      vec_[i] = (std::max)(vec_[i], b.vec_[i]);
     }
 
     return *this;

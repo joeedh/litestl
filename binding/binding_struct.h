@@ -57,7 +57,7 @@ struct _StructBase : public BindingBase {
 
     if (templateParams.size() > 0) {
       s += "<";
-      for (size_t i = 0; i < templateParams.size(); i++) {
+      for (int i = 0; i < int(templateParams.size()); i++) {
         if (i > 0) {
           s += ",";
         }
@@ -172,9 +172,9 @@ template <typename CLS> struct Struct : public _StructBase {
   {
     constructors.append(c);
   }
-  void addTemplateParam(const BindingBase *type, string name)
+  void addTemplateParam(const BindingBase *paramType, string paramName)
   {
-    templateParams.append({name, type});
+    templateParams.append({paramName, paramType});
   }
 };
 

@@ -52,7 +52,7 @@ struct NumLitType : public LiteralType {
   virtual string buildFullName() const override
   {
     char buf[512];
-    sprintf(buf, "%d", data);
+    snprintf(buf, sizeof(buf), "%d", data);
     return string(buf);
   }
 };

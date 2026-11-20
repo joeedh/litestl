@@ -263,7 +263,7 @@ template <typename Float, int N, int Options = Eigen::ColMajor> struct Matrix {
     int maxwid = 0;
     for (int i = 0; i < N; i++) {
       for (int j = 0; j < N; j++) {
-        maxwid = std::max(maxwid, wid(mat_[i][j]));
+        maxwid = (std::max)(maxwid, wid(mat_[i][j]));
       }
     }
 

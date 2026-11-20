@@ -79,7 +79,7 @@ string relative(string basepath, string path)
   bool ok = false;
 
   int commonCount = 0;
-  for (int i = 0; i < std::min(baseparts.size(), parts.size()); i++) {
+  for (int i = 0; i < (std::min)(baseparts.size(), parts.size()); i++) {
     if (baseparts[i] == parts[i]) {
       commonCount++;
     } else {

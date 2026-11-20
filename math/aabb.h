@@ -17,14 +17,14 @@ template <isMathVec T> struct AABB {
   /** type tag */
   using is_math_aabb = int;
 
-  AABB() : min(T::negative_limit), max(T::negative_limit)
+  AABB() : min{T::negative_limit}, max{T::negative_limit}
   {
   }
 
-  AABB(const T &min, const T &max) : min(min), max(max)
+  AABB(const T &min, const T &max) : min{min}, max{max}
   {
   }
-  AABB(T min, T max) : min(min), max(max)
+  AABB(T min, T max) : min{min}, max{max}
   {
   }
   AABB(const AABB &aabb) = default;
@@ -66,8 +66,8 @@ template <isMathVec T> struct AABB {
 
   inline AABB &add(const T &v)
   {
-    min.min(v);
-    max.max(v);
+    (min.min)(v);
+    (max.max)(v);
     return *this;
   }
 };

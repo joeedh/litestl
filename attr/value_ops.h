@@ -95,7 +95,7 @@ template <typename I> inline I saturate_round(double x)
     return std::numeric_limits<I>::lowest();
   }
   if (r >= double(std::numeric_limits<I>::max())) {
-    return std::numeric_limits<I>::max();
+    return (std::numeric_limits<I>::max)();
   }
   return I(r);
 }

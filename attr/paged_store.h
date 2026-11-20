@@ -178,11 +178,11 @@ template <ColumnValue T> class PagedStore {
     if (p + 1 < pages_.size()) {
       return page_size();
     }
-    uint32_t c = std::min(kTailMinCapacity, page_size());
+    uint32_t c = (std::min)(kTailMinCapacity, page_size());
     while (c < needed) {
       c <<= 1;
     }
-    return std::min(c, page_size());
+    return (std::min)(c, page_size());
   }
 
   const T &uniform_value(const Page &pg) const
@@ -210,7 +210,7 @@ template <ColumnValue T> class PagedStore {
       }
       pg.sum_valid = false;
 #endif
-      const uint32_t cap = std::max(capacity_for(p, needed), pg.buf.capacity());
+      const uint32_t cap = (std::max)(capacity_for(p, needed), pg.buf.capacity());
       util::RcBuffer<T> nb = util::RcBuffer<T>::copy_of(pg.buf.data(), pg.buf.capacity(), cap);
       for (uint32_t i = pg.buf.capacity(); i < cap; i++) {
         nb.data()[i] = default_;
@@ -219,7 +219,7 @@ template <ColumnValue T> class PagedStore {
       return pg.buf.data();
     }
     const T v = uniform_value(pg);
-    const uint32_t cap = capacity_for(p, std::max(needed, live_count(p)));
+    const uint32_t cap = capacity_for(p, (std::max)(needed, live_count(p)));
     pg.buf = util::RcBuffer<T>::make(cap);
     for (uint32_t i = 0; i < cap; i++) {
       pg.buf.data()[i] = v;
@@ -360,7 +360,7 @@ public:
       const uint32_t p = (old - 1) >> shift_;
       Page &pg = pages_[p];
       const uint32_t first = old & mask_;
-      const uint32_t last = std::min(page_size(), n - (p << shift_)); /* exclusive */
+      const uint32_t last = (std::min)(page_size(), n - (p << shift_)); /* exclusive */
       if (pg.state == PageState::Dense) {
         T *d = make_unique_dense(p, last);
         for (uint32_t i = first; i < last; i++) {
@@ -392,7 +392,7 @@ public:
       const uint32_t p = i >> shift_;
       const uint32_t page_start = p << shift_;
       const uint32_t live = live_count(p);
-      const uint32_t stop = std::min(end, page_start + live);
+      const uint32_t stop = (std::min)(end, page_start + live);
       if ((i == page_start) && (stop == page_start + live)) {
         set_uniform(p, v);
       }

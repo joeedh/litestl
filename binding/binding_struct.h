@@ -157,19 +157,21 @@ template <typename CLS> struct Struct : public _StructBase {
     abort();
   }
 
+  /** Copies the parent's members and methods, except those this struct already
+   * defines under the same name (the child's own definition wins). */
   void inherit(_StructBase *parent)
   {
     for (auto &member : parent->members) {
       if (!members.contains(
-              [&member](const StructMember &m) { return m.name == member.name; }))
-        ;
-      members.append(member);
+              [&member](const StructMember &m) { return m.name == member.name; })) {
+        members.append(member);
+      }
     }
     for (auto &method : parent->methods) {
       if (!methods.contains(
-              [&method](const Method *m) { return m->name == method->name; }))
-        ;
-      methods.append(method);
+              [&method](const Method *m) { return m->name == method->name; })) {
+        methods.append(method);
+      }
     }
   }
 

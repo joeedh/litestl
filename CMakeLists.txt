@@ -57,7 +57,9 @@ endif()
 add_subdirectory(path)
 if (LITESTL_BUILD_TESTS)
   add_subdirectory(tests/bindings)
-  if (NOT BUILD_WASM)
+  # The wasi toolchain builds only the conformance fixture; Emscripten builds
+  # still get tests/ for the test_binding_system harness.
+  if (NOT LITESTL_WASM_CLANG_TOOLCHAIN)
     add_subdirectory(tests)
   endif()
 endif()

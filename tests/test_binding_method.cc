@@ -42,8 +42,46 @@ struct Foo {
   }
 };
 
+/* Redefines `add` and adds `twice`; inherits `sum` and `bump` from Foo. */
+struct Bar : Foo {
+  int add(int a, int b)
+  {
+    return a + b + 1;
+  }
+  int twice(int a)
+  {
+    return 2 * a;
+  }
+
+  static binding::types::Struct<Bar> *defineBindings()
+  {
+    alloc::PermanentGuard guard;
+    using binding::types::Struct;
+    Struct<Bar> *st = new Struct<Bar>("test::Bar", sizeof(Bar));
+    BIND_STRUCT_METHOD(st, add, MARGS("a", "b"));
+    BIND_STRUCT_METHOD(st, twice, MARGS("a"));
+    return st;
+  }
+};
+
+static void test_inherit()
+{
+  auto *parent = Foo::defineBindings();
+  auto *child = Bar::defineBindings();
+  child->inherit(parent);
+
+  const char *expected[] = {"add", "twice", "sum", "bump"};
+  test_assert(child->methods.size() == 4);
+  for (int i = 0; i < 4 && i < int(child->methods.size()); i++) {
+    test_assert(strcmp(child->methods[i]->name.c_str(), expected[i]) == 0);
+  }
+  /* The child's own `add` wins over the parent's. */
+  test_assert(child->methods[0] != parent->methods[0]);
+}
+
 int main()
 {
+  test_inherit();
   const auto *base = Foo::defineBindings();
   test_assert(base->type == BindingType::Struct);
   test_assert(base->methods.size() == 3);

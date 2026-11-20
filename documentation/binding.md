@@ -255,6 +255,25 @@ Parameter and return conventions (`detail::bindParam` / `bindReturn`):
 - A returned pointer is borrowed by default. `Method::returnsOwned()` marks it
   as allocated with `litestl::alloc` and owned by the caller; JS then frees it
   on dispose or GC.
+- `Pointer::isConst` and `Reference::isConst` record `const T*` and `const T&`.
+  They are flags only: `buildFullName()` is the same with or without const, so
+  registration keys don't change.
+- noexcept member functions bind like any other.
+
+Interface support (used by coredcc, which treats a bound struct as an interface
+whose methods are slots). `LITESTL_HAS_IFACE_DESCRIPTORS` is defined when these
+exist:
+
+- `_StructBase::isInterface` marks such a struct. litestl itself doesn't act on it.
+- `_StructBase::typeKey` is unique per C++ type (`types::typeKeyOf<T>()`, set by
+  `Struct<T>`), so two types bound under one name can be told apart.
+- `_StructBase::findMethod("name")` returns the first method with that name.
+- `BIND_OPTIONAL_METHOD(st, cost, MARGS())` binds a slot implementations may
+  leave out (`Method::isOptional`). It is variadic because `MARGS(...)` expands
+  to a type containing a comma.
+- `BIND_ADAPTOR_METHOD(st, count, countVerts, MARGS())` binds a free function
+  `R countVerts(Self &, A...)` as method `count` of `Self`, for a type whose
+  class can't be edited. A `const Self &` first parameter makes the method const.
 
 The thunk ABI (`void(*)(void *self, void **args, void *ret)`):
 

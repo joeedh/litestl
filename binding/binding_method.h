@@ -49,6 +49,8 @@ struct Method : public BindingBase {
   MethodThunk thunk = nullptr;
   bool isConst = false;
   bool isStatic = false;
+  /** An interface slot an implementation may leave out (see BIND_OPTIONAL_METHOD). */
+  bool isOptional = false;
   Vector<StructTemplate> templateParams;
   ReturnPolicy returnPolicy = ReturnPolicy::Borrowed;
   /** JS-visible name; empty means the last `::` segment of `name`. */
@@ -59,7 +61,8 @@ struct Method : public BindingBase {
   }
   Method(const Method &b)
       : BindingBase(b), returnType(b.returnType), params(b.params), thunk(b.thunk),
-        isConst(b.isConst), isStatic(b.isStatic), templateParams(b.templateParams),
+        isConst(b.isConst), isStatic(b.isStatic), isOptional(b.isOptional),
+        templateParams(b.templateParams),
         returnPolicy(b.returnPolicy), jsName(b.jsName)
   {
   }
@@ -130,6 +133,11 @@ struct Method : public BindingBase {
       abort();
     }
     returnPolicy = ReturnPolicy::Owned;
+    return *this;
+  }
+  Method &setOptional()
+  {
+    isOptional = true;
     return *this;
   }
   Method &returnsBorrowed()
@@ -248,13 +256,16 @@ template <typename T> const BindingBase *bindParam()
     } else {
       auto *p = new types::Pointer(Bind<P>());
       p->isNonNull = true;
+      p->isConst = std::is_const_v<std::remove_pointer_t<U>>;
       return p;
     }
   } else if constexpr (std::is_lvalue_reference_v<T> &&
                        !(std::is_const_v<std::remove_reference_t<T>> &&
                          IsValueLikeParam<U>::value))
   {
-    return new types::Reference(Bind<U>());
+    auto *r = new types::Reference(Bind<U>());
+    r->isConst = std::is_const_v<std::remove_reference_t<T>>;
+    return r;
   } else {
     return Bind<U>();
   }
@@ -273,10 +284,14 @@ template <typename R> const BindingBase *bindReturn()
     if constexpr (std::is_void_v<P>) {
       return Bind<typename Dependent<void *, R>::type>();
     } else {
-      return new types::Pointer(Bind<P>());
+      auto *p = new types::Pointer(Bind<P>());
+      p->isConst = std::is_const_v<std::remove_pointer_t<U>>;
+      return p;
     }
   } else if constexpr (std::is_reference_v<R>) {
-    return new types::Reference(Bind<U>());
+    auto *r = new types::Reference(Bind<U>());
+    r->isConst = std::is_const_v<std::remove_reference_t<R>>;
+    return r;
   } else {
     return Bind<U>();
   }
@@ -336,6 +351,26 @@ template <class C, class R, class... A> struct MethodTraits<R (C::*)(A...) const
   static constexpr bool is_const = true;
   static constexpr size_t arity = sizeof...(A);
 };
+
+template <class C, class R, class... A>
+struct MethodTraits<R (C::*)(A...) noexcept> : MethodTraits<R (C::*)(A...)> {};
+template <class C, class R, class... A>
+struct MethodTraits<R (C::*)(A...) const noexcept> : MethodTraits<R (C::*)(A...) const> {};
+
+/** A free function `R fn(Self &, A...)` (or `const Self &`) bound as a method of Self:
+ * an adaptor for a type whose class can't be edited. */
+template <class T> struct AdaptorTraits;
+
+template <class S, class R, class... A> struct AdaptorTraits<R (*)(S &, A...)> {
+  using self_type = S;
+  using class_type = std::remove_const_t<S>;
+  using return_type = R;
+  using args_tuple = std::tuple<A...>;
+  static constexpr bool is_const = std::is_const_v<S>;
+  static constexpr size_t arity = sizeof...(A);
+};
+template <class S, class R, class... A>
+struct AdaptorTraits<R (*)(S &, A...) noexcept> : AdaptorTraits<R (*)(S &, A...)> {};
 
 template <class T> struct FunctionTraits;
 
@@ -429,6 +464,48 @@ private:
   }
 };
 
+/** Builds descriptors for adaptor methods (see AdaptorTraits): `self` is passed to
+ * `Fn` as its first argument. */
+template <auto Fn> struct AdaptorBuilder {
+  using Traits = detail::AdaptorTraits<decltype(Fn)>;
+  using self_type = typename Traits::self_type;
+  using class_type = typename Traits::class_type;
+  using return_type = typename Traits::return_type;
+  static constexpr bool is_const = Traits::is_const;
+  static constexpr size_t arity = Traits::arity;
+
+  static void thunk(void *self, void **args, void *ret)
+  {
+    invokeImpl(static_cast<self_type *>(self), args, ret, std::make_index_sequence<arity>{});
+  }
+
+private:
+  template <size_t I> using arg_t = std::tuple_element_t<I, typename Traits::args_tuple>;
+
+  template <size_t... I>
+  static void invokeImpl(self_type *self, void **args, void *ret, std::index_sequence<I...>)
+  {
+    (void)args;
+    detail::storeReturn<return_type>(ret, [&]() -> decltype(auto) {
+      return Fn(*self, detail::thunkArg<arg_t<I>>(args[I])...);
+    });
+  }
+};
+
+/** A Method descriptor for the adaptor function `Fn` (see AdaptorTraits). */
+template <auto Fn> Method *makeAdaptorMethod(string name)
+{
+  using Builder = AdaptorBuilder<Fn>;
+  using Traits = typename Builder::Traits;
+  Method *m = new Method(name);
+  m->returnType = detail::bindReturn<typename Traits::return_type>();
+  detail::fillParamsImpl<typename Traits::args_tuple>(m->params,
+                                                     std::make_index_sequence<Traits::arity>{});
+  m->thunk = &Builder::thunk;
+  m->isConst = Builder::is_const;
+  return m;
+}
+
 /** A Method descriptor for the free (or static member) function `Fn`. */
 template <auto Fn> Method *makeFunction(string name)
 {
@@ -481,6 +558,20 @@ void bindTemplateInstances(util::Vector<const char *, 8> tnames, Make make, Add 
   def->template _addMethod<&std::remove_reference_t<decltype(*(def)->type_null)>::mname>( \
          #mname)                                                                         \
       ->setArgNames(ARGNAMES)
+
+/**
+ * An optional interface slot: like BIND_STRUCT_METHOD, but implementations may leave
+ * it out. Variadic because MARGS(...) expands to a type containing a comma.
+ *   BIND_OPTIONAL_METHOD(st, cost, MARGS());
+ */
+#define BIND_OPTIONAL_METHOD(def, mname, ...)                                              BIND_STRUCT_METHOD(def, mname, (__VA_ARGS__)).setOptional()
+
+/**
+ * A free function `R fn(Self &, A...)` (or `const Self &`, which makes the method
+ * const) bound as method `mname` of Self, for types whose class can't be edited:
+ *   BIND_ADAPTOR_METHOD(st, count, countVerts, MARGS());
+ */
+#define BIND_ADAPTOR_METHOD(def, mname, fn, ARGNAMES)                                      def->template _addAdaptorMethod<&fn>(#mname)->setArgNames(ARGNAMES)
 
 /** Note: see Struct.setMethodArgNames */
 #define BIND_STRUCT_METHOD_SIG(def, mname, RET, ARGNAMES, ARGS)                          \

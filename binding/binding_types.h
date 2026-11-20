@@ -96,6 +96,8 @@ template <typename T> struct Array : public BindingBase {
 struct Pointer : public BindingBase {
   const BindingBase *ptrType;
   bool isNonNull = false;
+  /** Points at const (`const T*`). Not part of buildFullName(). */
+  bool isConst = false;
 
   Pointer(const BindingBase *ptrType, string name = "pointer")
       : ptrType(ptrType), BindingBase(BindingType::Pointer, name)
@@ -103,7 +105,8 @@ struct Pointer : public BindingBase {
     //
   }
 
-  Pointer(const Pointer &b) : BindingBase(b), ptrType(b.ptrType), isNonNull(b.isNonNull)
+  Pointer(const Pointer &b)
+      : BindingBase(b), ptrType(b.ptrType), isNonNull(b.isNonNull), isConst(b.isConst)
   {
     //
   }
@@ -123,12 +126,14 @@ struct Pointer : public BindingBase {
 
 struct Reference : public BindingBase {
   const BindingBase *refType;
+  /** Refers to const (`const T&`). Not part of buildFullName(). */
+  bool isConst = false;
   Reference(const BindingBase *ptrType, string name = "reference")
       : refType(ptrType), BindingBase(BindingType::Reference, name)
   {
     //
   }
-  Reference(const Reference &p) : BindingBase(p), refType(p.refType)
+  Reference(const Reference &p) : BindingBase(p), refType(p.refType), isConst(p.isConst)
   {
     //
   }

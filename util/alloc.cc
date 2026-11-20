@@ -24,7 +24,8 @@ static constexpr int TAG2 = ('T' | ('A' << 8) | ('g' << 16));
 std::atomic<size_t> memorySize = {0};
 std::atomic<size_t> permanentMemorySize = {
     0}; // size of things allocated when disableLeakTracking > 0
-std::atomic<size_t> allocatingPermanent = {0};
+/* Per thread: a PermanentGuard on one thread must not hide another thread's leaks. */
+thread_local int allocatingPermanent = 0;
 
 enum { MEM_PERMANENT = 1 << 0 };
 
@@ -196,8 +197,7 @@ void *alloc(const char *tag, size_t size)
   tail->check[7] = '3';
 #endif
 
-  int permanentMem = allocatingPermanent.load();
-  if (permanentMem) {
+  if (allocatingPermanent > 0) {
     mem->flag |= MEM_PERMANENT;
     std::atomic_fetch_add(&permanentMemorySize, mem->size + sizeof(MemHead));
   } else {
@@ -342,10 +342,10 @@ const char *getMemoryTag(void *vmem)
 
 void pushPermanentAlloc()
 {
-  allocatingPermanent.fetch_add(1);
+  allocatingPermanent++;
 }
 void popPermanentAlloc()
 {
-  allocatingPermanent.fetch_sub(1);
+  allocatingPermanent--;
 }
 } // namespace litestl::alloc

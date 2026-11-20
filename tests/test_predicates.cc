@@ -48,19 +48,20 @@ template <int D, size_t N> static int oracle_sign(P kind, const std::array<Pt<D>
     }
   }
   std::vector<std::vector<BigInt>> m;
+  m.reserve(N);
   for (auto &p : pts) {
-    std::vector<BigInt> row;
+    std::vector<BigInt> &row = m.emplace_back();
+    row.reserve(D + 2);
     BigInt lift;
     for (double c : p) {
       BigInt v = BigInt::from_double_scaled(c, k);
-      lift = lift + v * v;
-      row.push_back(v);
+      lift += v * v;
+      row.push_back(std::move(v));
     }
     if (kind == P::IC || kind == P::IS) {
-      row.push_back(lift);
+      row.push_back(std::move(lift));
     }
     row.push_back(BigInt::from_i64(1));
-    m.push_back(row);
   }
   return BigInt::det(m).sign();
 }

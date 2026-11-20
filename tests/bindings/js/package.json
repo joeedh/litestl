@@ -1,0 +1,11 @@
+{
+  "name": "litestl-binding-conformance",
+  "private": true,
+  "type": "module",
+  "description": "Runs the binding fixture through the WASM and N-API backends; see run.mjs.",
+  "devDependencies": {
+    "@types/node": "24.3.0",
+    "esbuild-wasm": "0.25.9",
+    "typescript": "5.9.3"
+  }
+}

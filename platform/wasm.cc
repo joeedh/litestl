@@ -1,5 +1,4 @@
 #include <chrono>
-#include <emscripten.h>
 #include <string>
 #include <thread>
 

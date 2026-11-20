@@ -30,10 +30,18 @@ export class BoundArray<T = any, MANAGER extends BindingManager = BindingManager
 
     const {set, setUninitialized} = createSetFunc(wasm, manager, (i) => ptr + i * elemSize, type)
 
-    return new Proxy(this, {
+    const proxy: this = new Proxy(this, {
       get: (target, prop) => {
         if (prop === 'length') {
           return arrayType.arraySize
+        }
+        if (prop === Symbol.iterator) {
+          const receiver = proxy as any
+          return function* () {
+            for (let i = 0; i < arrayType.arraySize; i++) {
+              yield receiver[i]
+            }
+          }
         }
         const i = parseInt(prop as string)
         if (isNaN(i)) {
@@ -62,6 +70,7 @@ export class BoundArray<T = any, MANAGER extends BindingManager = BindingManager
         return set(parseInt(p), newValue)
       },
     })
+    return proxy
   }
 }
 

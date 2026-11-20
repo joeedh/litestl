@@ -1,13 +1,20 @@
 #include "typescript.h"
 #include "../../path/path.h"
 #include "../binding.h"
+#include "../binding_dispatch.h"
 #include "binding_types.h"
 #include "util/set.h"
 #include <algorithm>
+#include <cstring>
 #include <regex>
 #include <string>
 
-static const litestl::util::string basicTSTypeDefs = R"(
+// Plain char arrays rather than util::string: a global util::string allocates
+// during static init, outside any alloc::PermanentGuard, and shows up as a leak.
+static const char header[] = R"(/** Auto-generated file */
+/* eslint-disable @typescript-eslint/no-misused-new */
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 type pointer<T=any> = number;
 type int8 = number;
 type uint8 = number;
@@ -15,17 +22,14 @@ type int16 = number;
 type uint16 = number;
 type int32 = number;
 type uint32 = number;
-type int64 = number;
-type uint64 = number;
+type int64 = bigint;
+type uint64 = bigint;
 type float = number;
 type double = number;
 
 )";
 
-static const litestl::util::string header = R"(/** Auto-generated file */
-/* eslint-disable @typescript-eslint/no-misused-new */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-)" + basicTSTypeDefs;
+static const char *runtimeModule = "@litestl/typescript-runtime";
 
 namespace litestl::binding::generators {
 using util::Set;
@@ -33,6 +37,74 @@ using util::string;
 using util::Vector;
 
 namespace {
+
+using types::Method;
+using types::StructTemplate;
+using StructGroup = Vector<const types::_StructBase *>;
+
+/** Where a rendered type appears; returns convert some types to JS values. */
+enum class Pos { Member, Param, Return };
+
+/**
+ * The instantiations of one template, rendered together so that a position
+ * holding a template parameter's value in every one of them prints as that
+ * parameter. Row i holds instantiation i's template arguments; `paramText[j]`
+ * is what parameter j prints as (its name, or a selector-map lookup).
+ */
+struct TemplCtx {
+  Vector<Vector<StructTemplate>> rows;
+  Vector<string> paramText;
+};
+
+/** One candidate of a callable group: a method and the struct instantiation it
+ * belongs to (nullptr for free functions). */
+struct Callable {
+  const Method *m;
+  const types::_StructBase *owner;
+};
+
+struct RenderedCallable {
+  string generics;
+  string params;
+  string ret;
+  /** `export type X_Args = {...}` for select-mode templates, else empty. */
+  string mapDecl;
+};
+
+bool isReservedWord(const string &s)
+{
+  static const char *words[] = {
+      "break",  "case",    "catch",  "class",  "const",      "continue", "debugger",
+      "default", "delete", "do",     "else",   "enum",       "export",   "extends",
+      "false",  "finally", "for",    "function", "if",       "import",   "in",
+      "instanceof", "new", "null",   "return", "super",      "switch",   "this",
+      "throw",  "true",    "try",    "typeof", "var",        "void",     "while",
+      "with",   "let",     "static", "yield",  "await",      "implements", "interface",
+      "package", "private", "protected", "public"};
+  for (const char *w : words) {
+    if (strcmp(s.c_str(), w) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+string shortName(const string &name)
+{
+  std::string s = name.c_str();
+  auto i = s.rfind("::");
+  return i == std::string::npos ? name : string(s.substr(i + 2).c_str());
+}
+
+bool nameIs(const string &name, const char *s)
+{
+  return strcmp(name.c_str(), s) == 0;
+}
+
+int compareNames(const string &a, const string &b)
+{
+  return strcmp(a.c_str(), b.c_str());
+}
 
 class TypescriptGenerator {
 public:
@@ -81,6 +153,7 @@ private:
   // -- state --
   Vector<const BindingBase *> &rootTypes;
   util::Map<string, const BindingBase *> typeMap;
+  Vector<const Method *> functions;
   util::Map<string, string> *files = nullptr;
   Set<ClassRef> classRefs;
   Set<string> classRefImports;
@@ -95,6 +168,20 @@ private:
                         Set<string> &imports,
                         const string &filename,
                         bool isDecl = false);
+  string render(const Vector<const BindingBase *> &nodes,
+                const TemplCtx &ctx,
+                Set<string> &imports,
+                const string &filename,
+                Pos pos);
+  string renderUnion(const Vector<const BindingBase *> &nodes,
+                     Set<string> &imports,
+                     const string &filename);
+  RenderedCallable renderCallable(const Vector<Callable> &entries,
+                                  const Vector<const Method *> &dispatchGroup,
+                                  bool keyIncludesOwner,
+                                  const string &mapName,
+                                  Set<string> &imports,
+                                  const string &filename);
 
   // -- imports --
   /** Returns an import statement, or empty string if none should be emitted. */
@@ -103,21 +190,15 @@ private:
 
   // -- per-file builders --
   string buildEnumDecl(const types::Enum *e);
-  void buildStructFile(const types::Struct<void> *st);
+  void buildStructFile(const StructGroup &group);
   void buildUnionMapFile(const types::Union *u);
+  void buildFunctionFiles();
   string buildHelpersFile();
 
   /** Find the Union (in typeMap) whose `disPropType` is the given enum.
    * Used to resolve a `ParentTemplateParam::disambiguator` enum back to the
    * mapped-type that the TS generator emits for that union. */
   const types::Union *findUnionForEnum(const types::Enum *e) const;
-
-  // -- parameter list helper, shared by methods + constructors --
-  template <typename ParamT>
-  void emitParamList(const Vector<ParamT> &params,
-                     string &out,
-                     Set<string> &imports,
-                     const string &filename);
 
   // -- pure helpers --
   static bool isSpecialStruct(const string &s);
@@ -129,13 +210,8 @@ private:
 
 bool TypescriptGenerator::isSpecialStruct(const string &s)
 {
-  if (s.starts_with("litestl::util::Vector<")) {
-    return true;
-  }
-  if (s.starts_with("litestl::util::String")) {
-    return true;
-  }
-  return false;
+  return s.starts_with("litestl::util::Vector<") || s.starts_with("litestl::util::String") ||
+         s.starts_with("litestl::util::CString") || s.starts_with("litestl::util::Span");
 }
 
 bool TypescriptGenerator::isSpecialStruct(const BindingBase *type)
@@ -186,11 +262,16 @@ string TypescriptGenerator::formatType(const BindingBase *type,
 
   if (transformSpecial && type->type == BindingType::Struct) {
     const types::Struct<void> *st = static_cast<const types::Struct<void> *>(type);
-    if (st->buildFullName().starts_with("litestl::util::Vector<")) {
+    string full = st->buildFullName();
+    if (full.starts_with("litestl::util::Vector<")) {
       return "(" + formatType(st->templateParams[0].type, true) + ")[]";
     }
-    if (st->buildFullName().starts_with("litestl::util::String")) {
+    if (full.starts_with("litestl::util::String") || full.starts_with("litestl::util::CString"))
+    {
       return "string";
+    }
+    if (full.starts_with("litestl::util::Span")) {
+      return "ArrayLike<" + formatType(st->templateParams[0].type, true) + ">";
     }
   }
   if (type->type == BindingType::Array) {
@@ -247,6 +328,20 @@ string TypescriptGenerator::formatType(const BindingBase *type,
     }
     return typeStrs.join("|");
   }
+  if (type->type == BindingType::Literal) {
+    const LiteralType *lit = static_cast<const LiteralType *>(type);
+    switch (lit->litType) {
+    case LitType::Bool:
+      return static_cast<const BoolLitType *>(lit)->data ? "true" : "false";
+    case LitType::Number: {
+      char buf[64];
+      snprintf(buf, sizeof(buf), "%d", int(static_cast<const NumLitType *>(lit)->data));
+      return buf;
+    }
+    case LitType::String:
+      return "\"" + static_cast<const StrLitType *>(lit)->data + "\"";
+    }
+  }
 
   // Strip the namespace from the class name *first*, then recursively format
   // the template arguments. Using buildFullName() naively would smash the
@@ -277,6 +372,20 @@ string TypescriptGenerator::formatType(const BindingBase *type,
 
 void TypescriptGenerator::recurse(const BindingBase *type)
 {
+  if (type->type == BindingType::Method) {
+    const Method *m = static_cast<const Method *>(type);
+    if (!functions.contains(m)) {
+      functions.append(m);
+      if (m->returnType) {
+        recurse(m->returnType);
+      }
+      for (const auto &p : m->params) {
+        recurse(p.type);
+      }
+    }
+    return;
+  }
+
   if (typeMap.contains(type->buildFullName())) {
     return;
   }
@@ -292,7 +401,7 @@ void TypescriptGenerator::recurse(const BindingBase *type)
     for (auto &param : st->templateParams) {
       recurse(param.type);
     }
-    for (const types::Method *m : st->methods) {
+    for (const Method *m : st->methods) {
       if (m->returnType) {
         recurse(m->returnType);
       }
@@ -369,7 +478,7 @@ void TypescriptGenerator::addImport(const BindingBase *type,
     // its own import even though the wrapper itself doesn't.
     if (isSpecialStruct(type)) {
       const _StructBase *st = static_cast<const _StructBase *>(type);
-      if (st->buildFullName().starts_with("litestl::util::Vector<")) {
+      if (st->templateParams.size() > 0) {
         addImport(st->templateParams[0].type, imports, filename);
       }
       break;
@@ -417,6 +526,10 @@ void TypescriptGenerator::addImport(const BindingBase *type,
     addImport(static_cast<const Array<const BindingBase *> *>(type)->arrayType,
               imports,
               filename);
+    break;
+  case BindingType::ParentTemplParam:
+    addImport(
+        static_cast<const ParentTemplateParam *>(type)->concreteType, imports, filename);
     break;
   default:
     break;
@@ -474,28 +587,7 @@ string TypescriptGenerator::formatTemplate(const BindingBase *type,
         s += "unknown";
       }
     } else if (!isDecl && param.type->type == BindingType::Literal) {
-      const LiteralType *lit = static_cast<const LiteralType *>(param.type);
-      switch (lit->litType) {
-      case LitType::Bool: {
-        const BoolLitType *lit2 = static_cast<const BoolLitType *>(lit);
-        s += lit2->data ? "true" : "false";
-        break;
-      }
-      case LitType::Number: {
-        const NumLitType *lit2 = static_cast<const NumLitType *>(lit);
-        char buf[512];
-        snprintf(buf, sizeof(buf), "%d", int(lit2->data));
-        s += buf;
-        break;
-      }
-      case LitType::String: {
-        const StrLitType *lit2 = static_cast<const StrLitType *>(lit);
-        s += "\"" + lit2->data + "\"";
-        break;
-      }
-      default:
-        s += "unknown";
-      }
+      s += formatType(param.type);
     } else {
       s += isDecl ? param.name : formatType(param.type);
       addImport(param.type, imports, filename);
@@ -507,6 +599,338 @@ string TypescriptGenerator::formatTemplate(const BindingBase *type,
     i++;
   }
   return s + ">";
+}
+
+string TypescriptGenerator::renderUnion(const Vector<const BindingBase *> &nodes,
+                                        Set<string> &imports,
+                                        const string &filename)
+{
+  Vector<string> seen;
+  for (const BindingBase *n : nodes) {
+    string s = formatType(n, true);
+    addImport(n, imports, filename);
+    if (!seen.contains(s)) {
+      seen.append(s);
+    }
+  }
+  return seen.size() == 1 ? seen[0] : "(" + seen.join(" | ") + ")";
+}
+
+string TypescriptGenerator::render(const Vector<const BindingBase *> &nodes,
+                                   const TemplCtx &ctx,
+                                   Set<string> &imports,
+                                   const string &filename,
+                                   Pos pos)
+{
+  using namespace litestl::binding::types;
+  const BindingBase *n0 = nodes[0];
+
+  // A position holding parameter j's value in every instantiation is that
+  // parameter. A parameter that never varies tells us nothing (with one
+  // instantiation everything would "match"), so those render concretely.
+  if (nodes.size() >= 2 && ctx.rows.size() == nodes.size()) {
+    int match = -1;
+    int count = 0;
+    for (int j = 0; j < ctx.paramText.size(); j++) {
+      bool all = true;
+      bool varies = false;
+      string first = ctx.rows[0][j].type->buildFullName();
+      for (int i = 0; i < nodes.size(); i++) {
+        string v = ctx.rows[i][j].type->buildFullName();
+        varies = varies || v != first;
+        if (nodes[i]->buildFullName() != v) {
+          all = false;
+          break;
+        }
+      }
+      if (all && varies) {
+        match = j;
+        count++;
+      }
+    }
+    if (count > 1) {
+      printf("typescript generator: a type in %s matches more than one template "
+             "parameter in every instantiation (e.g. %s); mark it explicitly with "
+             "ParentTemplateParam\n",
+             filename.c_str(),
+             n0->buildFullName().c_str());
+      abort();
+    }
+    if (count == 1) {
+      return ctx.paramText[match];
+    }
+  }
+
+  for (const BindingBase *n : nodes) {
+    if (n->type != n0->type || n->name != n0->name) {
+      return renderUnion(nodes, imports, filename);
+    }
+  }
+
+  auto column = [&](auto getter) {
+    Vector<const BindingBase *> col;
+    for (const BindingBase *n : nodes) {
+      col.append(getter(n));
+    }
+    return col;
+  };
+
+  switch (n0->type) {
+  case BindingType::ParentTemplParam:
+    addImport(n0, imports, filename);
+    return static_cast<const ParentTemplateParam *>(n0)->templParamName;
+  case BindingType::Pointer: {
+    string s = render(column([](const BindingBase *n) {
+                        return static_cast<const Pointer *>(n)->ptrType;
+                      }),
+                      ctx,
+                      imports,
+                      filename,
+                      pos);
+    if (!static_cast<const Pointer *>(n0)->isNonNull) {
+      s += " | undefined";
+    }
+    return s;
+  }
+  case BindingType::Reference:
+    return render(column([](const BindingBase *n) {
+                    return static_cast<const Reference *>(n)->refType;
+                  }),
+                  ctx,
+                  imports,
+                  filename,
+                  pos);
+  case BindingType::Array:
+    return "(" +
+           render(column([](const BindingBase *n) {
+                    return static_cast<const Array<BindingBase> *>(n)->arrayType;
+                  }),
+                  ctx,
+                  imports,
+                  filename,
+                  Pos::Member) +
+           ")[]";
+  case BindingType::Struct: {
+    const _StructBase *st0 = static_cast<const _StructBase *>(n0);
+    for (const BindingBase *n : nodes) {
+      if (static_cast<const _StructBase *>(n)->templateParams.size() !=
+          st0->templateParams.size())
+      {
+        return renderUnion(nodes, imports, filename);
+      }
+    }
+    auto templateArg = [&](int k) {
+      return column([k](const BindingBase *n) {
+        return static_cast<const _StructBase *>(n)->templateParams[k].type;
+      });
+    };
+    if (nameIs(st0->name, "litestl::util::String") || nameIs(st0->name, "litestl::util::CString")) {
+      return "string";
+    }
+    if (nameIs(st0->name, "litestl::util::Span")) {
+      return "ArrayLike<" + render(templateArg(0), ctx, imports, filename, Pos::Member) +
+             ">";
+    }
+    if (nameIs(st0->name, "litestl::util::Vector")) {
+      if (pos == Pos::Return) {
+        bool bytes = true;
+        for (const BindingBase *n : templateArg(0)) {
+          bytes = bytes && nameIs(n->name, "uint8");
+        }
+        if (bytes) {
+          return "Uint8Array";
+        }
+      }
+      return "(" + render(templateArg(0), ctx, imports, filename, Pos::Member) + ")[]";
+    }
+
+    string s = formatImport(n0, filename);
+    if (s.size() > 0) {
+      imports.add(s);
+    }
+    string out = shortName(st0->name);
+    if (st0->templateParams.size() > 0) {
+      out += "<";
+      for (int k = 0; k < st0->templateParams.size(); k++) {
+        if (k > 0) {
+          out += ",";
+        }
+        out += render(templateArg(k), ctx, imports, filename, Pos::Member);
+      }
+      out += ">";
+    }
+    return out;
+  }
+  default:
+    return renderUnion(nodes, imports, filename);
+  }
+}
+
+/**
+ * Renders a callable's generics, parameter list and return type. `entries`
+ * are the descriptors rendered together (one method across a template
+ * struct's instantiations, or a function template's instantiations);
+ * `dispatchGroup` is what the runtime chooses among, which decides between
+ * inferring the template arguments and taking a selector key.
+ */
+RenderedCallable TypescriptGenerator::renderCallable(const Vector<Callable> &entries,
+                                                     const Vector<const Method *> &dispatchGroup,
+                                                     bool keyIncludesOwner,
+                                                     const string &mapName,
+                                                     Set<string> &imports,
+                                                     const string &filename)
+{
+  RenderedCallable out;
+  const Callable &e0 = entries[0];
+  const int ownerCount = e0.owner ? e0.owner->templateParams.size() : 0;
+  const int methodCount = e0.m->templateParams.size();
+
+  TemplCtx ctx;
+  bool aligned = true;
+  for (const Callable &e : entries) {
+    Vector<StructTemplate> row;
+    if (e.owner) {
+      for (const auto &p : e.owner->templateParams) {
+        row.append(p);
+      }
+    }
+    for (const auto &p : e.m->templateParams) {
+      row.append(p);
+    }
+    if (row.size() != ownerCount + methodCount ||
+        e.m->params.size() != e0.m->params.size())
+    {
+      aligned = false;
+    }
+    ctx.rows.append(row);
+  }
+
+  // Template parameters the runtime dispatches on: the method's own, plus the
+  // owner's for static methods of a template struct.
+  const int firstDispatch = keyIncludesOwner ? 0 : ownerCount;
+  const dispatch::Mode mode = dispatch::mode(dispatchGroup);
+  const bool templated = mode != dispatch::Mode::Single &&
+                         ownerCount + methodCount > firstDispatch;
+
+  Vector<string> names;
+  for (int j = 0; j < ownerCount + methodCount; j++) {
+    string name = ctx.rows[0][j].name;
+    // A method's own parameter can shadow its struct's (both named T).
+    if (j >= ownerCount && names.contains(name)) {
+      name += "_";
+    }
+    names.append(name);
+  }
+
+  for (int j = 0; j < ownerCount + methodCount; j++) {
+    ctx.paramText.append(names[j]);
+  }
+
+  if (templated && mode == dispatch::Mode::Select) {
+    out.mapDecl = "export type " + mapName + " = {\n";
+    Vector<string> keys;
+    for (const Callable &e : entries) {
+      string key = dispatch::selectorKey(e.m, keyIncludesOwner ? e.owner : nullptr);
+      if (keys.contains(key)) {
+        continue;
+      }
+      keys.append(key);
+      out.mapDecl += "  \"" + escapeString(key) + "\": [";
+      bool firstElem = true;
+      const Callable *src = &e;
+      Vector<StructTemplate> row;
+      if (src->owner) {
+        for (const auto &p : src->owner->templateParams) {
+          row.append(p);
+        }
+      }
+      for (const auto &p : src->m->templateParams) {
+        row.append(p);
+      }
+      for (int j = firstDispatch; j < row.size(); j++) {
+        if (!firstElem) {
+          out.mapDecl += ", ";
+        }
+        firstElem = false;
+        out.mapDecl += formatType(row[j].type, true);
+        addImport(row[j].type, imports, filename);
+      }
+      out.mapDecl += "],\n";
+    }
+    out.mapDecl += "};\n";
+    for (int j = firstDispatch; j < ownerCount + methodCount; j++) {
+      char buf[32];
+      snprintf(buf, sizeof(buf), "%d", j - firstDispatch);
+      ctx.paramText[j] = mapName + "[K][" + buf + "]";
+    }
+    out.generics = "<K extends keyof " + mapName + ">";
+    out.params = "_t: K";
+  } else if (templated) {
+    out.generics = "<";
+    for (int j = firstDispatch; j < ownerCount + methodCount; j++) {
+      Vector<const BindingBase *> values;
+      for (int i = 0; i < entries.size(); i++) {
+        if (j < ctx.rows[i].size()) {
+          values.append(ctx.rows[i][j].type);
+        }
+      }
+      if (j > firstDispatch) {
+        out.generics += ", ";
+      }
+      out.generics += names[j] + " extends " + renderUnion(values, imports, filename);
+    }
+    out.generics += ">";
+  }
+
+  if (!aligned) {
+    ctx.rows.clear();
+  }
+
+  auto columnOf = [&](auto getter) {
+    Vector<const BindingBase *> col;
+    if (!aligned) {
+      col.append(getter(e0.m));
+      return col;
+    }
+    for (const Callable &e : entries) {
+      col.append(getter(e.m));
+    }
+    return col;
+  };
+
+  for (int k = 0; k < e0.m->params.size(); k++) {
+    const auto &p = e0.m->params[k];
+    string pname = p.name.size() > 0 ? p.name : string("arg");
+    if (p.name.size() == 0) {
+      char buf[16];
+      snprintf(buf, sizeof(buf), "%d", k);
+      pname = pname + string(buf);
+    }
+    if (isReservedWord(pname)) {
+      pname += "_";
+    }
+    if (out.params.size() > 0) {
+      out.params += ", ";
+    }
+    out.params +=
+        pname + ": " +
+        render(columnOf([k](const Method *m) { return m->params[k].type; }),
+               ctx,
+               imports,
+               filename,
+               Pos::Param);
+  }
+
+  if (e0.m->returnType) {
+    out.ret = render(columnOf([](const Method *m) { return m->returnType; }),
+                     ctx,
+                     imports,
+                     filename,
+                     Pos::Return);
+  } else {
+    out.ret = "void";
+  }
+  return out;
 }
 
 const types::Union *TypescriptGenerator::findUnionForEnum(const types::Enum *e) const
@@ -560,13 +984,7 @@ void TypescriptGenerator::buildUnionMapFile(const types::Union *u)
   }
 
   string enumShortName = formatType(e); // already strips namespace
-  string mapShortName;
-  {
-    std::string fullMapName = u->mapName.c_str();
-    auto i = fullMapName.find_last_of(':');
-    mapShortName = (i != std::string::npos) ? string(fullMapName.substr(i + 1).c_str())
-                                            : string(fullMapName.c_str());
-  }
+  string mapShortName = shortName(u->mapName);
 
   Set<string> imports;
   imports.add("import type {" + enumShortName + "} from \"" +
@@ -609,7 +1027,7 @@ void TypescriptGenerator::buildUnionMapFile(const types::Union *u)
   for (auto &imp : imports) {
     importString += imp + "\n";
   }
-  files->add(filename, header + importString + "\n" + body);
+  files->add(filename, string(header) + importString + "\n" + body);
 }
 
 string TypescriptGenerator::buildEnumDecl(const types::Enum *e)
@@ -622,46 +1040,27 @@ string TypescriptGenerator::buildEnumDecl(const types::Enum *e)
   return content;
 }
 
-template <typename ParamT>
-void TypescriptGenerator::emitParamList(const Vector<ParamT> &params,
-                                        string &out,
-                                        Set<string> &imports,
-                                        const string &filename)
+/** Emits one file per struct template (or plain struct), rendered from all of
+ * its instantiations. */
+void TypescriptGenerator::buildStructFile(const StructGroup &group)
 {
-  for (size_t i = 0; i < params.size(); i++) {
-    const auto &p = params[i];
-    string pname = p.name.size() > 0 ? p.name : string("arg");
-    if (p.name.size() == 0) {
-      char buf[16];
-      snprintf(buf, sizeof(buf), "%zu", i);
-      pname = pname + string(buf);
-    }
-    if (i > 0) {
-      out += ", ";
-    }
-    out += pname + ": " + formatType(p.type);
-    if (p.type->type == BindingType::Struct) {
-      out += formatTemplate(p.type, imports, filename, false);
-    }
-    addImport(p.type, imports, filename);
-  }
-}
-
-void TypescriptGenerator::buildStructFile(const types::Struct<void> *st)
-{
+  const types::_StructBase *st = group[0];
   const BindingBase *type = st;
   string s = header;
   string filename = getFileName(type->name);
+  string structShort = shortName(st->name);
   Set<string> imports;
 
   // Vector<T> / String are TS-mapped (T[] / string), not standalone classes —
   // don't register them as ClassRefs.
-  if (!isSpecialStruct(type)) {
-    classRefs.add({formatType(type, false, false),
-                   getModuleName(type->name),
-                   st->buildFullName(),
-                   formatTemplate(type, classRefImports, classRefFilename, false),
-                   st->templateParams.size() > 0});
+  for (const types::_StructBase *inst : group) {
+    if (!isSpecialStruct(inst)) {
+      classRefs.add({formatType(inst, false, false),
+                     getModuleName(inst->name),
+                     inst->buildFullName(),
+                     formatTemplate(inst, classRefImports, classRefFilename, false),
+                     inst->templateParams.size() > 0});
+    }
   }
 
   // Scan members for the (at most one) `ParentTemplateParam::disambiguator`
@@ -669,7 +1068,6 @@ void TypescriptGenerator::buildStructFile(const types::Struct<void> *st)
   // template parameter, a `[getTypeSymbol]: K` discriminator field, and
   // rewrite each tagged member's type to `<map>[K]`.
   const types::Enum *disEnum = nullptr;
-  string disParamName; // e.g. "T" — which C++ template param the disambiguator covers
   for (auto &member : st->members) {
     if (member.type->type != BindingType::ParentTemplParam) {
       continue;
@@ -683,27 +1081,13 @@ void TypescriptGenerator::buildStructFile(const types::Struct<void> *st)
       // Multiple distinct disambiguators on one struct isn't supported yet.
       // Fall back to no disambiguation and let the user notice in the diff.
       disEnum = nullptr;
-      disParamName = "";
       break;
     }
     disEnum = p->disambiguator;
-    disParamName = p->templParamName;
   }
 
   const types::Union *disUnion = disEnum ? findUnionForEnum(disEnum) : nullptr;
-  string mapShortName;
-  if (disUnion) {
-    mapShortName =
-        formatType(disUnion->disPropType); // basename of enum, e.g. "UniformBindType"
-    // Replace "UniformBindType" → "UniformBindTypeMap" by using the union's mapName.
-    string fullMapName = disUnion->mapName;
-    int i = std::string(fullMapName.c_str()).find_last_of(':');
-    if (i >= 0) {
-      mapShortName = string(std::string(fullMapName.c_str()).substr(i + 1).c_str());
-    } else {
-      mapShortName = fullMapName;
-    }
-  }
+  string mapShortName = disUnion ? shortName(disUnion->mapName) : string("");
 
   string templDecl = formatTemplate(type, imports, filename, true);
   if (disUnion) {
@@ -723,8 +1107,23 @@ void TypescriptGenerator::buildStructFile(const types::Struct<void> *st)
         "import type {" + mapShortName + "} from \"" +
         path::relative(path::dirname(filename), getModuleName(disUnion->mapName)) +
         "\";");
-    imports.add("import {getTypeSymbol} from \"@litestl/typescript-runtime\";");
+    imports.add("import {getTypeSymbol} from \"" + string(runtimeModule) + "\";");
   }
+
+  TemplCtx ctx;
+  for (const types::_StructBase *inst : group) {
+    ctx.rows.append(inst->templateParams);
+  }
+  for (const auto &p : st->templateParams) {
+    ctx.paramText.append(p.name);
+  }
+  for (const types::_StructBase *inst : group) {
+    if (inst->templateParams.size() != st->templateParams.size()) {
+      ctx.rows.clear();
+      break;
+    }
+  }
+  TemplCtx single;
 
   s += string("export interface ") + formatType(type, false, false) + templDecl +
        string(" {\n");
@@ -744,41 +1143,166 @@ void TypescriptGenerator::buildStructFile(const types::Struct<void> *st)
       }
     }
 
-    string s2 = "  " + member.name + ": " + formatType(member.type);
-    if (member.type->type == BindingType::Struct) {
-      if (!isSpecialStruct(member.type)) {
-        classRefs.add(
-            {formatType(member.type),
-             getModuleName(member.type->name),
-             member.type->buildFullName(),
-             formatTemplate(member.type, classRefImports, classRefFilename, false),
-             false});
+    Vector<const BindingBase *> nodes;
+    for (const types::_StructBase *inst : group) {
+      for (auto &m2 : inst->members) {
+        if (m2.name == member.name) {
+          nodes.append(m2.type);
+          break;
+        }
       }
-      s2 += formatTemplate(member.type, imports, filename, false);
     }
-    addImport(member.type, imports, filename);
-    s += s2 + "\n";
+    const bool aligned = nodes.size() == group.size();
+    if (!aligned) {
+      nodes.clear();
+      nodes.append(member.type);
+    }
+    s += "  " + member.name + ": " +
+         render(nodes, aligned ? ctx : single, imports, filename, Pos::Member) + "\n";
   }
 
-  for (const types::Method *m : st->methods) {
-    s += "  " + m->name + "(";
-    emitParamList(m->params, s, imports, filename);
-    s += "): ";
-    if (m->returnType) {
-      s += formatType(m->returnType);
-      addImport(m->returnType, imports, filename);
+  // A plain instance method is matched across instantiations by JS name and
+  // occurrence (overloads keep emitting as TS overloads). Template methods and
+  // static methods are grouped by JS name: the runtime dispatches among a
+  // template method's instantiations within one struct instantiation (`this`
+  // fixes the struct's arguments), and among a static's across all of them.
+  util::Map<string, int> occurrences;
+  Vector<string> doneGroups;
+  string staticBody;
+  string mapDecls;
+  for (const Method *m : st->methods) {
+    string jsName = m->getJsName();
+    const bool plain = !m->isStatic && m->templateParams.size() == 0;
+    Vector<Callable> entries;
+    Vector<const Method *> dispatchGroup;
+
+    if (plain) {
+      int *seen = occurrences.lookup_ptr(jsName);
+      if (!seen) {
+        occurrences.add(jsName, 0);
+        seen = occurrences.lookup_ptr(jsName);
+      }
+      const int k = (*seen)++;
+      for (const types::_StructBase *inst : group) {
+        int n = 0;
+        for (const Method *m2 : inst->methods) {
+          if (!m2->isStatic && m2->templateParams.size() == 0 && m2->getJsName() == jsName &&
+              n++ == k)
+          {
+            entries.append({m2, inst});
+            break;
+          }
+        }
+      }
+      if (entries.size() != group.size()) {
+        entries.clear();
+        entries.append({m, st});
+      }
+      dispatchGroup.append(m);
     } else {
-      s += "void";
+      string groupKey = jsName + (m->isStatic ? "#static" : "#template");
+      if (doneGroups.contains(groupKey)) {
+        continue;
+      }
+      doneGroups.append(groupKey);
+      for (const types::_StructBase *inst : group) {
+        for (const Method *m2 : inst->methods) {
+          if (m2->isStatic == m->isStatic && m2->getJsName() == jsName &&
+              (m->isStatic || m2->templateParams.size() > 0))
+          {
+            entries.append({m2, inst});
+            if (m->isStatic || inst == st) {
+              dispatchGroup.append(m2);
+            }
+          }
+        }
+      }
     }
-    s += "\n";
+    string mapName = structShort + "_" + jsName + "_Args";
+    RenderedCallable rc = renderCallable(
+        entries, dispatchGroup, m->isStatic, mapName, imports, filename);
+    mapDecls += rc.mapDecl;
+    if (m->isStatic) {
+      staticBody += "  " + jsName + ": bindStatic(\"" + escapeString(st->name) + "\", \"" +
+                    escapeString(jsName) + "\") as " + rc.generics + "(" + rc.params +
+                    ") => " + rc.ret + ",\n";
+    } else {
+      s += "  " + jsName + rc.generics + "(" + rc.params + "): " + rc.ret + "\n";
+    }
   }
 
-  for (const types::Constructor *c : st->constructors) {
+  for (int ci = 0; ci < st->constructors.size(); ci++) {
+    const types::Constructor *c = st->constructors[ci];
+    Vector<const types::Constructor *> ctors;
+    for (const types::_StructBase *inst : group) {
+      if (ci < inst->constructors.size() &&
+          inst->constructors[ci]->params.size() == c->params.size())
+      {
+        ctors.append(inst->constructors[ci]);
+      }
+    }
+    const bool aligned = ctors.size() == group.size();
     s += "  new(";
-    emitParamList(c->params, s, imports, filename);
-    s += "): " + formatType(type) + formatTemplate(type, imports, filename, false) + "\n";
+    for (int k = 0; k < c->params.size(); k++) {
+      const auto &p = c->params[k];
+      string pname = p.name.size() > 0 ? p.name : string("arg");
+      if (p.name.size() == 0) {
+        char buf[16];
+        snprintf(buf, sizeof(buf), "%d", k);
+        pname = pname + string(buf);
+      }
+      Vector<const BindingBase *> nodes;
+      if (aligned) {
+        for (const types::Constructor *c2 : ctors) {
+          nodes.append(c2->params[k].type);
+        }
+      } else {
+        nodes.append(p.type);
+      }
+      if (k > 0) {
+        s += ", ";
+      }
+      s += pname + ": " +
+           render(nodes, aligned ? ctx : single, imports, filename, Pos::Param);
+    }
+    string self;
+    if (!isSpecialStruct(type) && group.size() >= 2 && ctx.rows.size() > 0) {
+      Vector<const BindingBase *> selfNodes;
+      for (const types::_StructBase *inst : group) {
+        selfNodes.append(inst);
+      }
+      self = render(selfNodes, ctx, imports, filename, Pos::Member);
+    } else if (isSpecialStruct(type)) {
+      // formatType renders special structs as their JS shape (Vector -> T[]);
+      // a constructor returns the bound interface, `Vector<T>`, with the
+      // declaration's defaults (`<T = any>`) dropped.
+      std::string decl = templDecl.c_str(), args;
+      bool skipping = false;
+      for (char ch : decl) {
+        if (ch == '=') {
+          skipping = true;
+        } else if (ch == ',' || ch == '>') {
+          skipping = false;
+        }
+        if (!skipping) {
+          args += ch;
+        }
+      }
+      std::erase(args, ' ');
+      self = formatType(type, false, false) + string(args.c_str());
+    } else {
+      self = formatType(type) + formatTemplate(type, imports, filename, false);
+    }
+    s += "): " + self + "\n";
   }
   s += "}\n";
+
+  if (staticBody.size() > 0) {
+    imports.add("import {bindStatic} from \"" + string(runtimeModule) + "\";");
+    s += "\n" + mapDecls + "export const " + structShort + " = {\n" + staticBody + "};\n";
+  } else if (mapDecls.size() > 0) {
+    s += "\n" + mapDecls;
+  }
 
   string importString = "";
   for (auto &import : imports) {
@@ -789,9 +1313,69 @@ void TypescriptGenerator::buildStructFile(const types::Struct<void> *st)
   files->add(filename, s);
 }
 
+/** One `functions.ts` per namespace holding free functions. */
+void TypescriptGenerator::buildFunctionFiles()
+{
+  // Group by qualified JS name, then by namespace.
+  util::Map<string, Vector<const Method *>> groups;
+  Vector<string> groupNames;
+  for (const Method *m : functions) {
+    string key = m->qualifiedJsName();
+    auto *g = groups.lookup_ptr(key);
+    if (!g) {
+      groups.add(key, Vector<const Method *>());
+      groupNames.append(key);
+      g = groups.lookup_ptr(key);
+    }
+    g->append(m);
+  }
+  std::sort(groupNames.begin(), groupNames.end(), [](const string &a, const string &b) {
+    return compareNames(a, b) < 0;
+  });
+
+  util::Map<string, string> bodies;
+  util::Map<string, Set<string>> fileImports;
+  Vector<string> filenames;
+
+  for (const string &key : groupNames) {
+    const Vector<const Method *> &group = groups.lookup(key);
+    const Method *m0 = group[0];
+    string ns = m0->namespaceName();
+    string filename = getFileName(ns.size() > 0 ? ns + "::functions" : string("functions"));
+    if (!bodies.contains(filename)) {
+      bodies.add(filename, string(""));
+      fileImports.add(filename, Set<string>());
+      filenames.append(filename);
+    }
+    Set<string> &imports = *fileImports.lookup_ptr(filename);
+
+    Vector<Callable> entries;
+    for (const Method *m : group) {
+      entries.append({m, nullptr});
+    }
+    string jsName = m0->getJsName();
+    RenderedCallable rc =
+        renderCallable(entries, group, false, jsName + "_Args", imports, filename);
+    string &body = *bodies.lookup_ptr(filename);
+    body += rc.mapDecl;
+    body += "export const " + jsName + " = bindFunction(\"" + escapeString(key) + "\") as " +
+            rc.generics + "(" + rc.params + ") => " + rc.ret + ";\n";
+  }
+
+  for (const string &filename : filenames) {
+    Set<string> &imports = *fileImports.lookup_ptr(filename);
+    imports.add("import {bindFunction} from \"" + string(runtimeModule) + "\";");
+    string importString;
+    for (auto &import : imports) {
+      importString += import + "\n";
+    }
+    files->add(filename, string(header) + importString + "\n" + bodies.lookup(filename));
+  }
+}
+
 string TypescriptGenerator::buildHelpersFile()
 {
-  string helpers = header + "\n";
+  string helpers = string(header) + "\n";
   Set<string> importSet;
   Set<string> exportSet;
 
@@ -859,16 +1443,46 @@ util::Map<string, string> *TypescriptGenerator::generate()
     }
   }
 
+  // Instantiations of one template share a file; render them together.
+  util::Map<string, StructGroup> structGroups;
+  Vector<string> structNames;
   for (auto type : typeMap.values()) {
-    if (type->type == BindingType::Struct) {
-      buildStructFile(static_cast<const types::Struct<void> *>(type));
+    if (type->type != BindingType::Struct) {
+      continue;
     }
+    const types::_StructBase *st = static_cast<const types::_StructBase *>(type);
+    if (nameIs(st->name, "litestl::util::String") || nameIs(st->name, "litestl::util::CString") ||
+        nameIs(st->name, "litestl::util::Span"))
+    {
+      continue;
+    }
+    auto *g = structGroups.lookup_ptr(st->name);
+    if (!g) {
+      structGroups.add(st->name, StructGroup());
+      structNames.append(st->name);
+      g = structGroups.lookup_ptr(st->name);
+    }
+    g->append(st);
+  }
+  std::sort(structNames.begin(), structNames.end(), [](const string &a, const string &b) {
+    return compareNames(a, b) < 0;
+  });
+  for (const string &name : structNames) {
+    StructGroup &g = *structGroups.lookup_ptr(name);
+    std::sort(g.begin(), g.end(), [](const types::_StructBase *a, const types::_StructBase *b) {
+      return compareNames(a->buildFullName(), b->buildFullName()) < 0;
+    });
+    buildStructFile(g);
   }
 
   for (auto type : typeMap.values()) {
     if (type->type == BindingType::Union) {
       buildUnionMapFile(static_cast<const types::Union *>(type));
     }
+  }
+
+  if (functions.size() > 0) {
+    buildFunctionFiles();
   }
 
   files->add("index.ts", buildHelpersFile());

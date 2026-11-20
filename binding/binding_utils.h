@@ -27,6 +27,14 @@ template <typename T> struct Binder<T *> {
   }
 };
 
+/* Fixed-size inline array member, e.g. float corners[4]. */
+template <typename T, size_t N> struct Binder<T[N]> {
+  static const BindingBase *bind()
+  {
+    return new types::Array(Bind<T>(), N);
+  }
+};
+
 template <typename T> struct Binder<T &> {
   static types::Reference *bind()
   {

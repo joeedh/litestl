@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  native:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-gcc
+            os: ubuntu-latest
+            cc: gcc
+            cxx: g++
+          - name: linux-clang
+            os: ubuntu-latest
+            cc: clang
+            cxx: clang++
+          - name: windows-msvc
+            os: windows-latest
+
+    env:
+      BUILD_TYPE: Debug
+      # Report every failure instead of trapping on the first one.
+      LITESTL_TEST_NO_BREAK: "1"
+
+    steps:
+      # Sources include "litestl/..." relative to the parent directory, so the
+      # checkout must live in a folder named litestl.
+      - uses: actions/checkout@v4
+        with:
+          path: litestl
+
+      # node + the node-api headers build the N-API fixture addon, which the
+      # binding_conformance ctest runs the JS suite against.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Fetch build deps
+        run: node litestl/configureEnv.mjs --fetch-deps
+
+      - name: Install JS test deps
+        working-directory: litestl/tests/bindings/js
+        run: npm ci --no-audit --no-fund
+
+      - name: Configure
+        shell: bash
+        env:
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
+        run: cmake -S litestl -B build -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+
+      - name: Build
+        run: cmake --build build --config ${{ env.BUILD_TYPE }} --parallel 4
+
+      - name: Test
+        working-directory: build
+        run: ctest -C ${{ env.BUILD_TYPE }} --output-on-failure --parallel 4 --timeout 1800
+
+  # The WASM fixture (plain clang + wasi sysroot, no Emscripten) and the N-API
+  # addon, run through the same conformance suite.
+  bindings:
+    name: bindings-wasm-napi
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: litestl
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install wasm-ld
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq lld ninja-build
+
+      - name: Fetch build deps
+        run: node litestl/configureEnv.mjs --fetch-deps
+
+      - name: Install JS test deps
+        working-directory: litestl/tests/bindings/js
+        run: npm ci --no-audit --no-fund
+
+      - name: Build WASM fixture
+        run: |
+          cmake -S litestl -B build-wasm -G Ninja -DCMAKE_BUILD_TYPE=Debug "-DCMAKE_TOOLCHAIN_FILE=$PWD/litestl/build_files/wasm-clang.cmake"
+          cmake --build build-wasm --target binding_fixture_wasm --parallel 4
+
+      - name: Build native fixture
+        run: |
+          cmake -S litestl -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ "-DLITESTL_CONFORMANCE_WASM=$PWD/build-wasm/tests/bindings/binding_fixture_wasm.wasm"
+          cmake --build build --target binding_fixture_napi binding_fixture_gen_ts test_binding_functions.cc_out --parallel 4
+
+      - name: Test
+        working-directory: build
+        run: ctest --output-on-failure -R "binding_conformance|test_binding_functions"

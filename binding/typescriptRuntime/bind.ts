@@ -13,7 +13,7 @@ import type {INeededWasm} from './wasmInterface'
 import {WasmBase} from './wasmBase'
 import type {BindingManager, BindingManagerAny} from './manager'
 import {specialGenerators} from './specials'
-import {hashString} from './utils'
+import {CallGroup} from './dispatch'
 
 interface IBoundClass {
   wasm: INeededWasm
@@ -26,17 +26,42 @@ interface IBoundClass {
 }
 
 export interface IBoundWasmConstructor<T> {
-  new (wasm: INeededWasm, ptr: number, manager: BindingManager, bindType: Binding<INeededWasm>): T
+  new (wasm: INeededWasm, ptr: number, manager: BindingManager, bindType: Binding<INeededWasm>, owning?: boolean): T
 }
+
+interface OwnedObject {
+  manager: BindingManager
+  st: StructType<INeededWasm>
+  ptr: number
+}
+
+/** Destroys owning wrappers that were garbage collected without being disposed. */
+const ownedRegistry = new FinalizationRegistry<OwnedObject>(({manager, st, ptr}) => {
+  manager.destroyInstance(st, {ptr} as WasmBase)
+})
 
 class BoundClass extends WasmBase implements IBoundClass {
   manager: BindingManager
   bindType: Binding
+  /** Owning wrappers destroy their object on dispose or garbage collection;
+   * the others are views of memory owned elsewhere. */
+  owning: boolean
 
-  constructor(wasm: INeededWasm, ptr: number, manager: BindingManager, bindType: Binding<INeededWasm>) {
+  constructor(
+    wasm: INeededWasm,
+    ptr: number,
+    manager: BindingManager,
+    bindType: Binding<INeededWasm>,
+    owning = false
+  ) {
     super(wasm, ptr)
     this.manager = manager
     this.bindType = bindType
+    this.owning = owning
+    Object.defineProperty(this, 'manager', {enumerable: false, configurable: true})
+    if (owning) {
+      ownedRegistry.register(this, {manager, st: bindType as StructType<INeededWasm>, ptr}, this)
+    }
   }
 
   getBoundPointer(typeName: string, ptr: number): unknown {
@@ -48,7 +73,12 @@ class BoundClass extends WasmBase implements IBoundClass {
   }
 
   [Symbol.dispose](): void {
-    this.manager.destroyInstance(this.bindType as StructType<INeededWasm>, this)
+    if (this.owning && this.ptr) {
+      ownedRegistry.unregister(this)
+      this.manager.destroyInstance(this.bindType as StructType<INeededWasm>, this)
+    }
+    this.owning = false
+    this.ptr = 0
   }
 }
 
@@ -89,7 +119,7 @@ export function createBoundCode(
         return {
           get: `(
             !this.wasm.HEAPPTR[${ptrCode} >> ${wasm.PTRSHIFT}] ? 
-            null : 
+            undefined : 
             this.getBoundPointer('${type.ptrType.buildFullName()}', this.wasm.HEAPPTR[${ptrCode} >> ${wasm.PTRSHIFT}])
             )`,
           set: `
@@ -177,27 +207,6 @@ class ${name} extends BoundClass {
 
   const codePreSet = new Set<string>()
 
-  const methodTypeKey = (m: MethodType) => {
-    let key = `__${m.name}Type`
-
-    key += hashString(m.methodArgs.map((arg) => arg.name).join(',')).toString(16)
-
-    return key
-  }
-  let index = 0
-
-  for (const method of st.methods) {
-    const args = method.methodArgs.map((arg) => arg.name)
-
-    codePreSet.add(`const ${methodTypeKey(method)} = structType.methods[${index}]`)
-    s += `
-  ${method.name}(${args.join(', ')}) {
-    return this.manager.invokeMethod(this, structType, ${methodTypeKey(method)}, ${args.join(', ')});
-  }
-    `
-    index++
-  }
-
   for (const member of st.members) {
     const memberCode = createBoundCode(
       manager,
@@ -236,7 +245,9 @@ class ${name} extends BoundClass {
   `
 
   try {
-    return (0, eval)(s)(BoundClass, st)
+    const cls = (0, eval)(s)(BoundClass, st)
+    addMethods(manager, st, cls)
+    return cls
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     console.log(s)
@@ -244,5 +255,38 @@ class ${name} extends BoundClass {
     console.log(error.message)
     console.log('complication failed')
     throw error
+  }
+}
+
+/**
+ * Instance methods, grouped by JS name: the instantiations of a template
+ * method dispatch like free functions (see dispatch.ts); for plain overloads
+ * the first registered wins, and members shadow methods, as in the N-API
+ * runtime.
+ */
+function addMethods(manager: BindingManager, st: StructType, cls: {prototype: object}) {
+  const memberNames = new Set(st.members.map((m) => m.name))
+  const groups = new Map<string, MethodType[]>()
+  for (const m of st.methods) {
+    if (m.isStatic || memberNames.has(m.jsName)) continue
+    const group = groups.get(m.jsName)
+    if (!group) {
+      groups.set(m.jsName, [m])
+    } else if (m.templateParams.length > 0 && group[0].templateParams.length > 0) {
+      group.push(m)
+    }
+  }
+  for (const [name, methods] of groups) {
+    const group = new CallGroup(name, methods)
+    Object.defineProperty(cls.prototype, name, {
+      configurable: true,
+      writable: true,
+      value: function (this: BoundClass, ...args: unknown[]) {
+        if (!this.ptr) {
+          throw new Error(`${name}: bound object was disposed`)
+        }
+        return manager.callGroup(group, this.ptr, args)
+      },
+    })
   }
 }

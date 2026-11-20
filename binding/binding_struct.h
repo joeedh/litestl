@@ -14,11 +14,6 @@ using util::Vector;
 
 struct Constructor;
 
-struct StructTemplate {
-  string name;
-  const BindingBase *type;
-};
-
 struct StructMember {
   string name;
   size_t offset;
@@ -42,7 +37,8 @@ struct _StructBase : public BindingBase {
   }
   _StructBase(const _StructBase &b)
       : BindingBase(b.type, b.name), members(b.members), methods(b.methods),
-        constructors(b.constructors), structSize(b.structSize)
+        constructors(b.constructors), templateParams(b.templateParams),
+        structSize(b.structSize)
   {
   }
   virtual ~_StructBase()
@@ -161,16 +157,15 @@ template <typename CLS> struct Struct : public _StructBase {
   // used by BIND_STRUCT_METHOD macro
   template <auto Mfg> Method *_addMethod(const char *mname)
   {
-    auto *method = new ::litestl::binding::types::Method(mname);
-    using Builder = MethodBuilder<Mfg>;
-
-    method->returnType = Builder::returnType();
-    Builder::fillParams(method->params);
-    method->thunk = &Builder::thunk;
-    method->isConst = Builder::is_const;
-
+    Method *method = makeMethod<Mfg>(mname);
     addMethod(method);
-
+    return method;
+  }
+  // used by BIND_STRUCT_STATIC_METHOD macro
+  template <auto Fn> Method *_addStaticMethod(const char *mname)
+  {
+    Method *method = makeFunction<Fn>(mname);
+    addMethod(method);
     return method;
   }
   void addConstructor(Constructor *c)

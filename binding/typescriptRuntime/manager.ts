@@ -14,7 +14,10 @@ import {
   PointerType,
   ReferenceType,
   NumLitType,
+  ReturnPolicy,
+  stripParentTemplate,
 } from './binding'
+import type {CallGroup} from './dispatch'
 import {createBoundType, IBoundWasmConstructor} from './bind'
 import {BoundArray, BoundVector} from './boundVector'
 import {readLiteStlString} from './string'
@@ -97,13 +100,15 @@ export class BindingManager<
 
   getBoundClass<S extends StructType>(type: S): IBoundWasmConstructor<S['boundType']> {
     type CLS = IBoundWasmConstructor<S['boundType']>
-    let cls = this.boundClasses.get(type.name)
+    // Keyed by full name: instantiations of one template differ in layout.
+    const key = type.buildFullName()
+    let cls = this.boundClasses.get(key)
     if (cls) {
       return cls as CLS
     }
 
     cls = createBoundType<this>(this, this.wasm, type)
-    this.boundClasses.set(type.name, cls)
+    this.boundClasses.set(key, cls)
     return cls as CLS
   }
 
@@ -161,7 +166,27 @@ export class BindingManager<
       }
       case BindingType.Boolean:
         return wasm.HEAP8[ptr] ? true : false
+      case BindingType.Enum:
+        switch (binding.baseSize) {
+          case 1:
+            return wasm.HEAP8[ptr]
+          case 2:
+            return wasm.HEAP16[ptr >> wasm.INT16SHIFT]
+          case 8:
+            return Number(wasm.HEAP64[ptr >> wasm.INT64SHIFT])
+          default:
+            return wasm.HEAP32[ptr >> wasm.INT32SHIFT]
+        }
+      case BindingType.ParentTemplateParam:
+        return this.getBoundPointer(binding.concreteType, ptr)
       case BindingType.Struct: {
+        if (binding.name === 'litestl::util::String') {
+          return readLiteStlString(wasm, ptr)
+        }
+        if (binding.name === 'litestl::util::CString') {
+          const p = wasm.HEAPPTR[ptr >> wasm.PTRSHIFT]
+          return p ? wasm.jsString(p) : undefined
+        }
         const name = typeof typeName === 'string' ? typeName : binding.buildFullName()
         const cls = this.getBoundClass(this.get(name) as StructType<WASM>) as any
         return new cls(this.wasm, ptr, this)
@@ -273,28 +298,110 @@ export class BindingManager<
   }
 
   invokeMethod(instance: WasmBase<WASM>, structType: StructType, methodType: MethodType, ...args: any[]) {
-    const ptr = instance.ptr
-    const resultPtr = methodType.invoke(ptr, this, ...args)
-    let returnType = methodType.returnType
+    const resultPtr = methodType.invoke(instance.ptr, this, ...args)
+    return this.returnToJS(methodType, resultPtr)
+  }
 
-    if (returnType === undefined || resultPtr === undefined) {
+  /** Calls the instantiation of `group` that `args` select. */
+  callGroup(group: CallGroup, selfPtr: pointer, args: unknown[]) {
+    const [m, rest] = group.pick(args, (v) => this.typeNameOf(v))
+    return this.returnToJS(m, m.invoke(selfPtr, this, ...rest))
+  }
+
+  /** Full type name of a bound object, or undefined for anything else. */
+  typeNameOf(obj: unknown): string | undefined {
+    if (typeof obj !== 'object' || obj === null || !(obj instanceof WasmBase)) {
       return undefined
     }
+    const bindType = (obj as {bindType?: Binding}).bindType
+    return bindType?.type === BindingType.Struct ? bindType.buildFullName() : undefined
+  }
 
-    return this.getBoundPointer(returnType, resultPtr)
+  /** An owning wrapper: the object is destroyed on [Symbol.dispose]() or when
+   * the wrapper is garbage collected. */
+  wrapOwned(st: StructType, ptr: pointer) {
+    const cls = this.getBoundClass(st) as any
+    return new cls(this.wasm, ptr, this, st, true)
+  }
+
+  /** Converts a method's return buffer to JS and frees it. */
+  returnToJS(m: MethodType, retBuf: pointer | undefined): unknown {
+    const rt = m.returnType
+    if (rt === undefined || retBuf === undefined) {
+      return undefined
+    }
+    const wasm = this.wasm
+    const t = stripParentTemplate(rt)
+
+    if (t.type === BindingType.Struct) {
+      if (t.name === 'litestl::util::String') {
+        const s = readLiteStlString(wasm, retBuf)
+        wasm.LSTL_String_DestroyAt(retBuf)
+        wasm.memRelease(retBuf)
+        return s
+      }
+      if (t.name === 'litestl::util::CString') {
+        const p = wasm.HEAPPTR[retBuf >> wasm.PTRSHIFT]
+        wasm.memRelease(retBuf)
+        return p ? wasm.jsString(p) : undefined
+      }
+      if (t.isVector) {
+        const elem = stripParentTemplate(t.templateParams[0].type as Binding)
+        const data = wasm.HEAPPTR[retBuf >> wasm.PTRSHIFT]
+        const n = wasm.HEAPU32[(retBuf + wasm.PTRSIZE) >> wasm.SIZET_SHIFT]
+        let out: unknown
+        try {
+          if (elem.name === 'uint8') {
+            out = wasm.HEAPU8.slice(data, data + n)
+          } else if (elem.type === BindingType.Struct && elem.name !== 'litestl::util::String') {
+            const copy = elem.findCopyConstructor()
+            if (!copy) {
+              throw new Error(`vector element type ${elem.buildFullName()} has no copy constructor`)
+            }
+            const items: unknown[] = []
+            for (let i = 0; i < n; i++) {
+              items.push(this.wrapOwned(elem, copy.construct(this, data + i * elem.size)))
+            }
+            out = items
+          } else {
+            const items: unknown[] = []
+            for (let i = 0; i < n; i++) {
+              items.push(this.getBoundPointer(elem, data + i * elem.size))
+            }
+            out = items
+          }
+        } finally {
+          wasm.LSTL_Destructor_Invoke(t.ptr, retBuf)
+          wasm.memRelease(retBuf)
+        }
+        return out
+      }
+      // By value: the caller owns the returned storage.
+      return this.wrapOwned(t, retBuf)
+    }
+
+    if (t.type === BindingType.Pointer && m.returnPolicy === ReturnPolicy.Owned) {
+      const p = wasm.HEAPPTR[retBuf >> wasm.PTRSHIFT]
+      wasm.memRelease(retBuf)
+      const inner = stripParentTemplate(t.ptrType as Binding)
+      return p && inner.type === BindingType.Struct ? this.wrapOwned(inner, p) : undefined
+    }
+
+    try {
+      return this.getBoundPointer(t, retBuf)
+    } finally {
+      wasm.memRelease(retBuf)
+    }
   }
 
   constructWith<K extends keyof AllBoundTypes>(ctype: ConstructorType<WASM>, ...args: any[]): AllBoundTypes[K] {
-    const cls = this.getBoundClass(ctype.ownerType) as any
     const ptr = ctype.construct(this, ...args)
-    return new cls(this.wasm, ptr, this)
+    return this.wrapOwned(ctype.ownerType, ptr)
   }
 
   constructClass<ARGS extends unknown[] = unknown[]>(ctype: ConstructorType<WASM>, ...args: ARGS) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const cls = this.getBoundClass(ctype.ownerType) as any
     const ptr = ctype.construct(this, ...args)
-    return new cls(this.wasm, ptr, this, ctype.ownerType)
+    return this.wrapOwned(ctype.ownerType, ptr)
   }
 
   destroyInstance(structType: StructType<WASM>, instance: WasmBase<WASM>) {
@@ -305,6 +412,23 @@ export class BindingManager<
 
   readLiteStlString(ptr: pointer) {
     return readLiteStlString(this.wasm, ptr)
+  }
+
+  /** Assigns `value` to the util::string at `ptr`. */
+  writeLiteStlString(ptr: pointer, value: unknown) {
+    if (typeof value !== 'string') {
+      throw new TypeError('expected a string')
+    }
+    const wasm = this.wasm
+    const bytes = new TextEncoder().encode(value)
+    const buf = wasm.memAlloc(0, bytes.length + 1)
+    try {
+      wasm.HEAPU8.set(bytes, buf)
+      wasm.LSTL_String_DestroyAt(ptr)
+      wasm.LSTL_String_InitAt(ptr, buf, bytes.length)
+    } finally {
+      wasm.memRelease(buf)
+    }
   }
 
   load() {

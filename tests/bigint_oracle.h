@@ -6,6 +6,7 @@
  * (schoolbook) from the code under test. Not fast; not for production. */
 
 #include <algorithm>
+#include <bit>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -14,9 +15,15 @@
 #include <string>
 #include <vector>
 
+#include "litestl/util/vector.h"
+
 namespace litestl::test {
 
 class BigInt {
+  /* Inline capacity covers the 2-5 limb magnitudes of nearly every oracle value, so the
+   * hot path (Laplace/DP determinants over scaled doubles) never touches the heap. */
+  using Limbs = util::Vector<uint32_t, 16>;
+
 public:
   BigInt() = default;
 
@@ -24,7 +31,7 @@ public:
   {
     BigInt r;
     while (v) {
-      r.mag_.push_back(uint32_t(v));
+      r.mag_.append(uint32_t(v));
       v >>= 32;
     }
     return r;
@@ -33,7 +40,7 @@ public:
   static BigInt from_i64(int64_t v)
   {
     BigInt r = from_u64(v < 0 ? uint64_t(0) - uint64_t(v) : uint64_t(v));
-    r.neg_ = v < 0 && !r.mag_.empty();
+    r.neg_ = v < 0 && !r.mag_.isEmpty();
     return r;
   }
 
@@ -54,11 +61,11 @@ public:
     }
     BigInt r;
     for (int i = 0; i < n; i++) {
-      r.mag_.push_back(uint32_t(t[i]));
-      r.mag_.push_back(uint32_t(t[i] >> 32));
+      r.mag_.append(uint32_t(t[i]));
+      r.mag_.append(uint32_t(t[i] >> 32));
     }
     r.trim();
-    r.neg_ = negative && !r.mag_.empty();
+    r.neg_ = negative && !r.mag_.isEmpty();
     return r;
   }
 
@@ -106,7 +113,7 @@ public:
       }
       r = from_u64(mi >> -shift);
     }
-    r.neg_ = x < 0 && !r.mag_.empty();
+    r.neg_ = x < 0 && !r.mag_.isEmpty();
     return r;
   }
 
@@ -121,12 +128,15 @@ public:
 
   int sign() const
   {
-    return mag_.empty() ? 0 : (neg_ ? -1 : 1);
+    return mag_.isEmpty() ? 0 : (neg_ ? -1 : 1);
   }
 
   bool operator==(const BigInt &b) const
   {
-    return neg_ == b.neg_ && mag_ == b.mag_;
+    if (neg_ != b.neg_ || mag_.size() != b.mag_.size()) {
+      return false;
+    }
+    return std::equal(mag_.data(), mag_.data() + mag_.size(), b.mag_.data());
   }
 
   int cmp(const BigInt &b) const
@@ -141,44 +151,43 @@ public:
   BigInt operator-() const
   {
     BigInt r = *this;
-    r.neg_ = !r.neg_ && !r.mag_.empty();
+    r.neg_ = !r.neg_ && !r.mag_.isEmpty();
     return r;
+  }
+
+  BigInt &operator+=(const BigInt &b)
+  {
+    add_signed(b, false);
+    return *this;
+  }
+
+  BigInt &operator-=(const BigInt &b)
+  {
+    add_signed(b, true);
+    return *this;
   }
 
   BigInt operator+(const BigInt &b) const
   {
-    BigInt r;
-    if (neg_ == b.neg_) {
-      r.mag_ = add_mag(mag_, b.mag_);
-      r.neg_ = neg_;
-    }
-    else if (cmp_mag(mag_, b.mag_) >= 0) {
-      r.mag_ = sub_mag(mag_, b.mag_);
-      r.neg_ = neg_;
-    }
-    else {
-      r.mag_ = sub_mag(b.mag_, mag_);
-      r.neg_ = b.neg_;
-    }
-    r.trim();
-    if (r.mag_.empty()) {
-      r.neg_ = false;
-    }
+    BigInt r = *this;
+    r.add_signed(b, false);
     return r;
   }
 
   BigInt operator-(const BigInt &b) const
   {
-    return *this + (-b);
+    BigInt r = *this;
+    r.add_signed(b, true);
+    return r;
   }
 
   BigInt operator*(const BigInt &b) const
   {
     BigInt r;
-    if (mag_.empty() || b.mag_.empty()) {
+    if (mag_.isEmpty() || b.mag_.isEmpty()) {
       return r;
     }
-    r.mag_.assign(mag_.size() + b.mag_.size(), 0);
+    r.mag_.resize(mag_.size() + b.mag_.size());
     for (size_t i = 0; i < mag_.size(); i++) {
       uint64_t carry = 0;
       for (size_t j = 0; j < b.mag_.size(); j++) {
@@ -194,38 +203,39 @@ public:
       }
     }
     r.trim();
-    r.neg_ = (neg_ != b.neg_) && !r.mag_.empty();
+    r.neg_ = (neg_ != b.neg_) && !r.mag_.isEmpty();
     return r;
   }
 
   BigInt shl(int n) const
   {
-    if (mag_.empty() || n == 0) {
+    if (mag_.isEmpty() || n == 0) {
       return *this;
     }
     BigInt r;
     r.neg_ = neg_;
     int words = n / 32, bits = n % 32;
-    r.mag_.assign(words, 0);
+    r.mag_.ensure_capacity(words + mag_.size() + 1);
+    r.mag_.resize(words);
     uint32_t carry = 0;
     for (uint32_t w : mag_) {
-      r.mag_.push_back(bits ? (w << bits) | carry : w);
+      r.mag_.append(bits ? (w << bits) | carry : w);
       carry = bits ? w >> (32 - bits) : 0;
     }
     if (carry) {
-      r.mag_.push_back(carry);
+      r.mag_.append(carry);
     }
     return r;
   }
 
   std::string hex() const
   {
-    if (mag_.empty()) {
+    if (mag_.isEmpty()) {
       return "0x0";
     }
     std::string s = neg_ ? "-0x" : "0x";
     char buf[16];
-    snprintf(buf, sizeof(buf), "%x", mag_.back());
+    snprintf(buf, sizeof(buf), "%x", mag_[int(mag_.size()) - 1]);
     s += buf;
     for (size_t i = mag_.size() - 1; i-- > 0;) {
       snprintf(buf, sizeof(buf), "%08x", mag_[i]);
@@ -234,46 +244,49 @@ public:
     return s;
   }
 
-  /* Determinant by Laplace expansion (exact; fine for n <= 5). */
+  /* Exact determinant by Laplace expansion along rows, bottom-up over column subsets:
+   * minor[mask] is the determinant of the rows n-|mask|..n-1 restricted to the columns in
+   * mask, so each minor is computed once (n*2^(n-1) multiplies) and nothing is copied. */
   static BigInt det(const std::vector<std::vector<BigInt>> &m)
   {
-    size_t n = m.size();
+    const size_t n = m.size();
     if (n == 1) {
       return m[0][0];
     }
-    BigInt sum;
-    for (size_t col = 0; col < n; col++) {
-      if (m[0][col].sign() == 0) {
-        continue;
-      }
-      std::vector<std::vector<BigInt>> minor;
-      for (size_t r = 1; r < n; r++) {
-        std::vector<BigInt> row;
-        for (size_t c = 0; c < n; c++) {
-          if (c != col) {
-            row.push_back(m[r][c]);
-          }
+    std::vector<BigInt> minor(size_t(1) << n);
+    minor[0] = from_u64(1);
+    for (size_t mask = 1; mask < minor.size(); mask++) {
+      const size_t k = size_t(std::popcount(mask));
+      const std::vector<BigInt> &row = m[n - k];
+      BigInt sum;
+      size_t rank = 0;
+      for (size_t col = 0; col < n; col++) {
+        if (!(mask >> col & 1)) {
+          continue;
         }
-        minor.push_back(row);
+        const BigInt &e = row[col];
+        if (e.sign() != 0) {
+          sum.add_signed(e * minor[mask & ~(size_t(1) << col)], rank & 1);
+        }
+        rank++;
       }
-      BigInt term = m[0][col] * det(minor);
-      sum = (col & 1) ? sum - term : sum + term;
+      minor[mask] = std::move(sum);
     }
-    return sum;
+    return std::move(minor.back());
   }
 
 private:
   bool neg_ = false;
-  std::vector<uint32_t> mag_; /* little-endian, no high zero limbs */
+  Limbs mag_; /* little-endian, no high zero limbs */
 
   void trim()
   {
-    while (!mag_.empty() && mag_.back() == 0) {
+    while (!mag_.isEmpty() && mag_[int(mag_.size()) - 1] == 0) {
       mag_.pop_back();
     }
   }
 
-  static int cmp_mag(const std::vector<uint32_t> &a, const std::vector<uint32_t> &b)
+  static int cmp_mag(const Limbs &a, const Limbs &b)
   {
     if (a.size() != b.size()) {
       return a.size() < b.size() ? -1 : 1;
@@ -286,34 +299,55 @@ private:
     return 0;
   }
 
-  static std::vector<uint32_t> add_mag(const std::vector<uint32_t> &a,
-                                       const std::vector<uint32_t> &b)
+  /* this += (negate ? -b : b), in place on the limbs. */
+  void add_signed(const BigInt &b, bool negate)
   {
-    std::vector<uint32_t> r;
-    uint64_t carry = 0;
-    for (size_t i = 0; i < std::max(a.size(), b.size()); i++) {
-      uint64_t t = carry + (i < a.size() ? a[i] : 0) + (i < b.size() ? b[i] : 0);
-      r.push_back(uint32_t(t));
-      carry = t >> 32;
+    if (b.mag_.isEmpty()) {
+      return;
     }
-    if (carry) {
-      r.push_back(uint32_t(carry));
+    const bool bneg = b.neg_ != negate;
+    if (mag_.isEmpty()) {
+      mag_ = b.mag_;
+      neg_ = bneg;
+      return;
     }
-    return r;
+    if (neg_ == bneg) {
+      const size_t n = std::max(mag_.size(), b.mag_.size());
+      mag_.resize(n + 1);
+      uint64_t carry = 0;
+      for (size_t i = 0; i < n; i++) {
+        uint64_t t = carry + mag_[int(i)] + (i < b.mag_.size() ? b.mag_[int(i)] : 0);
+        mag_[int(i)] = uint32_t(t);
+        carry = t >> 32;
+      }
+      mag_[int(n)] = uint32_t(carry);
+    }
+    else if (cmp_mag(mag_, b.mag_) >= 0) {
+      sub_limbs(mag_, b.mag_, mag_.size(), false);
+    }
+    else {
+      mag_.resize(b.mag_.size());
+      sub_limbs(mag_, b.mag_, b.mag_.size(), true);
+      neg_ = bneg;
+    }
+    trim();
+    if (mag_.isEmpty()) {
+      neg_ = false;
+    }
   }
 
-  /* requires |a| >= |b| */
-  static std::vector<uint32_t> sub_mag(const std::vector<uint32_t> &a,
-                                       const std::vector<uint32_t> &b)
+  /* a = |a| - |b| (or |b| - |a| when reverse) over the first n limbs; the minuend
+   * must be the larger magnitude. */
+  static void sub_limbs(Limbs &a, const Limbs &b, size_t n, bool reverse)
   {
-    std::vector<uint32_t> r;
     int64_t borrow = 0;
-    for (size_t i = 0; i < a.size(); i++) {
-      int64_t t = int64_t(a[i]) - (i < b.size() ? b[i] : 0) - borrow;
+    for (size_t i = 0; i < n; i++) {
+      const int64_t x = i < a.size() ? a[int(i)] : 0;
+      const int64_t y = i < b.size() ? b[int(i)] : 0;
+      const int64_t t = (reverse ? y - x : x - y) - borrow;
       borrow = t < 0;
-      r.push_back(uint32_t(t + (borrow << 32)));
+      a[int(i)] = uint32_t(t + (borrow << 32));
     }
-    return r;
   }
 };
 

@@ -10,6 +10,8 @@ set(SRC
   PUBLIC binding_utils.h
   PUBLIC binding_method.h
   PUBLIC binding_constructor.h
+  PUBLIC binding_dispatch.h
+  PUBLIC manager.h
   binding.cc
 )
 
@@ -17,6 +19,10 @@ lt_add_library(binding "${SRC}" "${LIB}" STATIC)
 add_subdirectory(generators)
 set(WASMSYM "
   LSTL_AbiVersion
+  LSTL_Manager_CheckFunctions
+  LSTL_String_InitAt
+  LSTL_String_DestroyAt
+  LSTL_String_Size
   LSTL_Binding_GetKeys
   LSTL_Binding_FreeKeys
   LSTL_Binding_Get

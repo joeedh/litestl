@@ -11,9 +11,16 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(DTL dtl)
 
+# On Windows a failed assert or abort() exits with code 3 instead of opening a dialog
+# that hangs the run (no_dialogs.cc).
+set(LITESTL_TEST_SUPPORT_SOURCES "")
+if (WIN32)
+  set(LITESTL_TEST_SUPPORT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/no_dialogs.cc")
+endif()
+
 macro(test file extra_lib)
 set(target "${file}_out")
-add_executable(${target} "${file}")
+add_executable(${target} "${file}" ${LITESTL_TEST_SUPPORT_SOURCES})
 add_dependencies(${target} dtl)
 target_link_libraries(${target} PUBLIC dtl util ${extra_lib} math platform)
 
@@ -114,7 +121,7 @@ endif()
 test(test_attr_digest.cc attr)
 # A7 probe: same workload compiled asking for FP contraction; attr's PUBLIC
 # flags and the kernels' pragmas must keep the digest identical.
-add_executable(test_attr_digest_fma test_attr_digest.cc)
+add_executable(test_attr_digest_fma test_attr_digest.cc ${LITESTL_TEST_SUPPORT_SOURCES})
 add_dependencies(test_attr_digest_fma dtl)
 target_link_libraries(test_attr_digest_fma PUBLIC dtl util attr math platform)
 target_include_directories(test_attr_digest_fma PUBLIC util math platform)

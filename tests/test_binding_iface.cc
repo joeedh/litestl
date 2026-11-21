@@ -62,6 +62,10 @@ struct Shape {
   {
     return nullptr;
   }
+  void take(util::string &&s, const util::string &t)
+  {
+    n = int(s.size() + t.size());
+  }
 
   static types::Struct<Shape> *defineBindings()
   {
@@ -74,6 +78,7 @@ struct Shape {
     BIND_OPTIONAL_METHOD(st, cost, MARGS("a", "b"));
     BIND_STRUCT_METHOD(st, refs, MARGS("a", "b", "c", "d"));
     BIND_STRUCT_METHOD(st, constRet, MARGS());
+    BIND_STRUCT_METHOD(st, take, MARGS("s", "t"));
     return st;
   }
 };
@@ -173,6 +178,13 @@ static void test_const_recording()
 
   const auto *copy = static_cast<const types::Reference *>(a->clone());
   test_assert(copy->isConst);
+
+  /* string&& and const string& both bind as a plain string; only the flag differs. */
+  const types::Method *take = Shape::defineBindings()->findMethod("take");
+  test_assert(take->params[0].isRvalueRef);
+  test_assert(!take->params[1].isRvalueRef);
+  test_assert(!refs->params[0].isRvalueRef);
+  test_assert(take->params[0].type->buildFullName() == take->params[1].type->buildFullName());
 }
 
 static void test_adaptor_methods()

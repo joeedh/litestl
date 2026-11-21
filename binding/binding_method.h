@@ -27,6 +27,9 @@ struct StructTemplate {
 struct MethodParam {
   string name;
   const BindingBase *type;
+  /** Declared `T&&`. Value-like and value parameters bind as a plain `T` either way, but
+   * a `T&&` thunk moves from the caller's object. */
+  bool isRvalueRef = false;
 };
 
 using MethodThunk = void (*)(void *self, void **args, void *ret);
@@ -330,7 +333,8 @@ template <typename Tuple, size_t... I>
 void fillParamsImpl(util::Vector<types::MethodParam> &out, std::index_sequence<I...>)
 {
   (out.append(types::MethodParam{string(std::format("arg{}", I + 1).c_str()),
-                                 bindParam<std::tuple_element_t<I, Tuple>>()}),
+                                 bindParam<std::tuple_element_t<I, Tuple>>(),
+                                 std::is_rvalue_reference_v<std::tuple_element_t<I, Tuple>>}),
    ...);
 }
 

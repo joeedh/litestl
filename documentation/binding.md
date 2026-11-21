@@ -259,6 +259,9 @@ Parameter and return conventions (`detail::bindParam` / `bindReturn`):
   They are flags only: `buildFullName()` is the same with or without const, so
   registration keys don't change.
 - noexcept member functions bind like any other.
+- `MethodParam::isRvalueRef` records a `T&&` parameter. For value-like and value types,
+  `T&&` binds as a plain `T`, just like `T` and `const T&`. The flag is what tells them
+  apart, and it matters because a `T&&` thunk moves from the caller's object.
 
 Interface support (used by coredcc, which treats a bound struct as an interface
 whose methods are slots). `LITESTL_HAS_IFACE_DESCRIPTORS` is defined when these

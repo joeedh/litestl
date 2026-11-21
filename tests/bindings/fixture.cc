@@ -1,6 +1,11 @@
 #include "fixture.h"
 
+#include "litestl/binding/foreign.h"
+
+#include <new>
+
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 
 const litestl::binding::BindingBase *litestl::binding::Binder<fixture::Color>::bind()
@@ -241,6 +246,175 @@ float overloaded(float v)
   return v * 0.5f;
 }
 
+/* ---- Probe: foreign dispatch ---- */
+
+float Probe::scale(float) const
+{
+  return 0.0f;
+}
+int64_t Probe::big(int64_t) const
+{
+  return 0;
+}
+Color Probe::pick(Color c) const
+{
+  return c;
+}
+util::string Probe::echo(const util::string &s) const
+{
+  return s;
+}
+float Probe::lenOf(const Vec2 &) const
+{
+  return 0.0f;
+}
+Vec2 Probe::moved(Vec2 v, float) const
+{
+  return v;
+}
+bool Probe::touch(Vec2 *) const
+{
+  return false;
+}
+util::Vector<uint8_t> Probe::blob(const util::Vector<uint8_t> &b) const
+{
+  return b;
+}
+int32_t Probe::extra(int32_t v) const
+{
+  return v;
+}
+void Probe::keep(const Vec2 &) const
+{
+}
+int32_t Probe::shapeId(const Shape &s) const
+{
+  return s.id;
+}
+
+types::Struct<Probe> *Probe::defineBindings()
+{
+  static types::Struct<Probe> *st = nullptr;
+  if (st) {
+    return st;
+  }
+  alloc::PermanentGuard guard;
+  st = new types::Struct<Probe>("fixture::Probe", sizeof(Probe));
+  st->isInterface = true;
+  BIND_STRUCT_METHOD(st, scale, MARGS("x"));
+  BIND_STRUCT_METHOD(st, big, MARGS("v"));
+  BIND_STRUCT_METHOD(st, pick, MARGS("c"));
+  BIND_STRUCT_METHOD(st, echo, MARGS("s"));
+  BIND_STRUCT_METHOD(st, lenOf, MARGS("v"));
+  BIND_STRUCT_METHOD(st, moved, MARGS("v", "dx"));
+  BIND_STRUCT_METHOD(st, touch, MARGS("v")).argIsNullable("v");
+  BIND_STRUCT_METHOD(st, blob, MARGS("b"));
+  BIND_OPTIONAL_METHOD(st, extra, MARGS("v"));
+  BIND_STRUCT_METHOD(st, keep, MARGS("v"));
+  BIND_STRUCT_METHOD(st, shapeId, MARGS("s"));
+  return st;
+}
+
+namespace {
+
+util::string g_probeError;
+bool g_probeFailed = false;
+
+/* An interface forwarder in miniature: args[i] points at each argument (at the pointer,
+ * for pointer parameters), and the return is constructed in `buf`. */
+template <typename R, typename... A>
+R probeCall(uint32_t h, const char *slot, R fallback, A... a)
+{
+  const types::Method *m = Probe::defineBindings()->findMethod(slot);
+  void *args[sizeof...(A) + 1] = {static_cast<void *>(&a)...};
+  g_probeError = util::string();
+  alignas(R) unsigned char buf[sizeof(R)];
+  g_probeFailed = !binding::foreign::call(h, m, args, buf, &g_probeError);
+  if (g_probeFailed) {
+    return fallback;
+  }
+  R *r = std::launder(reinterpret_cast<R *>(buf));
+  R out(std::move(*r));
+  r->~R();
+  return out;
+}
+
+} // namespace
+
+float probeScale(uint32_t h, float x)
+{
+  return probeCall(h, "scale", 0.0f, x);
+}
+int64_t probeBig(uint32_t h, int64_t v)
+{
+  return probeCall(h, "big", int64_t(0), v);
+}
+Color probePick(uint32_t h, Color c)
+{
+  return probeCall(h, "pick", Color::Red, c);
+}
+util::string probeEcho(uint32_t h, const util::string &s)
+{
+  return probeCall(h, "echo", util::string(), s);
+}
+float probeLenOf(uint32_t h, const Vec2 &v)
+{
+  return probeCall(h, "lenOf", 0.0f, v);
+}
+Vec2 probeMoved(uint32_t h, const Vec2 &v, float dx)
+{
+  return probeCall(h, "moved", Vec2(), v, dx);
+}
+bool probeTouch(uint32_t h, Vec2 *v)
+{
+  return probeCall(h, "touch", false, v);
+}
+util::Vector<uint8_t> probeBlob(uint32_t h, const util::Vector<uint8_t> &b)
+{
+  return probeCall(h, "blob", util::Vector<uint8_t>(), b);
+}
+int32_t probeExtra(uint32_t h, int32_t v)
+{
+  return probeCall(h, "extra", int32_t(-1), v);
+}
+void probeKeep(uint32_t h)
+{
+  Vec2 v(3.0f, 4.0f);
+  void *args[1] = {&v};
+  g_probeError = util::string();
+  g_probeFailed = !binding::foreign::call(
+      h, Probe::defineBindings()->findMethod("keep"), args, nullptr, &g_probeError);
+}
+int32_t probeShapeId(uint32_t h, const Shape &s)
+{
+  const types::Method *m = Probe::defineBindings()->findMethod("shapeId");
+  void *args[1] = {const_cast<Shape *>(&s)};
+  int32_t out = -1;
+  g_probeError = util::string();
+  g_probeFailed = !binding::foreign::call(h, m, args, &out, &g_probeError);
+  return g_probeFailed ? -1 : out;
+}
+void probeTrap()
+{
+#if defined(__clang__)
+  __builtin_trap();
+#else
+  abort();
+#endif
+}
+bool probeFailed()
+{
+  return g_probeFailed;
+}
+util::string probeLastError()
+{
+  return g_probeError;
+}
+void probeRelease(uint32_t h)
+{
+  binding::foreign::release(h);
+}
+
 void registerFixture(BindingManager *mgr)
 {
   alloc::PermanentGuard guard;
@@ -251,6 +425,24 @@ void registerFixture(BindingManager *mgr)
   mgr->add(Bind<Shape>());
   mgr->add(Bind<Box<float>>());
   mgr->add(Bind<Box<double>>());
+
+  mgr->add(Bind<Probe>());
+  BIND_FUNCTION(mgr, "fixture::probeScale", probeScale, MARGS("h", "x"));
+  BIND_FUNCTION(mgr, "fixture::probeBig", probeBig, MARGS("h", "v"));
+  BIND_FUNCTION(mgr, "fixture::probePick", probePick, MARGS("h", "c"));
+  BIND_FUNCTION(mgr, "fixture::probeEcho", probeEcho, MARGS("h", "s"));
+  BIND_FUNCTION(mgr, "fixture::probeLenOf", probeLenOf, MARGS("h", "v"));
+  BIND_FUNCTION(mgr, "fixture::probeMoved", probeMoved, MARGS("h", "v", "dx"));
+  BIND_FUNCTION(mgr, "fixture::probeTouch", probeTouch, MARGS("h", "v"))
+      .argIsNullable("v");
+  BIND_FUNCTION(mgr, "fixture::probeBlob", probeBlob, MARGS("h", "b"));
+  BIND_FUNCTION(mgr, "fixture::probeExtra", probeExtra, MARGS("h", "v"));
+  BIND_FUNCTION(mgr, "fixture::probeKeep", probeKeep, MARGS("h"));
+  BIND_FUNCTION(mgr, "fixture::probeShapeId", probeShapeId, MARGS("h", "s"));
+  BIND_FUNCTION(mgr, "fixture::probeTrap", probeTrap, MARGS());
+  BIND_FUNCTION(mgr, "fixture::probeFailed", probeFailed, MARGS());
+  BIND_FUNCTION(mgr, "fixture::probeLastError", probeLastError, MARGS());
+  BIND_FUNCTION(mgr, "fixture::probeRelease", probeRelease, MARGS("h"));
 
   BIND_FUNCTION(mgr, "fixture::addInts", addInts, MARGS("a", "b"));
   BIND_FUNCTION(mgr, "fixture::scaleD", scaleD, MARGS("v", "s"));

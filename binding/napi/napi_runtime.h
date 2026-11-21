@@ -22,11 +22,18 @@
 #include "litestl/binding/binding_dispatch.h"
 #include "litestl/binding/manager.h"
 
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 namespace litestl::binding::napi {
+
+/** One foreign call (napi_foreign.cc): wrappers and views made for its arguments, and
+ * values reached through them, stop working once it has ended. */
+struct CallScope {
+  bool ended = false;
+};
 
 /** The C++ object behind a bound JS object. */
 struct Wrapped {
@@ -35,7 +42,13 @@ struct Wrapped {
   /** Owning wrappers destroy the object (destructor + alloc::release) on
    * [Symbol.dispose]() or garbage collection. */
   bool owning;
+  /** Set for wrappers of a foreign call's arguments; unwrap() clears ptr after it. */
+  std::shared_ptr<CallScope> scope = nullptr;
+  /** A const argument: setters and non-const methods throw. */
+  bool readonly = false;
 };
+
+class ForeignHost;
 
 /** What one JS function dispatches among: a free function's or static
  * method's instantiations, or an instance method's. */
@@ -88,7 +101,15 @@ public:
   const BindingBase *lookup(const std::string &fullName) const;
   napi_value throwType(const std::string &msg);
 
+  /** While set, wrappers and views that toJS/wrap make join this call scope. */
+  std::shared_ptr<CallScope> pendingScope;
+  bool pendingReadonly = false;
+
 private:
+  /* napi_foreign.cc */
+  void installForeign(napi_value exports);
+  ForeignHost *foreign_ = nullptr;
+
   napi_env env_;
   BindingManager *mgr_;
   std::unordered_map<std::string, napi_ref> classRefs_;

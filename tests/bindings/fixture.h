@@ -108,6 +108,50 @@ template <typename T> struct Box {
   }
 };
 
+/**
+ * An interface JS implements (foreign dispatch, binding/foreign.h). Its methods are
+ * the slots' descriptors; C++ never runs them, it calls a JS object's through
+ * foreign::call (the probe* functions below).
+ */
+struct Probe {
+  float scale(float x) const;
+  int64_t big(int64_t v) const;
+  Color pick(Color c) const;
+  util::string echo(const util::string &s) const;
+  float lenOf(const Vec2 &v) const;
+  Vec2 moved(Vec2 v, float dx) const;
+  /** Writes through `v` when it isn't null; returns whether it was. */
+  bool touch(Vec2 *v) const;
+  util::Vector<uint8_t> blob(const util::Vector<uint8_t> &b) const;
+  /** Left out by implementations that don't want it. */
+  int32_t extra(int32_t v) const;
+  void keep(const Vec2 &v) const;
+  /** A struct argument with an embedded struct (origin). */
+  int32_t shapeId(const Shape &s) const;
+
+  static binding::types::Struct<Probe> *defineBindings();
+};
+
+/* Each calls the slot of the same name on host object `h`; on failure it returns a
+ * default and probeLastError() says why. */
+float probeScale(uint32_t h, float x);
+int64_t probeBig(uint32_t h, int64_t v);
+Color probePick(uint32_t h, Color c);
+util::string probeEcho(uint32_t h, const util::string &s);
+float probeLenOf(uint32_t h, const Vec2 &v);
+Vec2 probeMoved(uint32_t h, const Vec2 &v, float dx);
+bool probeTouch(uint32_t h, Vec2 *v);
+util::Vector<uint8_t> probeBlob(uint32_t h, const util::Vector<uint8_t> &b);
+int32_t probeExtra(uint32_t h, int32_t v);
+/** Passes a stack Vec2(3, 4) to `keep`. */
+void probeKeep(uint32_t h);
+int32_t probeShapeId(uint32_t h, const Shape &s);
+/** Traps (WASM conformance only: it would kill a native process). */
+void probeTrap();
+bool probeFailed();
+util::string probeLastError();
+void probeRelease(uint32_t h);
+
 int32_t addInts(int32_t a, int32_t b);
 double scaleD(double v, double s);
 bool isEven(int32_t v);

@@ -534,6 +534,7 @@ The interface:
 - `getFunction("ns::name")` and `getStatic("ns::Struct", "name")`, which the
   generated `bindFunction` / `bindStatic` resolve lazily, on first call.
 - `getClass`, `typeName(obj)`, `bindingKeys`, `generateTypeScript`, `getMemSize`.
+- `foreignHandle`, `foreignCount`, `setForeignConverter` (see "Foreign dispatch").
 
 Behaviour both backends share:
 
@@ -546,6 +547,83 @@ Behaviour both backends share:
   `TypeError`.
 - **int64** values cross as `bigint` (numbers are accepted as arguments). A null
   pointer reads as `undefined`.
+
+### Foreign dispatch
+
+Foreign dispatch lets C++ call a method of a JS object, so JS can implement a C++
+interface. litestl only does the marshalling. An interface layer decides what each
+call means: coredcc's `ForeignDispatcher` maps its slots to method descriptors.
+
+**Calling from C++.**
+- Call `binding::foreign::call(handle, method, args, ret, &error)` (`binding/foreign.h`).
+  - `method` is a bound descriptor, normally a method of a struct marked
+    `isInterface`.
+  - `args` and `ret` follow the thunk ABI.
+  - It returns false and sets `error` when the call fails.
+- The JS method's name is `method->getJsName()`.
+- Reference returns and `returnsOwned` returns are refused.
+- Each handle given to C++ carries one count. C++ calls `release(handle)` exactly once,
+  on failure paths too.
+
+**Handles and implementations (JS).**
+- `backend.foreignHandle(obj)` returns `obj`'s handle and adds a count.
+  - An object has one handle while it is registered.
+  - Handles are never reused.
+  - `foreignCount()` returns the number of live handles.
+- The generator emits `<Name>Impl` next to the bound interface of every `isInterface`
+  struct. That is the type a JS implementation declares
+  (`class JsProbe implements ProbeImpl`):
+  - optional methods are optional;
+  - nullable pointers are `| null`;
+  - vector arguments are copies (`Uint8Array` for `uint8`);
+  - vector returns are `ArrayLike`.
+
+**Arguments.**
+- Scalars, enums and strings are passed as values.
+- Struct arguments are non-owning wrappers that are valid for the call only. Once the
+  call returns, their `ptr` is 0 and their accessors throw ("outlived its call").
+  - The same applies to wrappers and views reached through them: members, and the
+    borrowed results of their methods.
+  - Wrappers of const references or const pointers are read-only. Setters and
+    non-const methods throw.
+- A null pointer is passed as `null`.
+
+**Returns.**
+- Scalars and strings are converted.
+- A struct return must be a bound object of that type. It is copy-constructed, so
+  plain objects are refused.
+- A vector of scalars accepts any array or typed array.
+- When a return can't be built, whatever was partly constructed is destroyed.
+
+**Converters.**
+- `setForeignConverter(typeName, {arg, ret})` maps one struct type:
+  - `arg` converts the wrapper before JS sees it;
+  - `ret` converts what JS returns before it is written.
+- Pass `{}` to remove them.
+
+**Errors.**
+- These become `false` plus an error that starts with the method's JS name:
+  - an exception;
+  - a missing method (one inherited from `Object.prototype` counts as missing);
+  - an unknown handle;
+  - a wrong return type;
+  - a returned Promise (calls are synchronous).
+- A trap or exit inside C++ that the JS method called into (`RuntimeError`,
+  `ExitStatus`, `WasiExit`) is rethrown instead. It also poisons the module, because
+  the frames it unwound left C++ state broken. Every later call into that module
+  throws.
+
+**Hosts.**
+- Emscripten: EM_JS functions read `Module.__lstlHooks`. `createWasmHelpers` creates
+  that object on the module before it copies it.
+- The WASI build: `instantiateWasi` binds the `lstl.foreignCall` and
+  `lstl.foreignRelease` imports to trampolines into the same hooks object.
+- Both WASM hosts:
+  - keep one handle table per module, shared by every `BindingManager` of the module;
+  - refresh the heap views on entry and after the JS call, because memory can grow.
+- N-API: `napi_foreign.cc` installs a host for the env's thread and removes it in an
+  env cleanup hook. Calls from other threads fail ("no foreign host"). Each call runs
+  in its own handle scope, and any pending exception is cleared.
 
 ### Building WASM without Emscripten
 

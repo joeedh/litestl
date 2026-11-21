@@ -1,4 +1,5 @@
 import {NumberSubtype} from './binding'
+import {hooksOf} from './foreign'
 
 export type pointer<T = any> = number
 export type int = number
@@ -279,6 +280,8 @@ function unprefixWasm<T extends IWasmBase>(wasmBase: T): T {
 
 /** wasmMod: the exported wasm module (usually the es6 default slot)*/
 export function createWasmHelpers<T extends IWasmBase>(wasmBase: T, wasmMod: unknown) {
+  /* On the module object itself, before it is copied: EM_JS reads Module.__lstlHooks. */
+  hooksOf(wasmBase)
   wasmBase = unprefixWasm(wasmBase)
 
   const wasm = createWasmViews(wasmBase)

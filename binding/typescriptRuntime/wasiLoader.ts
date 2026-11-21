@@ -5,6 +5,7 @@
  * The result has the shape createWasmHelpers() expects.
  */
 import type {IWasmBase} from './wasmInterface'
+import {createHooks} from './foreign'
 
 export interface WasiLoadOptions {
   /** Defaults to a fresh shared memory of initialPages/maximumPages. */
@@ -18,6 +19,7 @@ export interface WasiLoadOptions {
 export class WasiExit extends Error {
   constructor(public code: number) {
     super(`wasm module exited with code ${code}`)
+    this.name = 'WasiExit'
   }
 }
 
@@ -111,7 +113,16 @@ export async function instantiateWasi(bytes: BufferSource, opts: WasiLoadOptions
     },
   }
 
+  /* Foreign dispatch (binding/foreign.h): trampolines bound now, filled in later by the
+   * BindingManager through the hooks object. */
+  const hooks = createHooks()
   const lstl = {
+    foreignCall(h: number, m: number, args: number, ret: number, err: number) {
+      return hooks.foreignCall ? hooks.foreignCall(h, m, args, ret, err) : -1
+    },
+    foreignRelease(h: number) {
+      hooks.foreignRelease?.(h)
+    },
     stackTrace(dst: number, maxLen: number) {
       const s = (new Error().stack ?? '').split('\n').slice(2).join('\n')
       const bytes = new TextEncoder().encode(s).subarray(0, maxLen - 1)
@@ -143,6 +154,7 @@ export async function instantiateWasi(bytes: BufferSource, opts: WasiLoadOptions
 
   const result: Record<string, unknown> = {
     instance,
+    __lstlHooks: hooks,
     wasmMemory: memory,
     HEAPU8: u8(),
     __exportNames: [],

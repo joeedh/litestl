@@ -1,7 +1,7 @@
 # N-API runtime for the binding system. Configured only when the node-api
 # headers are present (see LITESTL_NODE_API_HEADERS in the top-level CMakeLists).
 
-add_library(binding_napi STATIC napi_runtime.h napi_runtime.cc)
+add_library(binding_napi STATIC napi_runtime.h napi_runtime.cc napi_foreign.cc)
 target_link_libraries(binding_napi PUBLIC binding binding_generators util)
 target_include_directories(binding_napi PUBLIC "${LITESTL_NODE_API_HEADERS}/include")
 # Target N-API 8 (Node 16+): everything the runtime calls is in that version.

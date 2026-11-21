@@ -14,6 +14,7 @@ import {WasmBase} from './wasmBase'
 import type {BindingManager, BindingManagerAny} from './manager'
 import {specialGenerators} from './specials'
 import {CallGroup} from './dispatch'
+import {inheritScope} from './foreign'
 
 interface IBoundClass {
   wasm: INeededWasm
@@ -224,11 +225,19 @@ class ${name} extends BoundClass {
     if (codePre !== undefined) {
       codePreSet.add(codePre)
     }
+    /* A wrapper with ptr 0 was disposed or outlived its foreign call; one marked
+     * __ro wraps a const argument. Values reached through a scoped wrapper join its
+     * scope (foreign.ts). */
     s += `
     get ${member.name}() {
-      return ${get}
+      if (!this.ptr) throw new Error('${member.name}: the bound object was disposed or outlived its call')
+      const value = ${get}
+      if (this.__scope !== undefined) inheritScope(this, value)
+      return value
     }
     set ${member.name}(value) {
+      if (!this.ptr) throw new Error('${member.name}: the bound object was disposed or outlived its call')
+      if (this.__ro) throw new Error('${member.name}: read-only (a const argument)')
       ${set}
     }
     `
@@ -238,14 +247,14 @@ class ${name} extends BoundClass {
   s = Array.from(codePreSet).join('\n') + '\n' + s
 
   s = `
-  (function(BoundClass, structType) {
+  (function(BoundClass, structType, inheritScope) {
     ${s};
     return ${name};
   })
   `
 
   try {
-    const cls = (0, eval)(s)(BoundClass, st)
+    const cls = (0, eval)(s)(BoundClass, st, inheritScope)
     addMethods(manager, st, cls)
     return cls
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -278,14 +287,20 @@ function addMethods(manager: BindingManager, st: StructType, cls: {prototype: ob
   }
   for (const [name, methods] of groups) {
     const group = new CallGroup(name, methods)
+    const allConst = methods.every((m) => m.isConst)
     Object.defineProperty(cls.prototype, name, {
       configurable: true,
       writable: true,
-      value: function (this: BoundClass, ...args: unknown[]) {
+      value: function (this: BoundClass & {__scope?: object[]; __ro?: boolean}, ...args: unknown[]) {
         if (!this.ptr) {
           throw new Error(`${name}: bound object was disposed`)
         }
-        return manager.callGroup(group, this.ptr, args)
+        if (this.__ro && !allConst) {
+          throw new Error(`${name}: not a const method, and the object is read-only (a const argument)`)
+        }
+        const value = manager.callGroup(group, this.ptr, args)
+        if (this.__scope !== undefined) inheritScope(this, value)
+        return value
       },
     })
   }

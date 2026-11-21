@@ -247,6 +247,14 @@ static void testGenerator(BindingManager *mgr)
   test_assert(fileHas(files, "fixture/functions.ts", "(v: ArrayLike<float>) => float;"));
   test_assert(fileHas(files, "fixture/functions.ts", "(name: string) => string;"));
 
+  // An interface struct also gets the shape a JS implementation has (foreign dispatch).
+  test_assert(fileHas(files, "fixture/Probe.ts", "export interface ProbeImpl {"));
+  test_assert(fileHas(files, "fixture/Probe.ts", "  extra?(v: int32): int32\n"));
+  test_assert(fileHas(files, "fixture/Probe.ts", "  touch(v: Vec2 | null): boolean\n"));
+  test_assert(
+      fileHas(files, "fixture/Probe.ts", "  blob(b: Uint8Array): ArrayLike<uint8>\n"));
+  test_assert(!fileHas(files, "fixture/Vec2.ts", "Vec2Impl"));
+
   // Template struct members and constructors, inferred across Box<float>/Box<double>.
   test_assert(fileHas(files, "fixture/Box.ts", "export interface Box<T> {"));
   test_assert(fileHas(files, "fixture/Box.ts", "  lo: T\n"));

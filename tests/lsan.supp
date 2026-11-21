@@ -9,3 +9,6 @@ leak:getMemList
 # (scaffolding for a future constexpr redesign; see CLAUDE.md "Binding system").
 leak:litestl::binding::
 leak:defineBindings
+# test_binding_iface builds a descriptor with `new` in the test itself, so its
+# stacks start outside litestl::binding::.
+leak:test_adaptor_methods

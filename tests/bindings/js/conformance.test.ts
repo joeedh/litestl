@@ -416,6 +416,22 @@ describe(`binding conformance (${backend.kind})`, () => {
     }
   })
 
+  test('foreign dispatch: a pending exception is refused and kept (napi)', {skip: backend.kind !== 'napi'}, () => {
+    let called = false
+    const h = backend.foreignHandle({
+      scale(x: number) {
+        called = true
+        return x
+      },
+    })
+    const withPending = (backend as unknown as {probeScaleWithPendingException: (h: number) => void})
+      .probeScaleWithPendingException
+    assert.throws(() => withPending(h), {message: 'pending'}, 'the original exception reaches JS')
+    assert.equal(called, false, 'no JS ran')
+    assert.match(failure(), /already pending/)
+    fx.probeRelease(h)
+  })
+
   /* Last: it poisons the module. A trap would kill a native process, so wasm only. */
   test('foreign dispatch: a trap inside a foreign call poisons the module', {skip: backend.kind !== 'wasm'}, () => {
     const h = backend.foreignHandle({

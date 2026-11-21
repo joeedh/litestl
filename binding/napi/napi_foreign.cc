@@ -266,6 +266,11 @@ private:
       }
       return false;
     };
+    /* JS can't run while an exception is pending, and it isn't ours to clear: it
+     * belongs to whichever N-API call raised it, and must reach JS when that returns. */
+    if (pendingException(env_)) {
+      return fail("a JS exception is already pending");
+    }
     auto it = byHandle_.find(h);
     if (it == byHandle_.end()) {
       return fail("unknown foreign handle " + std::to_string(h));

@@ -6,6 +6,7 @@
 import {BindingType, MethodType, StructType} from './binding'
 import {CallGroup} from './dispatch'
 import type {BindingManager} from './manager'
+import {hooksOf, type ForeignConverters} from './foreign'
 
 export interface IBindingBackend {
   readonly kind: string
@@ -23,6 +24,13 @@ export interface IBindingBackend {
   bindingKeys(): string[]
   generateTypeScript(): Record<string, string>
   getMemSize(includePermanent?: boolean): number
+  /** A handle for `obj`, so C++ can call its methods (binding/foreign.h). Each call
+   * adds a count; the C++ side releases one. */
+  foreignHandle(obj: object): number
+  /** Live foreign handles. */
+  foreignCount(): number
+  /** Converts arguments and returns of struct type `typeName` in foreign calls. */
+  setForeignConverter(typeName: string, converters: ForeignConverters): void
 }
 
 let active: IBindingBackend | undefined
@@ -160,5 +168,17 @@ export class WasmBindingBackend implements IBindingBackend {
 
   getMemSize(includePermanent = false) {
     return this.manager.wasm.LSTL_GetMemSize(includePermanent)
+  }
+
+  foreignHandle(obj: object) {
+    return hooksOf(this.manager.wasm).foreign.register(obj)
+  }
+
+  foreignCount() {
+    return hooksOf(this.manager.wasm).foreign.size
+  }
+
+  setForeignConverter(typeName: string, converters: ForeignConverters) {
+    hooksOf(this.manager.wasm).converters.set(typeName, converters)
   }
 }

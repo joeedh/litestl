@@ -12,7 +12,9 @@ set(SRC
   PUBLIC binding_constructor.h
   PUBLIC binding_dispatch.h
   PUBLIC manager.h
+  PUBLIC foreign.h
   binding.cc
+  foreign.cc
 )
 
 lt_add_library(binding "${SRC}" "${LIB}" STATIC)

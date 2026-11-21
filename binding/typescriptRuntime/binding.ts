@@ -625,6 +625,9 @@ export class MethodType<WASM extends INeededWasm = INeededWasm> extends BindingB
   /** Calls the thunk. Returns the return buffer, which the caller frees, or
    * undefined for void methods. */
   invoke(thisPtr: pointer, manager: BindingManager, ...args: unknown[]) {
+    if ((this.wasm as {__lstlHooks?: {poisoned?: unknown}}).__lstlHooks?.poisoned !== undefined) {
+      throw new Error('the wasm module was poisoned by a trap or exit inside a foreign call')
+    }
     if (args.length !== this.methodArgs.length) {
       throw new TypeError(`${this.jsName}: expected ${this.methodArgs.length} arguments, got ${args.length}`)
     }
@@ -669,6 +672,9 @@ export class ConstructorType<WASM extends INeededWasm = INeededWasm> extends Bin
 
   constructTo(thisPtr: number, manager: BindingManager, ...args: unknown[]) {
     const wasm = this.wasm
+    if ((this.wasm as {__lstlHooks?: {poisoned?: unknown}}).__lstlHooks?.poisoned !== undefined) {
+      throw new Error('the wasm module was poisoned by a trap or exit inside a foreign call')
+    }
     if (args.length !== this.constructArgs.length) {
       throw new TypeError(
         `constructor '${this.name}' expects ${this.constructArgs.length} arguments, got ${args.length}`

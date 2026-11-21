@@ -1170,6 +1170,41 @@ void TypescriptGenerator::buildStructFile(const StructGroup &group)
   Vector<string> doneGroups;
   string staticBody;
   string mapDecls;
+  /* An interface also gets `<Name>Impl`, the shape a JS implementation has (foreign
+   * dispatch, binding/foreign.h): no dispose, no constructors, optional slots `?`. */
+  string implBody;
+  /* What an implementation receives and returns: nullable pointers as `| null`, vector
+   * arguments as copies (Uint8Array for uint8), vector returns as any ArrayLike. */
+  auto implType = [&](const BindingBase *t, Pos pos) -> string {
+    const BindingBase *u = t;
+    if (u->type == BindingType::Reference) {
+      u = static_cast<const types::Reference *>(u)->refType;
+    }
+    if (u->type == BindingType::Struct) {
+      const auto *vs = static_cast<const types::_StructBase *>(u);
+      if (nameIs(vs->name, "litestl::util::Vector") && vs->templateParams.size() > 0) {
+        Vector<const BindingBase *> en;
+        en.append(vs->templateParams[0].type);
+        const string e = render(en, single, imports, filename, Pos::Member);
+        if (pos == Pos::Param) {
+          return nameIs(e, "uint8") ? string("Uint8Array") : "(" + e + ")[]";
+        }
+        return "ArrayLike<" + e + ">";
+      }
+    }
+    Vector<const BindingBase *> nodes;
+    nodes.append(t);
+    string r = render(nodes, single, imports, filename, pos);
+    if (t->type == BindingType::Pointer &&
+        !static_cast<const types::Pointer *>(t)->isNonNull)
+    {
+      const std::string text = r.c_str(), tail = " | undefined";
+      const bool hasTail = text.size() > tail.size() && text.ends_with(tail);
+      r = string((hasTail ? text.substr(0, text.size() - tail.size()) : text).c_str()) +
+          " | null";
+    }
+    return r;
+  };
   for (const Method *m : st->methods) {
     string jsName = m->getJsName();
     const bool plain = !m->isStatic && m->templateParams.size() == 0;
@@ -1228,6 +1263,21 @@ void TypescriptGenerator::buildStructFile(const StructGroup &group)
                     ") => " + rc.ret + ",\n";
     } else {
       s += "  " + jsName + rc.generics + "(" + rc.params + "): " + rc.ret + "\n";
+      if (st->isInterface) {
+        string params;
+        for (int k = 0; k < m->params.size(); k++) {
+          char buf[16];
+          snprintf(buf, sizeof(buf), "arg%d", k);
+          const string pname =
+              m->params[k].name.size() > 0 ? m->params[k].name : string(buf);
+          params += (k > 0 ? ", " : "") + pname + ": " +
+                    implType(m->params[k].type, Pos::Param);
+        }
+        const string ret =
+            m->returnType ? implType(m->returnType, Pos::Return) : string("void");
+        implBody += "  " + jsName + (m->isOptional ? "?" : "") + "(" + params +
+                    "): " + ret + "\n";
+      }
     }
   }
 
@@ -1296,6 +1346,12 @@ void TypescriptGenerator::buildStructFile(const StructGroup &group)
     s += "): " + self + "\n";
   }
   s += "}\n";
+  if (st->isInterface) {
+    s += "\n/** Implemented by JS objects passed to C++ as a " + structShort +
+         " (foreignHandle). */\n";
+    s += "export interface " + structShort + "Impl" + templDecl + " {\n" + implBody +
+         "}\n";
+  }
 
   if (staticBody.size() > 0) {
     imports.add("import {bindStatic} from \"" + string(runtimeModule) + "\";");

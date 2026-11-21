@@ -199,6 +199,18 @@ struct ViewCtx {
   void *base;
   uint32_t count;
   bool isVector;
+  /** A view reached through a foreign call's argument fails once the call ended. */
+  std::shared_ptr<CallScope> scope;
+
+  bool expired(napi_env env) const
+  {
+    if (scope && scope->ended) {
+      napi_throw_error(
+          env, nullptr, "the bound object was disposed or outlived its call");
+      return true;
+    }
+    return false;
+  }
 
   char *data() const
   {
@@ -374,16 +386,24 @@ Wrapped *Runtime::unwrap(napi_value v)
   if (napi_unwrap(env_, v, reinterpret_cast<void **>(&w)) != napi_ok) {
     return nullptr;
   }
+  if (w && w->scope && w->scope->ended) {
+    w->ptr = nullptr; /* outlived its foreign call */
+    w->scope.reset();
+  }
   return w;
 }
 
 napi_value Runtime::makeView(const BindingBase *elem, void *base, uint32_t count, bool isVector)
 {
-  ViewCtx *ctx = new ViewCtx{this, elem, elem->getSize(), base, count, isVector};
+  ViewCtx *ctx =
+      new ViewCtx{this, elem, elem->getSize(), base, count, isVector, pendingScope};
 
   auto lenCb = [](napi_env env, napi_callback_info info) -> napi_value {
     void *data;
     napi_get_cb_info(env, info, nullptr, nullptr, nullptr, &data);
+    if (static_cast<ViewCtx *>(data)->expired(env)) {
+      return nullptr;
+    }
     napi_value out;
     napi_create_uint32(env, uint32_t(static_cast<ViewCtx *>(data)->length()), &out);
     return out;
@@ -394,6 +414,9 @@ napi_value Runtime::makeView(const BindingBase *elem, void *base, uint32_t count
     void *data;
     napi_get_cb_info(env, info, &argc, argv, nullptr, &data);
     ViewCtx *c = static_cast<ViewCtx *>(data);
+    if (c->expired(env)) {
+      return nullptr;
+    }
     uint32_t i = 0;
     napi_get_value_uint32(env, argv[0], &i);
     if (i >= c->length()) {
@@ -407,6 +430,9 @@ napi_value Runtime::makeView(const BindingBase *elem, void *base, uint32_t count
     void *data;
     napi_get_cb_info(env, info, &argc, argv, nullptr, &data);
     ViewCtx *c = static_cast<ViewCtx *>(data);
+    if (c->expired(env)) {
+      return nullptr;
+    }
     uint32_t i = 0;
     napi_get_value_uint32(env, argv[0], &i);
     if (i >= c->length()) {
@@ -595,6 +621,11 @@ napi_value Runtime::wrap(const _StructBase *st, void *ptr, bool owning)
   napi_get_boolean(env_, owning, &argv[1]);
   napi_value inst;
   napi_new_instance(env_, cls, 2, argv, &inst);
+  if (!owning && pendingScope) {
+    Wrapped *w = unwrap(inst);
+    w->scope = pendingScope;
+    w->readonly = pendingReadonly;
+  }
   return inst;
 }
 
@@ -619,10 +650,18 @@ napi_value Runtime::getBoundClass(const _StructBase *st)
       MemberCtx *ctx = static_cast<MemberCtx *>(data);
       Wrapped *w = ctx->rt->unwrap(thisArg);
       if (!w || !w->ptr) {
-        napi_throw_error(env, nullptr, "bound object was disposed");
+        napi_throw_error(
+            env, nullptr, "the bound object was disposed or outlived its call");
         return nullptr;
       }
-      return ctx->rt->toJS(ctx->member->type, static_cast<char *>(w->ptr) + ctx->member->offset);
+      Runtime *rt = ctx->rt;
+      rt->pendingScope = w->scope; /* what this reaches joins the call scope */
+      rt->pendingReadonly = w->readonly;
+      napi_value v =
+          rt->toJS(ctx->member->type, static_cast<char *>(w->ptr) + ctx->member->offset);
+      rt->pendingScope.reset();
+      rt->pendingReadonly = false;
+      return v;
     };
     d.setter = [](napi_env env, napi_callback_info info) -> napi_value {
       size_t argc = 1;
@@ -633,7 +672,12 @@ napi_value Runtime::getBoundClass(const _StructBase *st)
       MemberCtx *ctx = static_cast<MemberCtx *>(data);
       Wrapped *w = ctx->rt->unwrap(thisArg);
       if (!w || !w->ptr) {
-        napi_throw_error(env, nullptr, "bound object was disposed");
+        napi_throw_error(
+            env, nullptr, "the bound object was disposed or outlived its call");
+        return nullptr;
+      }
+      if (w->readonly) {
+        napi_throw_error(env, nullptr, "read-only (a const argument)");
         return nullptr;
       }
       ctx->rt->assign(
@@ -1090,6 +1134,7 @@ napi_value Runtime::invoke(const Method *m, void *self, size_t argc, napi_value 
 napi_value Runtime::call(CallGroup *g, napi_value thisArg, size_t argc, napi_value *argv)
 {
   void *self = nullptr;
+  Wrapped *selfWrap = nullptr;
   if (g->isInstance) {
     Wrapped *w = unwrap(thisArg);
     if (!w || !w->ptr) {
@@ -1097,6 +1142,7 @@ napi_value Runtime::call(CallGroup *g, napi_value thisArg, size_t argc, napi_val
       return nullptr;
     }
     self = w->ptr;
+    selfWrap = w;
   }
 
   size_t pick = 0;
@@ -1149,6 +1195,26 @@ napi_value Runtime::call(CallGroup *g, napi_value thisArg, size_t argc, napi_val
   }
   }
 
+  if (selfWrap && selfWrap->readonly && !g->methods[pick]->isConst) {
+    napi_throw_error(env_,
+                     nullptr,
+                     (g->name +
+                      ": not a const method, and the object is read-only (a const "
+                      "argument)")
+                         .c_str());
+    return nullptr;
+  }
+  if (selfWrap && selfWrap->scope) {
+    /* A borrowed result of a scoped object joins its scope. */
+    std::shared_ptr<CallScope> scope = selfWrap->scope;
+    const bool ro = selfWrap->readonly;
+    pendingScope = scope;
+    pendingReadonly = ro;
+    napi_value v = invoke(g->methods[pick], self, argc, argv);
+    pendingScope.reset();
+    pendingReadonly = false;
+    return v;
+  }
   return invoke(g->methods[pick], self, argc, argv);
 }
 
@@ -1428,6 +1494,8 @@ void Runtime::installExports(napi_value exports)
     napi_create_double(env, double(size), &out);
     return out;
   });
+
+  installForeign(exports);
 
   napi_value kind;
   napi_create_string_utf8(env_, "napi", NAPI_AUTO_LENGTH, &kind);

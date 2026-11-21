@@ -21,6 +21,7 @@ import type {CallGroup} from './dispatch'
 import {createBoundType, IBoundWasmConstructor} from './bind'
 import {BoundArray, BoundVector} from './boundVector'
 import {readLiteStlString} from './string'
+import {installForeignDispatch} from './foreign'
 
 type AllBoundTypesPlusPrim<T extends {[k: string]: unknown}> = T & {
   float: number
@@ -59,6 +60,7 @@ export class BindingManager<
     super(wasm, ptr)
     // do not enumerate this.wasm in console.log
     Object.defineProperty(this, 'wasm', {enumerable: false, configurable: true})
+    installForeignDispatch(this)
   }
 
   /** Finds the litestl::util::Vecctor class for a given type */

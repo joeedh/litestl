@@ -13,6 +13,7 @@ import {Box} from 'fixture-ts/fixture/Box'
 import {Color} from 'fixture-ts/fixture/Color'
 import * as fx from 'fixture-ts/fixture/functions'
 import type {Shape} from 'fixture-ts/fixture/Shape'
+import type {ProbeImpl} from 'fixture-ts/fixture/Probe'
 import {Vec2} from 'fixture-ts/fixture/Vec2'
 import {loadBackend} from './backends'
 
@@ -232,11 +233,199 @@ describe(`binding conformance (${backend.kind})`, () => {
     assert.equal(backend.getMemSize(), before)
   })
 
+  /* ---- foreign dispatch: C++ calling a JS object's methods (binding/foreign.h) ---- */
+
+  class JsProbe implements ProbeImpl {
+    kept: Vec2 | undefined
+    keptOrigin: Vec2 | undefined
+    scale(x: number) {
+      return x * 2
+    }
+    big(v: bigint) {
+      return v * 3n
+    }
+    pick(c: Color) {
+      return c === Color.Red ? Color.Blue : Color.Red
+    }
+    echo(s: string) {
+      return `<${s}>`
+    }
+    lenOf(v: Vec2) {
+      return v.length()
+    }
+    moved(v: Vec2, dx: number) {
+      v.x += dx /* a by-value argument: the callee's own copy */
+      return v
+    }
+    touch(v: Vec2 | null) {
+      if (!v) return false
+      v.y = 42
+      return true
+    }
+    blob(b: Uint8Array) {
+      return Array.from(b, (x) => x + 1)
+    }
+    keep(v: Vec2) {
+      this.kept = v
+    }
+    shapeId(s: Shape) {
+      this.keptOrigin = s.origin
+      return s.id
+    }
+  }
+
+  /** The last foreign call's error, asserting that it failed. */
+  const failure = () => {
+    assert.equal(fx.probeFailed(), true, 'the call should have failed')
+    return fx.probeLastError()
+  }
+
+  test('foreign dispatch: every argument and return type', () => {
+    const p = new JsProbe()
+    const h = backend.foreignHandle(p)
+    close(fx.probeScale(h, 1.25), 2.5)
+    assert.equal(fx.probeBig(h, 1n << 40n), 3n << 40n)
+    assert.equal(fx.probePick(h, Color.Red), Color.Blue)
+    assert.equal(fx.probeEcho(h, 'héllo ✓'), '<héllo ✓>')
+    using v = vec2(3, 4)
+    assert.equal(fx.probeLenOf(h, v), 5)
+    using m = fx.probeMoved(h, v, 1)
+    assert.equal(m.x, 4)
+    assert.equal(v.x, 3, "the caller's value is unchanged")
+    using t = vec2(0, 0)
+    assert.equal(fx.probeTouch(h, t), true)
+    assert.equal(t.y, 42, 'written through the pointer')
+    assert.equal(fx.probeTouch(h, undefined), false)
+    assert.deepEqual([...fx.probeBlob(h, [1, 2, 3])], [2, 3, 4])
+    using s = fx.makeShape(17)!
+    assert.equal(fx.probeShapeId(h, s), 17)
+    assert.equal(fx.probeFailed(), false)
+    fx.probeRelease(h)
+  })
+
+  test('foreign dispatch: errors', () => {
+    const h = backend.foreignHandle(new JsProbe())
+    assert.equal(fx.probeExtra(h, 1), -1)
+    assert.match(failure(), /extra: not implemented/, 'a missing optional method')
+    fx.probeRelease(h)
+
+    const err = (impl: object, call: (h: number) => unknown) => {
+      const hh = backend.foreignHandle(impl)
+      call(hh)
+      fx.probeRelease(hh)
+      return failure()
+    }
+    assert.match(err({scale: () => { throw new Error('boom') }}, (hh) => fx.probeScale(hh, 1)), /^scale: boom/)
+    assert.match(err({scale: () => { throw 'plain' }}, (hh) => fx.probeScale(hh, 1)), /^scale: plain/)
+    assert.match(err({scale: () => 'x'}, (hh) => fx.probeScale(hh, 1)), /expected a number/)
+    assert.match(err({scale: async () => 1}, (hh) => fx.probeScale(hh, 1)), /Promise/)
+    assert.match(err({moved: () => 5}, (hh) => fx.probeMoved(hh, vec2(0, 0), 1)), /fixture::Vec2/)
+    assert.match(err({blob: () => [1, 'x']}, (hh) => fx.probeBlob(hh, [1])), /expected a number/)
+    assert.match(err({toString: () => 'x'}, (hh) => fx.probeEcho(hh, 'a')), /echo: not implemented/)
+    fx.probeScale(987654, 1)
+    assert.match(failure(), /unknown foreign handle/)
+  })
+
+  test('foreign dispatch: argument wrappers are valid for the call only', () => {
+    const p = new JsProbe()
+    const h = backend.foreignHandle(p)
+    fx.probeKeep(h)
+    assert.equal(fx.probeFailed(), false)
+    assert.throws(() => p.kept!.x, /outlived its call/)
+    using s = fx.makeShape(3)!
+    fx.probeShapeId(h, s)
+    assert.throws(() => p.keptOrigin!.x, /outlived its call/, 'a member reached through an argument')
+    assert.equal(s.origin.x, 1, "the caller's own wrapper is untouched")
+
+    const ro = backend.foreignHandle({
+      lenOf(v: Vec2) {
+        v.x = 9
+        return 0
+      },
+    })
+    using v = vec2(1, 1)
+    fx.probeLenOf(ro, v)
+    assert.match(failure(), /read-only/, 'a const argument')
+    assert.equal(v.x, 1)
+    fx.probeRelease(ro)
+    fx.probeRelease(h)
+  })
+
+  test('foreign dispatch: handle counts', () => {
+    const before = backend.foreignCount()
+    const p = new JsProbe()
+    const h = backend.foreignHandle(p)
+    assert.equal(backend.foreignHandle(p), h, 'one object, one handle')
+    assert.equal(backend.foreignCount(), before + 1)
+    fx.probeRelease(h)
+    assert.equal(backend.foreignCount(), before + 1, 'still one count')
+    fx.probeRelease(h)
+    assert.equal(backend.foreignCount(), before)
+    fx.probeScale(h, 1)
+    assert.match(failure(), /unknown foreign handle/, 'a released handle')
+    const again = backend.foreignHandle(p)
+    assert.ok(again > h, 'handles are never reused')
+    fx.probeRelease(again)
+  })
+
+  test('foreign dispatch: converters', () => {
+    backend.setForeignConverter('fixture::Vec2', {
+      arg: (w) => ({x: (w as Vec2).x, y: (w as Vec2).y}),
+      ret: (v) => vec2((v as {x: number}).x, (v as {y: number}).y),
+    })
+    try {
+      const h = backend.foreignHandle({
+        moved: (v: {x: number; y: number}, dx: number) => ({x: v.x + dx, y: v.y * 2}),
+      })
+      using v = vec2(1, 2)
+      using m = fx.probeMoved(h, v, 3)
+      assert.equal(m.x, 4)
+      assert.equal(m.y, 4)
+      fx.probeRelease(h)
+    } finally {
+      backend.setForeignConverter('fixture::Vec2', {})
+    }
+  })
+
+  test('foreign dispatch does not leak', () => {
+    const p = new JsProbe()
+    const h = backend.foreignHandle(p)
+    const bad = backend.foreignHandle({moved: () => 5, blob: () => [1, 'x'], echo: () => 3})
+    const run = () => {
+      fx.probeEcho(h, 'abc')
+      fx.probeBlob(h, [1, 2])
+      using v = vec2(1, 2)
+      using m = fx.probeMoved(h, v, 1)
+      fx.probeEcho(bad, 'abc')
+      fx.probeBlob(bad, [1, 2])
+      using m2 = fx.probeMoved(bad, v, 1)
+    }
+    run()
+    const before = backend.getMemSize()
+    for (let i = 0; i < 20; i++) run()
+    assert.equal(backend.getMemSize(), before)
+    fx.probeRelease(h)
+    fx.probeRelease(bad)
+  })
+
   test('the backend generates the same TypeScript as the native generator', () => {
     const files = backend.generateTypeScript()
     const gen = process.env.LSTL_FIXTURE_GEN!
-    for (const name of ['fixture/functions.ts', 'fixture/Vec2.ts', 'fixture/Box.ts', 'fixture/Shape.ts']) {
+    for (const name of ['fixture/functions.ts', 'fixture/Vec2.ts', 'fixture/Box.ts', 'fixture/Shape.ts', 'fixture/Probe.ts']) {
       assert.equal(files[name], readFileSync(join(gen, name), 'utf8'), name)
     }
+  })
+
+  /* Last: it poisons the module. A trap would kill a native process, so wasm only. */
+  test('foreign dispatch: a trap inside a foreign call poisons the module', {skip: backend.kind !== 'wasm'}, () => {
+    const h = backend.foreignHandle({
+      scale() {
+        fx.probeTrap()
+        return 0
+      },
+    })
+    assert.throws(() => fx.probeScale(h, 1), WebAssembly.RuntimeError, 'rethrown, not an error result')
+    assert.throws(() => fx.addInts(1, 2), /poisoned/)
+    assert.throws(() => vec2(1, 2), /poisoned/)
   })
 })

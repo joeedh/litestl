@@ -270,7 +270,7 @@ string PythonGenerator::formatType(const BindingBase *type, const string &module
   case BindingType::Reference:
     return formatType(static_cast<const Reference *>(type)->refType, module);
   case BindingType::Array: {
-    const auto *array = static_cast<const Array<BindingBase> *>(type);
+    const auto *array = static_cast<const ArrayBase *>(type);
     addImport(module, "_runtime", "BoundArray");
     return "BoundArray[" + formatType(array->arrayType, module) + "]";
   }

@@ -512,7 +512,7 @@ napi_value Runtime::toJS(const BindingBase *binding, void *addr)
     return toJS(inner, target);
   }
   case BindingType::Array: {
-    const auto *arr = reinterpret_cast<const types::Array<char> *>(binding);
+    const auto *arr = static_cast<const types::ArrayBase *>(binding);
     return makeView(
         stripParentTemplate(arr->arrayType), addr, uint32_t(arr->arraySize), false);
   }

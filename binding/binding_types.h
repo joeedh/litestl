@@ -67,21 +67,21 @@ template <typename T> struct Number : public BindingBase {
   }
 };
 
-template <typename T> struct Array : public BindingBase {
+/* The element type and count of every Array<T>. Code that handles arrays of any
+ * element type casts a BindingType::Array binding to this, never to Array<void>:
+ * the object is an Array<T>, so a cast to another specialisation is undefined
+ * behaviour (UBSan reports it as a bad downcast). */
+struct ArrayBase : public BindingBase {
   const BindingBase *arrayType;
   size_t arraySize;
 
-  Array(T *arrayType, size_t arraySize)
+  ArrayBase(const BindingBase *arrayType, size_t arraySize)
       : BindingBase(BindingType::Array, "array"), arrayType(arrayType),
         arraySize(arraySize)
   {
   }
-  Array(const Array &b) : BindingBase(b), arrayType(b.arrayType), arraySize(b.arraySize)
+  ArrayBase(const ArrayBase &b) : BindingBase(b), arrayType(b.arrayType), arraySize(b.arraySize)
   {
-  }
-  virtual BindingBase *clone() const override
-  {
-    return static_cast<BindingBase *>(new Array(*this));
   }
   virtual size_t getSize() const override
   {
@@ -90,6 +90,19 @@ template <typename T> struct Array : public BindingBase {
   virtual string buildFullName() const override
   {
     return arrayType->buildFullName() + "[" + std::to_string(arraySize) + "]";
+  }
+};
+
+template <typename T> struct Array : public ArrayBase {
+  Array(T *arrayType, size_t arraySize) : ArrayBase(arrayType, arraySize)
+  {
+  }
+  Array(const Array &b) : ArrayBase(b)
+  {
+  }
+  virtual BindingBase *clone() const override
+  {
+    return static_cast<BindingBase *>(new Array(*this));
   }
 };
 

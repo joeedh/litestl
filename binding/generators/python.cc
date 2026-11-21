@@ -116,7 +116,7 @@ private:
   void addImport(const string &module, const string &fromModule, const string &name);
 
   void buildEnum(const types::Enum *e);
-  void buildStruct(const types::Struct<void> *st);
+  void buildStruct(const types::_StructBase *st);
   void buildUnion(const types::Union *u);
 
   template <typename ParamT>
@@ -135,7 +135,7 @@ bool PythonGenerator::isSpecialStruct(const BindingBase *type)
   if (type->type != BindingType::Struct) {
     return false;
   }
-  const auto *st = static_cast<const types::Struct<void> *>(type);
+  const auto *st = static_cast<const types::_StructBase *>(type);
   const string full = st->buildFullName();
   return full.starts_with("litestl::util::Vector<") ||
          full.starts_with("litestl::util::String");
@@ -289,7 +289,7 @@ string PythonGenerator::formatType(const BindingBase *type, const string &module
     return name;
   }
   case BindingType::Struct: {
-    const auto *st = static_cast<const types::Struct<void> *>(type);
+    const auto *st = static_cast<const types::_StructBase *>(type);
     const string full = st->buildFullName();
     if (full.starts_with("litestl::util::Vector<")) {
       addImport(module, "_runtime", "BoundVector");
@@ -315,7 +315,7 @@ void PythonGenerator::recurse(const BindingBase *type)
 
   switch (type->type) {
   case BindingType::Struct: {
-    const auto *st = static_cast<const types::Struct<void> *>(type);
+    const auto *st = static_cast<const types::_StructBase *>(type);
     typeMap.add(type->buildFullName(), type);
     for (auto &member : st->members) {
       recurse(member.type);
@@ -340,7 +340,7 @@ void PythonGenerator::recurse(const BindingBase *type)
   }
   case BindingType::Array:
     typeMap.add(type->name, type);
-    recurse(static_cast<const types::Array<void> *>(type)->arrayType);
+    recurse(static_cast<const types::ArrayBase *>(type)->arrayType);
     break;
   case BindingType::Pointer:
     typeMap.add(type->name, type);
@@ -402,7 +402,7 @@ string PythonGenerator::formatParams(const Vector<ParamT> &params, const string 
   return out;
 }
 
-void PythonGenerator::buildStruct(const types::Struct<void> *st)
+void PythonGenerator::buildStruct(const types::_StructBase *st)
 {
   if (isSpecialStruct(st)) {
     return; // Vector<T>/String map to BoundVector[T]/str at every use site
@@ -506,7 +506,7 @@ util::Map<string, string> *PythonGenerator::generate()
   }
   for (auto type : typeMap.values()) {
     if (type->type == BindingType::Struct) {
-      buildStruct(static_cast<const types::Struct<void> *>(type));
+      buildStruct(static_cast<const types::_StructBase *>(type));
     }
   }
   for (auto type : typeMap.values()) {

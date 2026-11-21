@@ -217,7 +217,7 @@ bool TypescriptGenerator::isSpecialStruct(const string &s)
 bool TypescriptGenerator::isSpecialStruct(const BindingBase *type)
 {
   if (type->type == BindingType::Struct) {
-    const types::Struct<void> *st = static_cast<const types::Struct<void> *>(type);
+    const types::_StructBase *st = static_cast<const types::_StructBase *>(type);
     return isSpecialStruct(st->buildFullName());
   }
   return false;
@@ -261,7 +261,7 @@ string TypescriptGenerator::formatType(const BindingBase *type,
   }
 
   if (transformSpecial && type->type == BindingType::Struct) {
-    const types::Struct<void> *st = static_cast<const types::Struct<void> *>(type);
+    const types::_StructBase *st = static_cast<const types::_StructBase *>(type);
     string full = st->buildFullName();
     if (full.starts_with("litestl::util::Vector<")) {
       return "(" + formatType(st->templateParams[0].type, true) + ")[]";
@@ -392,7 +392,7 @@ void TypescriptGenerator::recurse(const BindingBase *type)
 
   switch (type->type) {
   case BindingType::Struct: {
-    const types::Struct<void> *st = static_cast<const types::Struct<void> *>(type);
+    const types::_StructBase *st = static_cast<const types::_StructBase *>(type);
     typeMap.add(type->buildFullName(), type);
 
     for (auto &member : st->members) {
@@ -418,7 +418,7 @@ void TypescriptGenerator::recurse(const BindingBase *type)
   }
   case BindingType::Array:
     typeMap.add(type->name, type);
-    recurse(static_cast<const types::Array<void> *>(type)->arrayType);
+    recurse(static_cast<const types::ArrayBase *>(type)->arrayType);
     break;
   case BindingType::Pointer:
     typeMap.add(type->name, type);

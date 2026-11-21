@@ -90,7 +90,7 @@ struct BindingManager {
     }
     case BindingType::Array:
       bindings.add(binding->name, binding);
-      add(static_cast<const types::Array<void> *>(binding)->arrayType);
+      add(static_cast<const types::ArrayBase *>(binding)->arrayType);
       break;
     case BindingType::Pointer:
       bindings.add(binding->name, binding);

@@ -275,7 +275,7 @@ string TypescriptGenerator::formatType(const BindingBase *type,
     }
   }
   if (type->type == BindingType::Array) {
-    const Array<BindingBase> *array = static_cast<const Array<BindingBase> *>(type);
+    const ArrayBase *array = static_cast<const ArrayBase *>(type);
     return "(" + formatType(array->arrayType, true) + ")[]";
   }
   if (type->type == BindingType::Union) {
@@ -523,7 +523,7 @@ void TypescriptGenerator::addImport(const BindingBase *type,
     addImport(static_cast<const Pointer *>(type)->ptrType, imports, filename);
     break;
   case BindingType::Array:
-    addImport(static_cast<const Array<const BindingBase *> *>(type)->arrayType,
+    addImport(static_cast<const ArrayBase *>(type)->arrayType,
               imports,
               filename);
     break;
@@ -703,7 +703,7 @@ string TypescriptGenerator::render(const Vector<const BindingBase *> &nodes,
   case BindingType::Array:
     return "(" +
            render(column([](const BindingBase *n) {
-                    return static_cast<const Array<BindingBase> *>(n)->arrayType;
+                    return static_cast<const ArrayBase *>(n)->arrayType;
                   }),
                   ctx,
                   imports,

@@ -243,5 +243,5 @@ template <ClassBindingReq CLS> struct Binder<CLS> {
 #define BIND_STRUCT_MEMBER(def, field)                                                   \
   def->add(#field,                                                                       \
            offsetof(std::remove_reference_t<decltype(*def->type_null)>, field),          \
-           binding::Bind<                                                                \
+           ::litestl::binding::Bind<                                                     \
                decltype(std::remove_reference_t<decltype(*def->type_null)>::field)>())

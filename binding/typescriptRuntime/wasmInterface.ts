@@ -36,6 +36,7 @@ export interface IBindingInfo {
       constructors: number
       templateParams: number
       structSize: number
+      isInterface: number
     }
     Constructor: {
       ownerType: number
@@ -74,9 +75,11 @@ export interface IBindingInfo {
     Pointer: {
       ptrType: number
       isNonNull: number
+      isConst: number
     }
     Reference: {
       refType: number
+      isConst: number
     }
     EnumItem: {
       name: number
@@ -99,6 +102,7 @@ export interface IBindingInfo {
       templateParams: number
       returnPolicy: number
       jsName: number
+      isOptional: number
     }
     MethodParam: {
       name: number
@@ -293,6 +297,7 @@ export function createWasmHelpers<T extends IWasmBase>(wasmBase: T, wasmMod: unk
       constructors  : data[i++],
       templateParams: data[i++],
       structSize    : data[i++],
+      isInterface   : data[i++],
     },
     Constructor: {
       ownerType: data[i++],
@@ -331,9 +336,11 @@ export function createWasmHelpers<T extends IWasmBase>(wasmBase: T, wasmMod: unk
     Pointer: {
       ptrType  : data[i++],
       isNonNull: data[i++],
+      isConst  : data[i++],
     },
     Reference: {
       refType: data[i++],
+      isConst: data[i++],
     },
     EnumItem: {
       name : data[i++],
@@ -356,6 +363,7 @@ export function createWasmHelpers<T extends IWasmBase>(wasmBase: T, wasmMod: unk
       templateParams: data[i++],
       returnPolicy  : data[i++],
       jsName        : data[i++],
+      isOptional    : data[i++],
     },
     MethodParam: {
       name: data[i++],

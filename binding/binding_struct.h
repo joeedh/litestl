@@ -6,8 +6,13 @@
 #include "binding_types.h"
 #include "util/vector.h"
 #include <concepts>
+#include <cstring>
 #include <functional>
 #include <type_traits>
+
+/** Descriptors carry the fields coredcc's interfaces need: Struct::isInterface and
+ * typeKey, Method::isOptional, Pointer/Reference::isConst, adaptor methods. */
+#define LITESTL_HAS_IFACE_DESCRIPTORS 1
 
 namespace litestl::binding::types {
 using util::Vector;
@@ -27,6 +32,11 @@ struct _StructBase : public BindingBase {
   Vector<StructTemplate> templateParams;
 
   size_t structSize;
+  /** An interface: its methods are slots that other structs implement (coredcc). */
+  bool isInterface = false;
+  /** Unique per C++ type (set by Struct<T>), so two types bound under one name can be
+   * told apart. Null for descriptors not built by Struct<T>. */
+  const void *typeKey = nullptr;
   // is set by Struct child template class below
   std::function<void(void *)> *destructorThunk = nullptr;
 
@@ -38,7 +48,7 @@ struct _StructBase : public BindingBase {
   _StructBase(const _StructBase &b)
       : BindingBase(b.type, b.name), members(b.members), methods(b.methods),
         constructors(b.constructors), templateParams(b.templateParams),
-        structSize(b.structSize)
+        structSize(b.structSize), isInterface(b.isInterface), typeKey(b.typeKey)
   {
   }
   virtual ~_StructBase()
@@ -74,7 +84,29 @@ struct _StructBase : public BindingBase {
    * binding_constructor.h since Constructor is only forward-declared here.
    */
   const Constructor *findConstructor(const string &name) const;
+
+  /** The first method named `methodName`, or nullptr. */
+  const Method *findMethod(const char *methodName) const
+  {
+    for (const Method *m : methods) {
+      if (strcmp(m->name.c_str(), methodName) == 0) {
+        return m;
+      }
+    }
+    return nullptr;
+  }
 };
+
+/* Not const: identical read-only statics may be folded together by the linker (/OPT:ICF). */
+template <typename T> struct TypeKeyHolder {
+  static inline char key = 0;
+};
+
+/** The key Struct<T> stores in _StructBase::typeKey. */
+template <typename T> const void *typeKeyOf()
+{
+  return &TypeKeyHolder<std::remove_cv_t<T>>::key;
+}
 
 template <typename T> struct DestructorThunk {
   /** Calls destructor, but does not release the underlying memory */
@@ -99,6 +131,7 @@ template <typename CLS> struct Struct : public _StructBase {
 
   Struct(string name, size_t size) : _StructBase(name, size)
   {
+    typeKey = typeKeyOf<CLS>();
     destructorThunk = new std::function<void(void *)>([](void *obj) {
       CLS *typedObj = static_cast<CLS *>(obj);
       typedObj->~CLS();
@@ -158,6 +191,16 @@ template <typename CLS> struct Struct : public _StructBase {
   template <auto Mfg> Method *_addMethod(const char *mname)
   {
     Method *method = makeMethod<Mfg>(mname);
+    addMethod(method);
+    return method;
+  }
+  // used by BIND_ADAPTOR_METHOD macro
+  template <auto Fn> Method *_addAdaptorMethod(const char *mname)
+  {
+    static_assert(std::is_same_v<typename detail::AdaptorTraits<decltype(Fn)>::class_type,
+                                 CLS>,
+                  "BIND_ADAPTOR_METHOD: the function's first parameter must be CLS&");
+    Method *method = makeAdaptorMethod<Fn>(mname);
     addMethod(method);
     return method;
   }

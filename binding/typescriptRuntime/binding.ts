@@ -211,6 +211,8 @@ export class StructType<WASM extends INeededWasm = INeededWasm, BoundType = any>
   _constructors: WasmVector<WASM>
   _templateParams: WasmVector<WASM>
   structSize: number
+  /** An interface: its methods are slots other structs implement. */
+  isInterface: boolean
   constructors: ConstructorType<WASM>[] = []
 
   get isVector() {
@@ -226,6 +228,7 @@ export class StructType<WASM extends INeededWasm = INeededWasm, BoundType = any>
     this._constructors = new WasmVector(wasm, ptr + o.constructors, wasm.PTRSIZE)
     this._templateParams = new WasmVector(wasm, ptr + o.templateParams, sz.TemplateParam)
     this.structSize = wasm.HEAPU32[(ptr + o.structSize) >> wasm.SIZET_SHIFT]
+    this.isInterface = wasm.HEAPU8[ptr + o.isInterface] !== 0
 
     // load constructors
     for (const _ptr of this._constructors) {
@@ -571,6 +574,8 @@ export class MethodType<WASM extends INeededWasm = INeededWasm> extends BindingB
   methodArgs: MethodArg<WASM>[] = []
   isConst: boolean
   isStatic: boolean
+  /** An interface slot implementations may leave out. */
+  isOptional: boolean
   returnPolicy: ReturnPolicy
   templateParams: {name: string; type: Binding<WASM>}[] = []
   private _jsName: string
@@ -593,6 +598,7 @@ export class MethodType<WASM extends INeededWasm = INeededWasm> extends BindingB
 
     this.isConst = wasm.HEAPU8[ptr + o.Method.isConst] !== 0
     this.isStatic = wasm.HEAPU8[ptr + o.Method.isStatic] !== 0
+    this.isOptional = wasm.HEAPU8[ptr + o.Method.isOptional] !== 0
     this.returnPolicy = wasm.HEAP32[(ptr + o.Method.returnPolicy) >> wasm.INT32SHIFT]
     this._jsName = readLiteStlString(wasm, ptr + o.Method.jsName)
     const tparams = new WasmVector(wasm, ptr + o.Method.templateParams, wasm.bindingInfo.Sizes.Struct.TemplateParam)
@@ -898,21 +904,28 @@ export class PointerType<WASM extends INeededWasm = INeededWasm> //
   extends PointerTypeBase<WASM, BindingType.Pointer>
 {
   isNonNull: boolean
+  /** Points at const (`const T*`). */
+  isConst: boolean
 
   constructor(wasm: WASM, ptr: pointer) {
     super(wasm, ptr)
     const o = wasm.bindingInfo.Offsets.Pointer
     this.ptrType = getBinding(wasm, wasm.HEAPPTR[(ptr + o.ptrType) >> wasm.PTRSHIFT])
     this.isNonNull = Boolean(wasm.HEAPU8[ptr + o.isNonNull])
+    this.isConst = Boolean(wasm.HEAPU8[ptr + o.isConst])
   }
 }
 export class ReferenceType<WASM extends INeededWasm = INeededWasm> //
   extends PointerTypeBase<WASM, BindingType.Reference>
 {
+  /** Refers to const (`const T&`). */
+  isConst: boolean
+
   constructor(wasm: WASM, ptr: pointer) {
     super(wasm, ptr)
     const o = wasm.bindingInfo.Offsets.Reference
     this.ptrType = getBinding(wasm, wasm.HEAPPTR[(ptr + o.refType) >> wasm.PTRSHIFT])
+    this.isConst = Boolean(wasm.HEAPU8[ptr + o.isConst])
   }
 }
 

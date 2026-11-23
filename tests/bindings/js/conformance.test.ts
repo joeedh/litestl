@@ -322,6 +322,16 @@ describe(`binding conformance (${backend.kind})`, () => {
     assert.match(err({moved: () => 5}, (hh) => fx.probeMoved(hh, vec2(0, 0), 1)), /fixture::Vec2/)
     assert.match(err({blob: () => [1, 'x']}, (hh) => fx.probeBlob(hh, [1])), /expected a number/)
     assert.match(err({toString: () => 'x'}, (hh) => fx.probeEcho(hh, 'a')), /echo: not implemented/)
+    const unprintable = {
+      toString() {
+        throw new Error('no text')
+      },
+    }
+    assert.match(
+      err({scale: () => { throw unprintable }}, (hh) => fx.probeScale(hh, 1)),
+      /^scale: a value that can't be converted to a string/
+    )
+    assert.equal(fx.addInts(1, 2), 3, 'an error result, not a poisoned module')
     fx.probeScale(987654, 1)
     assert.match(failure(), /unknown foreign handle/)
   })

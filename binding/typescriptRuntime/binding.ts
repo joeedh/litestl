@@ -626,7 +626,7 @@ export class MethodType<WASM extends INeededWasm = INeededWasm> extends BindingB
    * undefined for void methods. */
   invoke(thisPtr: pointer, manager: BindingManager, ...args: unknown[]) {
     if ((this.wasm as {__lstlHooks?: {poisoned?: unknown}}).__lstlHooks?.poisoned !== undefined) {
-      throw new Error('the wasm module was poisoned by a trap or exit inside a foreign call')
+      throw new Error('the wasm module was poisoned: a trap, an exit or an error escaped a foreign call')
     }
     if (args.length !== this.methodArgs.length) {
       throw new TypeError(`${this.jsName}: expected ${this.methodArgs.length} arguments, got ${args.length}`)
@@ -673,7 +673,7 @@ export class ConstructorType<WASM extends INeededWasm = INeededWasm> extends Bin
   constructTo(thisPtr: number, manager: BindingManager, ...args: unknown[]) {
     const wasm = this.wasm
     if ((this.wasm as {__lstlHooks?: {poisoned?: unknown}}).__lstlHooks?.poisoned !== undefined) {
-      throw new Error('the wasm module was poisoned by a trap or exit inside a foreign call')
+      throw new Error('the wasm module was poisoned: a trap, an exit or an error escaped a foreign call')
     }
     if (args.length !== this.constructArgs.length) {
       throw new TypeError(

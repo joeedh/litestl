@@ -61,7 +61,18 @@ project), and also builds standalone:
 - They are small-buffer-optimized (templated inline capacity), don't
   throw, and align inline storage with `ContainerAlign<T>()` so WASM's
   4-byte `void*` doesn't break 8-byte scalars.
-- Prefer them over STL equivalents. See `documentation/containers.md`.
+- **Never use standard containers in litestl**, in library code or in tests:
+  no `std::vector`, `std::map`, `std::set`, `std::unordered_map`,
+  `std::unordered_set`, `std::deque` or `std::list`. Use the `util::`
+  containers. They allocate through `litestl::alloc`, so the leak tracker
+  sees them. See `documentation/containers.md`.
+  - Exception: narrow cases that must not allocate through `litestl::alloc`
+    (for example, inside the allocator or the leak tracker). Say why in a
+    comment at the use site.
+  - Exception: standard types that litestl re-exports in its headers, such as
+    `std::span` (`util::span`), `std::array` (`util::Array`) and
+    `std::function` (`util::function`). Spell them by their `util::` name.
+  - Some older code and tests still use standard containers. Don't copy them.
 - Hash via `litestl::hash::hash(...)` in `util/hash.h`; user types can
   participate by exposing a `computeHash()` method (the `hash()` overload
   for "types with `computeHash`" in `util/hash.h` picks that up

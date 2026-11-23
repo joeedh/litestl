@@ -95,7 +95,7 @@ export function isPoisoned(wasm: object): boolean {
 
 export function checkNotPoisoned(wasm: object) {
   if (isPoisoned(wasm)) {
-    throw new Error('the wasm module was poisoned by a trap or exit inside a foreign call')
+    throw new Error('the wasm module was poisoned: a trap, an exit or an error escaped a foreign call')
   }
 }
 
@@ -320,15 +320,39 @@ class Dispatch {
   }
 }
 
-/** The entry the C++ hooks call: 0 on success, 1 with `err` set on failure. */
+/** A thrown value's message, as N-API's foreign dispatch words one it can't convert. */
+function errorText(e: unknown): string {
+  try {
+    return String(e instanceof Error ? e.message : e)
+  } catch {
+    return "a value that can't be converted to a string"
+  }
+}
+
+/**
+ * The entry the C++ hooks call: 0 on success, 1 with `err` set on failure.
+ *
+ * Anything that escapes it unwinds the C++ frames that called in without running their
+ * cleanup, so it poisons the module, whatever it is: a trap, or an error thrown while
+ * reporting an error (near the JS stack limit, writing the error calls into wasm again).
+ */
 export function dispatch(hooks: LstlHooks, handle: number, methodPtr: number, args: number, ret: number, err: number): number {
+  try {
+    return dispatchCall(hooks, handle, methodPtr, args, ret, err)
+  } catch (e) {
+    hooks.poisoned ??= e ?? new Error('undefined escaped a foreign call')
+    throw e
+  }
+}
+
+function dispatchCall(hooks: LstlHooks, handle: number, methodPtr: number, args: number, ret: number, err: number): number {
   const manager = hooks.manager as BindingManager
   const wasm = manager.wasm
   refreshViews(wasm)
   const method = getBinding(wasm, methodPtr) as MethodType
   const d = new Dispatch(manager, hooks, method.jsName)
   if (hooks.poisoned !== undefined) {
-    d.writeError(err, `${method.jsName}: the module was poisoned by an earlier trap`)
+    d.writeError(err, `${method.jsName}: the module was poisoned by an earlier escape from a foreign call`)
     return 1
   }
   const obj = hooks.foreign.get(handle)
@@ -360,7 +384,7 @@ export function dispatch(hooks: LstlHooks, handle: number, methodPtr: number, ar
       hooks.poisoned = e
       throw e
     }
-    const msg = e instanceof Error ? e.message : String(e)
+    const msg = errorText(e)
     d.writeError(err, msg.startsWith(method.jsName + ':') ? msg : `${method.jsName}: ${msg}`)
     return 1
   } finally {

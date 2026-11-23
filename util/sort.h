@@ -11,7 +11,11 @@
  *    std::sort is fine. Ties are *checked* (in every build type) and reported,
  *    because a tie is a caller bug (e.g. a duplicate persistent ID).
  *  - stable_sort: a self-contained merge sort whose output for tied keys is
- *    fixed by this implementation (input order), on every platform. */
+ *    fixed by this implementation (input order), on every platform.
+ *
+ * group_by_key is a stable counting sort of indices by a small integer key,
+ * into compressed (CSR) form: one flat array plus per-key offsets, in place
+ * of a vector of vectors. */
 
 #include <algorithm>
 #include <cstddef>
@@ -95,6 +99,58 @@ template <typename T, typename Less> void stable_sort(span<T> s, Less less)
   if (src != s.data()) {
     std::copy(src, src + n, s.data());
   }
+}
+
+/** Indices grouped by key: group k is items[offsets[k] .. offsets[k + 1]). */
+struct KeyGroups {
+  Vector<uint32_t> offsets; /* group count + 1 entries */
+  Vector<uint32_t> items;
+
+  uint32_t size() const
+  {
+    return offsets.size() ? uint32_t(offsets.size() - 1) : 0u;
+  }
+  span<const uint32_t> operator[](uint32_t k) const
+  {
+    return span<const uint32_t>(items.data() + offsets[k], offsets[k + 1] - offsets[k]);
+  }
+};
+
+/** Key that leaves an index out of every group. */
+inline constexpr uint32_t kNoGroup = 0xffffffffu;
+
+/** Groups the indices 0..n-1 by key(i) < nkeys (or kNoGroup), in O(n + nkeys).
+ * Stable: each group lists its indices in ascending order. key is called
+ * twice per index and must return the same value both times. */
+template <typename KeyFn> void group_by_key(uint32_t n, uint32_t nkeys, KeyFn &&key, KeyGroups &out)
+{
+  out.offsets.resize(size_t(nkeys) + 1);
+  for (uint32_t k = 0; k <= nkeys; k++) {
+    out.offsets[k] = 0;
+  }
+  for (uint32_t i = 0; i < n; i++) {
+    const uint32_t k = key(i);
+    if (k != kNoGroup) {
+      out.offsets[k + 1]++;
+    }
+  }
+  for (uint32_t k = 0; k < nkeys; k++) {
+    out.offsets[k + 1] += out.offsets[k];
+  }
+  out.items.resize(out.offsets[nkeys]);
+  /* fill from the back of each group, scanning backwards: stays stable and
+   * needs no cursor array */
+  for (uint32_t i = n; i-- > 0;) {
+    const uint32_t k = key(i);
+    if (k != kNoGroup) {
+      out.items[--out.offsets[k + 1]] = i;
+    }
+  }
+  /* offsets[k + 1] now holds group k's start: shift down one place */
+  for (uint32_t k = 0; k < nkeys; k++) {
+    out.offsets[k] = out.offsets[k + 1];
+  }
+  out.offsets[nkeys] = uint32_t(out.items.size());
 }
 
 } // namespace litestl::util

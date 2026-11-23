@@ -12,7 +12,7 @@ any thread count.
 | `util/hash128.h` | `litestl::hash` | `Hash128`, `SipHash128`, `Hasher128`, canonical encoders |
 | `util/rng.h` | `litestl::rng` | `philox4x32`, `Stream` |
 | `util/task.h` | `litestl::task` | `parallel_for_chunks`, `parallel_reduce`, `parallel_exclusive_scan`, `ScopedBandCount` |
-| `util/sort.h` | `litestl::util` | `sort_unique_keys`, `stable_sort` |
+| `util/sort.h` | `litestl::util` | `sort_unique_keys`, `stable_sort`, `group_by_key` |
 
 ## Wide integers (`math/wideint.h`)
 
@@ -211,6 +211,12 @@ its result can't. litestl offers two reproducible options:
     resolve silently.
 - **`stable_sort(span, less)`** is a self-contained bottom-up merge sort, for the rare
   inputs with genuine ties. Tied elements keep their input order.
+- **`group_by_key(n, nkeys, key, groups)`** is a counting sort of the indices
+  `0..n-1` by a small integer key, in O(n + nkeys). It produces compressed (CSR)
+  groups, `KeyGroups`: one flat index array plus per-key offsets, in place of a vector
+  of vectors.
+  - It is stable: each group lists its indices in ascending order.
+  - A key of `kNoGroup` leaves an index out.
 
 ## Tests and determinism digest
 

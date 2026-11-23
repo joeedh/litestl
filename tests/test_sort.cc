@@ -1,4 +1,5 @@
-/* util::sort_unique_keys / util::stable_sort and task::parallel_exclusive_scan. */
+/* util::sort_unique_keys / util::stable_sort / util::group_by_key and
+ * task::parallel_exclusive_scan. */
 
 #include "litestl/util/sort.h"
 #include "litestl/util/task.h"
@@ -98,11 +99,54 @@ template <typename T> static void test_scan_type()
   }
 }
 
+/* group_by_key against a vector of vectors: every group, in ascending index
+ * order, with kNoGroup indices left out; empty groups and nkeys == 0 too */
+static void test_group_by_key()
+{
+  test::SplitMix64 rng(7);
+  test::FailureLog log("group_by_key");
+  const int64_t ncases = test::cases(300);
+  for (int64_t c = 0; c < ncases; c++) {
+    const uint32_t n = uint32_t(rng.below(c < 30 ? 20 : 4000));
+    const uint32_t nkeys = uint32_t(rng.below(c % 4 == 0 ? 3 : 600));
+    std::vector<uint32_t> key(n);
+    for (uint32_t i = 0; i < n; i++) {
+      key[i] = (nkeys == 0 || rng.below(5) == 0) ? util::kNoGroup : uint32_t(rng.below(nkeys));
+    }
+    std::vector<std::vector<uint32_t>> ref(nkeys);
+    for (uint32_t i = 0; i < n; i++) {
+      if (key[i] != util::kNoGroup) {
+        ref[key[i]].push_back(i);
+      }
+    }
+    util::KeyGroups g;
+    util::group_by_key(n, nkeys, [&](uint32_t i) { return key[i]; }, g);
+    bool ok = g.size() == nkeys && g.offsets.size() == size_t(nkeys) + 1 && g.offsets[0] == 0;
+    size_t total = 0;
+    for (uint32_t k = 0; ok && k < nkeys; k++) {
+      const auto grp = g[k];
+      ok = grp.size() == ref[k].size() && std::equal(grp.begin(), grp.end(), ref[k].begin());
+      total += grp.size();
+    }
+    ok = ok && total == g.items.size();
+    log.count_case();
+    log.check(ok, [&] { fprintf(stderr, "n=%u nkeys=%u", n, nkeys); });
+  }
+  log.finish();
+  /* reuse: a second call on the same output replaces the first */
+  util::KeyGroups g;
+  util::group_by_key(5, 2, [](uint32_t i) { return i % 2; }, g);
+  util::group_by_key(3, 1, [](uint32_t) { return 0u; }, g);
+  test_assert(g.size() == 1 && g.offsets[0] == 0 && g.offsets[1] == 3 && g.items.size() == 3);
+  test_assert(g[0][0] == 0 && g[0][1] == 1 && g[0][2] == 2);
+}
+
 int main()
 {
   const size_t baseline = alloc::getMemorySize();
   test_stable_sort();
   test_sort_unique_keys();
+  test_group_by_key();
   test_scan_type<uint32_t>();
   test_scan_type<uint64_t>();
   test_assert(alloc::getMemorySize() == baseline);

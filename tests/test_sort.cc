@@ -109,14 +109,16 @@ static void test_group_by_key()
   for (int64_t c = 0; c < ncases; c++) {
     const uint32_t n = uint32_t(rng.below(c < 30 ? 20 : 4000));
     const uint32_t nkeys = uint32_t(rng.below(c % 4 == 0 ? 3 : 600));
-    std::vector<uint32_t> key(n);
+    util::Vector<uint32_t> key;
+    key.resize(n);
     for (uint32_t i = 0; i < n; i++) {
       key[i] = (nkeys == 0 || rng.below(5) == 0) ? util::kNoGroup : uint32_t(rng.below(nkeys));
     }
-    std::vector<std::vector<uint32_t>> ref(nkeys);
+    util::Vector<util::Vector<uint32_t>> ref;
+    ref.resize(nkeys);
     for (uint32_t i = 0; i < n; i++) {
       if (key[i] != util::kNoGroup) {
-        ref[key[i]].push_back(i);
+        ref[key[i]].append(i);
       }
     }
     util::KeyGroups g;

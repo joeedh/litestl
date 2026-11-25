@@ -8,6 +8,7 @@
 
 #include "litestl/binding/binding.h"
 #include "litestl/binding/manager.h"
+#include "litestl/math/matrix_bindings.h"
 #include "litestl/util/string.h"
 #include "litestl/util/vector.h"
 
@@ -151,6 +152,12 @@ void probeTrap();
 bool probeFailed();
 util::string probeLastError();
 void probeRelease(uint32_t h);
+
+/** A math matrix and quaternion by value and by reference. */
+math::mat4d translation(double x, double y, double z);
+math::mat4d concat(const math::mat4d &a, const math::mat4d &b);
+math::quatd halfTurn(int32_t axis);
+math::mat4f narrow(const math::mat4d &m);
 
 int32_t addInts(int32_t a, int32_t b);
 double scaleD(double v, double s);

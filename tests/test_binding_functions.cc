@@ -232,7 +232,7 @@ static void testGenerator(BindingManager *mgr)
   test_assert(fileHas(files,
                       "fixture/functions.ts",
                       "export const boxExtent = bindFunction(\"fixture::boxExtent\") as "
-                      "<T extends (double | float)>(b: Box<T>) => T;"));
+                      "<T extends (float | double)>(b: Box<T>) => T;"));
   // No struct argument to infer from: selector key first.
   test_assert(fileHas(files, "fixture/functions.ts", "\"float\": [float],"));
   test_assert(fileHas(files,

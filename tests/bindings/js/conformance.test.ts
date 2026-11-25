@@ -104,6 +104,31 @@ describe(`binding conformance (${backend.kind})`, () => {
     assert.equal(a.y, -1)
   })
 
+  test('math matrices and quaternions', () => {
+    using a = fx.translation(1, 2, 3)
+    assert.equal(backend.typeName(a), 'litestl::math::mat4d')
+    const elements = (m: {at(i: number): number}, n: number) => Array.from({length: n}, (_, i) => m.at(i))
+    assert.deepEqual(elements(a, 16), [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 2, 3, 1])
+    using b = backend.constructWith('litestl::math::mat4d', 'copy', a) as typeof a
+    b.put(12, 10)
+    assert.equal(a.at(12), 1, 'the copy is independent')
+    using c = fx.concat(a, b)
+    assert.deepEqual(elements(c, 16).slice(12), [11, 4, 6, 1])
+    using f = fx.narrow(c)
+    assert.equal(backend.typeName(f), 'litestl::math::mat4f')
+    assert.equal(f.at(12), 11)
+    assert.equal(a.at(16), 0, 'out of range reads 0')
+    assert.equal(a.at(-1), 0)
+    a.put(16, 5)
+    a.put(-1, 5)
+    assert.deepEqual(elements(a, 16).slice(12), [1, 2, 3, 1], 'out of range writes nothing')
+    using q = fx.halfTurn(1)
+    assert.equal(backend.typeName(q), 'litestl::math::quatd')
+    assert.deepEqual(elements(q, 4), [0, 1, 0, 0])
+    using id = backend.constructWith('litestl::math::quatd', 'default') as typeof q
+    assert.deepEqual(elements(id, 4), [0, 0, 0, 1])
+  })
+
   test('static methods', () => {
     using v = Vec2.make(5, 6)
     assert.equal(v.y, 6)

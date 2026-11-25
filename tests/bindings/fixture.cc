@@ -415,6 +415,33 @@ void probeRelease(uint32_t h)
   binding::foreign::release(h);
 }
 
+math::mat4d translation(double x, double y, double z)
+{
+  math::mat4d m;
+  m.identity();
+  m[3] = math::double4(x, y, z, 1.0);
+  return m;
+}
+math::mat4d concat(const math::mat4d &a, const math::mat4d &b)
+{
+  return a * b;
+}
+math::quatd halfTurn(int32_t axis)
+{
+  math::quatd q(0.0, 0.0, 0.0, 0.0);
+  q[axis] = 1.0;
+  return q;
+}
+math::mat4f narrow(const math::mat4d &m)
+{
+  const double *d = m;
+  math::mat4f r;
+  for (int i = 0; i < 16; i++) {
+    r[i / 4][i % 4] = float(d[i]);
+  }
+  return r;
+}
+
 void registerFixture(BindingManager *mgr)
 {
   alloc::PermanentGuard guard;
@@ -443,6 +470,11 @@ void registerFixture(BindingManager *mgr)
   BIND_FUNCTION(mgr, "fixture::probeFailed", probeFailed, MARGS());
   BIND_FUNCTION(mgr, "fixture::probeLastError", probeLastError, MARGS());
   BIND_FUNCTION(mgr, "fixture::probeRelease", probeRelease, MARGS("h"));
+
+  BIND_FUNCTION(mgr, "fixture::translation", translation, MARGS("x", "y", "z"));
+  BIND_FUNCTION(mgr, "fixture::concat", concat, MARGS("a", "b"));
+  BIND_FUNCTION(mgr, "fixture::halfTurn", halfTurn, MARGS("axis"));
+  BIND_FUNCTION(mgr, "fixture::narrow", narrow, MARGS("m"));
 
   BIND_FUNCTION(mgr, "fixture::addInts", addInts, MARGS("a", "b"));
   BIND_FUNCTION(mgr, "fixture::scaleD", scaleD, MARGS("v", "s"));

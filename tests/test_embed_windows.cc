@@ -44,6 +44,7 @@
 #include "litestl/math/geom.h"
 #include "litestl/math/math_bindings.h"
 #include "litestl/math/matrix.h"
+#include "litestl/math/matrix_bindings.h"
 #include "litestl/math/predicates.h"
 #include "litestl/math/quat.h"
 #include "litestl/math/transform.h"

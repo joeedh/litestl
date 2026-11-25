@@ -11,6 +11,7 @@ set(SRC
   PUBLIC quat.h
   PUBLIC euler.h
   PUBLIC transform.h
+  PUBLIC matrix_bindings.h
   PUBLIC matrix.h
   PUBLIC bspline.h
   PUBLIC mix.h

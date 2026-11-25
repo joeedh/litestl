@@ -1,7 +1,7 @@
 /* Embedding check (Windows only): every public header must compile after <windows.h>
  * without NOMINMAX, and next to Unreal-style check/verify/ensure macros. Excluded:
- * util/wasm.h (WASM only), math/quat.h (needs a fix of its own), and math/lut.h and
- * math/mix.h (unused and do not compile on their own). */
+ * util/wasm.h (WASM only), and math/lut.h and math/mix.h (unused and do not compile on
+ * their own). */
 #include <windows.h>
 #define check(expr) ((void)(expr))
 #define verify(expr) ((void)(expr))
@@ -40,10 +40,13 @@
 #include "litestl/math/bspline.h"
 #include "litestl/math/color.h"
 #include "litestl/math/detmath.h"
+#include "litestl/math/euler.h"
 #include "litestl/math/geom.h"
 #include "litestl/math/math_bindings.h"
 #include "litestl/math/matrix.h"
 #include "litestl/math/predicates.h"
+#include "litestl/math/quat.h"
+#include "litestl/math/transform.h"
 #include "litestl/math/tri_aabb_isect.h"
 #include "litestl/math/vector.h"
 #include "litestl/math/wideint.h"

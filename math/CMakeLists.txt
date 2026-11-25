@@ -9,6 +9,8 @@ set(SRC
   PUBLIC lut.h
   PUBLIC geom.h 
   PUBLIC quat.h
+  PUBLIC euler.h
+  PUBLIC transform.h
   PUBLIC matrix.h
   PUBLIC bspline.h
   PUBLIC mix.h

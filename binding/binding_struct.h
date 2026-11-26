@@ -129,7 +129,7 @@ template <typename CLS> struct Struct : public _StructBase {
 
   struct_type *type_null;
 
-  Struct(string name, size_t size) : _StructBase(name, size)
+  Struct(string structName, size_t size) : _StructBase(structName, size)
   {
     typeKey = typeKeyOf<CLS>();
     destructorThunk = new std::function<void(void *)>([](void *obj) {
@@ -179,10 +179,12 @@ template <typename CLS> struct Struct : public _StructBase {
   {
     return static_cast<BindingBase *>(new Struct(*this));
   }
-  const BindingBase *add(string name, size_t offset, const BindingBase *type)
+  /* Parameters not called name or type: those are BindingBase's members, and MSVC's C4458
+   * (an error in Unreal's editor modules) reports the shadowing. */
+  const BindingBase *add(string memberName, size_t offset, const BindingBase *memberType)
   {
-    members.append({name, offset, type});
-    return type;
+    members.append({memberName, offset, memberType});
+    return memberType;
   }
   void addMethod(Method *m)
   {

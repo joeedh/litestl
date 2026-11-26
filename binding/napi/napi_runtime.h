@@ -19,8 +19,8 @@
 
 #include <node_api.h>
 
-#include "litestl/binding/binding_dispatch.h"
-#include "litestl/binding/manager.h"
+#include "../binding_dispatch.h"
+#include "../manager.h"
 
 #include <memory>
 #include <string>

@@ -21,8 +21,8 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "util/span.h"
-#include "util/vector.h"
+#include "span.h"
+#include "vector.h"
 
 namespace litestl::util {
 

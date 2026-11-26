@@ -1,6 +1,6 @@
-#include "litestl/util/function.h"
-#include "litestl/util/rand.h"
-#include "math/matrix.h"
+#include "../util/function.h"
+#include "../util/rand.h"
+#include "../math/matrix.h"
 #include "test_util.h"
 #include <cstdio>
 

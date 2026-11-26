@@ -1,7 +1,7 @@
 /* Page-size benchmark for litestl::attr (P1 W8 / OI-3). Not a ctest test:
  * run manually in a Release build. Prints one row per page shift. */
 
-#include "litestl/attr/column.h"
+#include "../attr/column.h"
 
 #include "splitmix64.h"
 

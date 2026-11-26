@@ -26,9 +26,9 @@
  *
  * Refs copied raw between stores are meaningless; use import/import_rows. */
 
-#include "attr/group.h"
-#include "attr/pool.h"
-#include "util/map.h"
+#include "group.h"
+#include "pool.h"
+#include "../util/map.h"
 
 namespace litestl::attr {
 

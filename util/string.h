@@ -1,8 +1,8 @@
 #pragma once
 
-#include "util/alloc.h"
-#include "util/compiler_util.h"
-#include "util/vector.h"
+#include "alloc.h"
+#include "compiler_util.h"
+#include "vector.h"
 #include <algorithm>
 #include <atomic>
 #include <compare>

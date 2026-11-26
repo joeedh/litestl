@@ -9,8 +9,8 @@
 /* Internal to the math/predicates sources: include only from translation units
  * compiled with the predicate FP flags. */
 
-#include "math/predicates.h"
-#include "util/alloc.h"
+#include "../predicates.h"
+#include "../../util/alloc.h"
 
 #include <cfloat>
 

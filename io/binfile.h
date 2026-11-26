@@ -154,11 +154,11 @@ file to match the latest version of the schema prior invoking any struct io cons
 
 #pragma once
 
-#include "binding/binding_base.h"
-#include "litestl/binding/binding.h"
-#include "litestl/util/map.h"
-#include "litestl/util/string.h"
-#include "litestl/util/vector.h"
+#include "../binding/binding_base.h"
+#include "../binding/binding.h"
+#include "../util/map.h"
+#include "../util/string.h"
+#include "../util/vector.h"
 
 #include <bit>
 #include <cfloat>

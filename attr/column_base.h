@@ -10,14 +10,14 @@
 #include <cstdint>
 #include <string_view>
 
-#include "attr/mix.h"
-#include "attr/paged_store.h"
-#include "attr/pool_ref.h"
-#include "io/bytes.h"
-#include "util/compiler_util.h"
-#include "util/hash128.h"
-#include "util/memory.h"
-#include "util/span.h"
+#include "mix.h"
+#include "paged_store.h"
+#include "pool_ref.h"
+#include "../io/bytes.h"
+#include "../util/compiler_util.h"
+#include "../util/hash128.h"
+#include "../util/memory.h"
+#include "../util/span.h"
 
 namespace litestl::attr {
 

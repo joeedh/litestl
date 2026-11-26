@@ -36,9 +36,9 @@
 #include <cstring>
 #include <type_traits>
 
-#include "util/rc_buffer.h"
-#include "util/span.h"
-#include "util/vector.h"
+#include "../util/rc_buffer.h"
+#include "../util/span.h"
+#include "../util/vector.h"
 
 #ifndef LITESTL_ATTR_CHECKS
 #ifdef NDEBUG

@@ -1,12 +1,12 @@
 #pragma once
 #include "../util/vector.h"
-#include "binding/binding_base.h"
+#include "binding_base.h"
 #include "binding_bind.h"
 #include "binding_literal.h"
 #include "binding_struct.h"
 #include "binding_types.h"
-#include "concepts"
-#include "type_traits"
+#include <concepts>
+#include <type_traits>
 #include <cstdint>
 
 namespace litestl::binding {

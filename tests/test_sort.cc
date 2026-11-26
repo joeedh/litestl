@@ -1,8 +1,8 @@
 /* util::sort_unique_keys / util::stable_sort / util::group_by_key and
  * task::parallel_exclusive_scan. */
 
-#include "litestl/util/sort.h"
-#include "litestl/util/task.h"
+#include "../util/sort.h"
+#include "../util/task.h"
 
 #include "splitmix64.h"
 #include "test_harness.h"

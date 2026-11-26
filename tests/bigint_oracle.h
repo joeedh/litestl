@@ -15,7 +15,7 @@
 #include <string>
 #include <vector>
 
-#include "litestl/util/vector.h"
+#include "../util/vector.h"
 
 namespace litestl::test {
 

@@ -8,7 +8,7 @@
  *    LITESTL_PRINT_GOLDENS=1 prints it.
  *  - Special values and identities, everywhere. */
 
-#include "litestl/math/detmath.h"
+#include "../math/detmath.h"
 #include "splitmix64.h"
 #include "test_harness.h"
 

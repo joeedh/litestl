@@ -1,7 +1,7 @@
 #pragma once
 
 #include "binding_base.h"
-#include "util/alloc.h"
+#include "../util/alloc.h"
 
 namespace litestl::binding {
 using util::string;

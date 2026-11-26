@@ -3,8 +3,8 @@
  * conformance tests; see documentation/binding.md, "Foreign dispatch". */
 #include "napi_runtime.h"
 
-#include "litestl/binding/foreign.h"
-#include "litestl/util/alloc.h"
+#include "../foreign.h"
+#include "../../util/alloc.h"
 
 #include <cstring>
 #include <memory>

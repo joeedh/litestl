@@ -1,4 +1,4 @@
-#include "math/vector.h"
+#include "vector.h"
 #include <memory>
 
 namespace litestl::math {

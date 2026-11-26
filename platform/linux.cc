@@ -1,6 +1,6 @@
-#include "platform/cpu.h"
-#include "platform/platform.h"
-#include "platform/time.h"
+#include "cpu.h"
+#include "platform.h"
+#include "time.h"
 
 #include <cctype>
 #include <chrono>

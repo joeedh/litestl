@@ -1,7 +1,7 @@
 #pragma once
 
 #include "binding_base.h"
-#include "litestl/util/string.h"
+#include "../util/string.h"
 
 /**
  * Literal binding types are types that map to typescript primitive literals,

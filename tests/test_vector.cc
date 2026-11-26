@@ -1,5 +1,5 @@
-#include "litestl/util/alloc.h"
-#include "litestl/util/vector.h"
+#include "../util/alloc.h"
+#include "../util/vector.h"
 #include "test_util.h"
 #include <cstdio>
 

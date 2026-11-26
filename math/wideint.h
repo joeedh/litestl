@@ -16,7 +16,7 @@
 #include <cstdint>
 #include <type_traits>
 
-#include "util/type_tags.h"
+#include "../util/type_tags.h"
 
 #if defined(__SIZEOF_INT128__) && !defined(LITESTL_NO_INT128)
 #define LITESTL_HAVE_INT128 1

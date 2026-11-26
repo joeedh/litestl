@@ -1,5 +1,5 @@
-#include "platform/cpu.h"
-#include "platform/time.h"
+#include "cpu.h"
+#include "time.h"
 #include <windows.h>
 
 #include <chrono>

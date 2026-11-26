@@ -1,4 +1,4 @@
-#include "litestl/math/wideint.h"
+#include "../math/wideint.h"
 
 #include "bigint_oracle.h"
 #include "splitmix64.h"

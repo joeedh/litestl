@@ -4,8 +4,8 @@
  * with an inner ref, a custom column class holding two refs per element, a
  * journal-like root holding captured element bytes, and a test owner. */
 
-#include "litestl/attr/pool_store.h"
-#include "litestl/attr/registry.h"
+#include "../attr/pool_store.h"
+#include "../attr/registry.h"
 
 #include <cstring>
 #include <string>

@@ -26,8 +26,8 @@
 #include <cstring>
 #include <new>
 
-#include "util/alloc.h"
-#include "util/vector.h"
+#include "../util/alloc.h"
+#include "../util/vector.h"
 
 namespace litestl::attr::detail {
 

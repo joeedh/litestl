@@ -4,7 +4,7 @@
 #include "binding_bind.h"
 #include "binding_method.h"
 #include "binding_types.h"
-#include "util/vector.h"
+#include "../util/vector.h"
 #include <concepts>
 #include <cstring>
 #include <functional>

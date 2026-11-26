@@ -23,7 +23,7 @@
 #include <cstring>
 #include <string_view>
 
-#include "util/string.h"
+#include "string.h"
 
 namespace litestl::hash {
 

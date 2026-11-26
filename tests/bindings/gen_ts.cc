@@ -2,8 +2,8 @@
 
 #include "fixture.h"
 
-#include "litestl/binding/generators/typescript.h"
-#include "litestl/util/alloc.h"
+#include "../../binding/generators/typescript.h"
+#include "../../util/alloc.h"
 
 #include <cstdio>
 #include <filesystem>

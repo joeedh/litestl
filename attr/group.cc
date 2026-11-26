@@ -1,5 +1,5 @@
-#include "attr/group.h"
-#include "attr/registry.h"
+#include "group.h"
+#include "registry.h"
 
 #include <algorithm>
 #include <cstring>

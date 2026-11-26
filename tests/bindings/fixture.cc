@@ -1,6 +1,6 @@
 #include "fixture.h"
 
-#include "litestl/binding/foreign.h"
+#include "../../binding/foreign.h"
 
 #include <new>
 

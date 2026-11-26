@@ -5,8 +5,8 @@
  * LITESTL_PRINT_GOLDENS=1 prints the current value. Changing it is a
  * deliberate act (DEC-009/DEC-010). */
 
-#include "litestl/attr/bool_column.h"
-#include "litestl/attr/group.h"
+#include "../attr/bool_column.h"
+#include "../attr/group.h"
 
 #include "splitmix64.h"
 #include "test_harness.h"

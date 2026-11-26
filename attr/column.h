@@ -6,11 +6,11 @@
 #include <cstring>
 #include <string>
 
-#include "attr/column_base.h"
-#include "attr/registry.h"
-#include "attr/type_key.h"
-#include "attr/value_ops.h"
-#include "util/task.h"
+#include "column_base.h"
+#include "registry.h"
+#include "type_key.h"
+#include "value_ops.h"
+#include "../util/task.h"
 
 namespace litestl::attr {
 

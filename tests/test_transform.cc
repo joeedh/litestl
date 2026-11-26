@@ -1,9 +1,9 @@
 /* quat.h, euler.h and transform.h against small independent references written out
  * below: Rodrigues rotation matrices, plain row-by-column products, and Eigen's inverse.
  */
-#include "litestl/math/euler.h"
-#include "litestl/math/quat.h"
-#include "litestl/math/transform.h"
+#include "../math/euler.h"
+#include "../math/quat.h"
+#include "../math/transform.h"
 #include "splitmix64.h"
 #include "test_harness.h"
 

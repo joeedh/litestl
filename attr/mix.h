@@ -12,8 +12,8 @@
 #include <algorithm>
 #include <cstdint>
 
-#include "util/span.h"
-#include "util/vector.h"
+#include "../util/span.h"
+#include "../util/vector.h"
 
 namespace litestl::attr {
 

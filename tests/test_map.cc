@@ -1,6 +1,6 @@
-#include "litestl/util/map.h"
-#include "litestl/util/rand.h"
-#include "litestl/util/vector.h"
+#include "../util/map.h"
+#include "../util/rand.h"
+#include "../util/vector.h"
 #include "test_util.h"
 #include <cstdio>
 

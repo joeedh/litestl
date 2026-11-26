@@ -1,5 +1,5 @@
-#include "litestl/math/matrix.h"
-#include "litestl/util/rand.h"
+#include "../math/matrix.h"
+#include "../util/rand.h"
 #include "test_util.h"
 #include <cstdio>
 

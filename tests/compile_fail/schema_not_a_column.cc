@@ -1,4 +1,4 @@
-#include "litestl/attr/schema.h"
+#include "../../attr/schema.h"
 using namespace litestl::attr;
 using Bad = AttrDef<"count", int>; // not a column type
 int main()

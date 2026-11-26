@@ -5,9 +5,9 @@
  * the model, and every live snapshot against its frozen model copy. Small
  * page shifts make every sequence cross many pages, tails and state changes. */
 
-#include "litestl/attr/bool_column.h"
-#include "litestl/attr/column.h"
-#include "litestl/attr/registry.h"
+#include "../attr/bool_column.h"
+#include "../attr/column.h"
+#include "../attr/registry.h"
 
 #include "splitmix64.h"
 #include "test_harness.h"

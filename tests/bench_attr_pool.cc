@@ -2,7 +2,7 @@
  * build. Part 1 scales the entry count at the default slot page size; part 2
  * compares slot page sizes at 1e5 entries. Prints the W6 acceptance checks. */
 
-#include "litestl/attr/pool_store.h"
+#include "../attr/pool_store.h"
 
 #include "splitmix64.h"
 

@@ -3,9 +3,9 @@
  * detection (death test), read/fuzz robustness and a threaded snapshot
  * stress test (run under TSan in the sanitizer configuration). */
 
-#include "litestl/attr/bool_column.h"
-#include "litestl/attr/group.h"
-#include "litestl/attr/registry.h"
+#include "../attr/bool_column.h"
+#include "../attr/group.h"
+#include "../attr/registry.h"
 
 #include "splitmix64.h"
 #include "test_harness.h"

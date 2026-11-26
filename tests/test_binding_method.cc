@@ -1,4 +1,4 @@
-#include "binding/binding.h"
+#include "../binding/binding.h"
 #include "test_util.h"
 
 #include <cstdio>

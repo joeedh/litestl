@@ -20,7 +20,7 @@
 #include <string>
 #include <string_view>
 
-#include "attr/column_base.h"
+#include "column_base.h"
 
 namespace litestl::attr {
 

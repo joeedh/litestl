@@ -1,9 +1,9 @@
 #pragma once
 
 #include "../binding_base.h"
-#include "util/map.h"
-#include "util/string.h"
-#include "util/vector.h"
+#include "../../util/map.h"
+#include "../../util/string.h"
+#include "../../util/vector.h"
 
 namespace litestl::binding::generators {
 

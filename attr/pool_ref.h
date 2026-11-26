@@ -13,7 +13,7 @@
 #include <string>
 #include <type_traits>
 
-#include "attr/type_key.h"
+#include "type_key.h"
 
 namespace litestl::attr {
 

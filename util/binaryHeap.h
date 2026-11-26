@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cmath>
+
 #include "function.h"
 #include "vector.h"
 

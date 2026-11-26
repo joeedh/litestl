@@ -176,6 +176,11 @@ C++ reflection / type-description layer; see
 
 - C++20, headers `.h`, sources `.cc` (`.cpp` is accepted but `.cc` is the
   convention).
+- Include litestl's own files, Eigen and lz4 by a path relative to the
+  including file (`"vector.h"`, `"../util/vector.h"`), never through an
+  include directory, so a host needs only litestl's parent on its path.
+  The `litestl_header_check` target (tests/CMakeLists.txt) compiles each
+  header that way.
 - `-Wno-invalid-offsetof` is set under WASM — `offsetof` on non-standard-
   layout types is expected and is how the binding system threads
   descriptors across the WASM boundary.

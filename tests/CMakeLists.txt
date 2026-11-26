@@ -104,8 +104,7 @@ test(test_attr_pool_digest.cc attr)
 # expected diagnostic (attr schemas hoist attribute shape errors to compile
 # time). The control snippet must compile, proving the include setup.
 if (NOT CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
-  set(CF_FLAGS -std=c++20 -fsyntax-only
-    -I${CMAKE_CURRENT_SOURCE_DIR}/.. -I${CMAKE_CURRENT_SOURCE_DIR}/../..)
+  set(CF_FLAGS -std=c++20 -fsyntax-only)
   add_test(NAME compile_ok_schema_control
     COMMAND ${CMAKE_CXX_COMPILER} ${CF_FLAGS} ${CMAKE_CURRENT_SOURCE_DIR}/compile_fail/schema_control.cc)
   macro(compile_fail name regex)
@@ -119,6 +118,26 @@ if (NOT CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
   compile_fail(schema_wrong_column_type "invalid initialization|cannot bind|non-const lvalue reference")
   compile_fail(schema_not_a_column "constraints not satisfied|not satisfied|AttrDefinition")
 endif()
+# Header check: every litestl header compiles on its own with only the parent of
+# litestl on the include path, the way a host includes "litestl/util/vector.h".
+# litestl includes its own files by relative path, so it needs nothing more.
+get_filename_component(LT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
+get_filename_component(LT_ROOT_NAME "${LT_ROOT}" NAME)
+get_filename_component(LT_ROOT_PARENT "${LT_ROOT}" DIRECTORY)
+file(GLOB_RECURSE LT_HEADERS RELATIVE "${LT_ROOT}" CONFIGURE_DEPENDS "${LT_ROOT}/*.h")
+# Skipped: binding/napi needs node_api.h, util/wasm.h is WASM only, math/lut.h is
+# unfinished, and binding_method.h only compiles through binding.h (include cycle).
+list(FILTER LT_HEADERS EXCLUDE REGEX
+  "^(extern|tests|build|binding/napi)/|node_modules/|^util/wasm\\.h$|^math/lut\\.h$|^binding/binding_method\\.h$")
+set(LT_HEADER_CHECK_SRC "")
+foreach(header IN LISTS LT_HEADERS)
+  string(MAKE_C_IDENTIFIER "${header}" stem)
+  set(src "${CMAKE_CURRENT_BINARY_DIR}/header_check/${stem}.cc")
+  file(CONFIGURE OUTPUT "${src}" CONTENT "#include \"${LT_ROOT_NAME}/${header}\"\n")
+  list(APPEND LT_HEADER_CHECK_SRC "${src}")
+endforeach()
+add_library(litestl_header_check OBJECT ${LT_HEADER_CHECK_SRC})
+target_include_directories(litestl_header_check PRIVATE "${LT_ROOT_PARENT}")
 test(test_attr_digest.cc attr)
 # A7 probe: same workload compiled asking for FP contraction; attr's PUBLIC
 # flags and the kernels' pragmas must keep the digest identical.

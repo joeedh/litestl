@@ -318,6 +318,7 @@ void stat_hit(Predicate p, Stage s);
 
 double orient2d(const double *pa, const double *pb, const double *pc);
 double orient3d(const double *pa, const double *pb, const double *pc, const double *pd);
+double orient3d_value(const double *pa, const double *pb, const double *pc, const double *pd);
 double incircle(const double *pa, const double *pb, const double *pc, const double *pd);
 double insphere(const double *pa, const double *pb, const double *pc, const double *pd, const double *pe);
 

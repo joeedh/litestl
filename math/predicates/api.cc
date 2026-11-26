@@ -57,6 +57,14 @@ int orient3d(const double3 &a, const double3 &b, const double3 &c, const double3
   return sign(detail::orient3d(pa, pb, pc, pd));
 }
 
+double orient3d_value(const double3 &a, const double3 &b, const double3 &c, const double3 &d)
+{
+  CHECK_DOMAIN(&a, &b, &c, &d);
+  const double pa[3] = {a[0], a[1], a[2]}, pb[3] = {b[0], b[1], b[2]};
+  const double pc[3] = {c[0], c[1], c[2]}, pd[3] = {d[0], d[1], d[2]};
+  return detail::orient3d_value(pa, pb, pc, pd);
+}
+
 int incircle(const double2 &a, const double2 &b, const double2 &c, const double2 &d)
 {
   CHECK_DOMAIN(&a, &b, &c, &d);
@@ -82,6 +90,10 @@ int orient2d(const float2 &a, const float2 &b, const float2 &c)
 int orient3d(const float3 &a, const float3 &b, const float3 &c, const float3 &d)
 {
   return orient3d(widen(a), widen(b), widen(c), widen(d));
+}
+double orient3d_value(const float3 &a, const float3 &b, const float3 &c, const float3 &d)
+{
+  return orient3d_value(widen(a), widen(b), widen(c), widen(d));
 }
 int incircle(const float2 &a, const float2 &b, const float2 &c, const float2 &d)
 {

@@ -58,6 +58,19 @@ int insphere(const double3 &a,
              const double3 &d,
              const double3 &e);
 
+/** The value of orient3d's determinant, with a relative error below
+ * orient3d_value_rel: |v - det| < 2^-45 |det|. So its sign is orient3d's, and
+ * it is 0 exactly when the determinant is. For quotients of determinants,
+ * such as where a segment crosses a plane, which then stay accurate too. The
+ * floating filter decides most calls when the determinant isn't small next to
+ * its permanent; others take orient3d's adaptive stages or, rarely, the exact
+ * expansion. Put the point that is closest to the others last: the filter is
+ * relative to products of differences from it. */
+double orient3d_value(const double3 &a, const double3 &b, const double3 &c, const double3 &d);
+double orient3d_value(const float3 &a, const float3 &b, const float3 &c, const float3 &d);
+/** 2^8 epsilon, epsilon = 2^-53. */
+constexpr double orient3d_value_rel = 0x1.0p-45;
+
 int orient2d(const float2 &a, const float2 &b, const float2 &c);
 int orient3d(const float3 &a, const float3 &b, const float3 &c, const float3 &d);
 int incircle(const float2 &a, const float2 &b, const float2 &c, const float2 &d);
@@ -65,7 +78,7 @@ int insphere(
     const float3 &a, const float3 &b, const float3 &c, const float3 &d, const float3 &e);
 
 /* Diagnostics. */
-enum class Predicate { Orient2d, Orient3d, Incircle, Insphere, Count };
+enum class Predicate { Orient2d, Orient3d, Incircle, Insphere, Orient3dValue, Count };
 /* A: static filter; B, C: adaptive stages; T: early exit because the input
  * differences were exact (zero tails); D: fully exact stage. */
 enum class Stage { A, B, T, C, D, Count };
@@ -126,23 +139,37 @@ template <int Bits = 26> int orient2d(const int64_2 &a, const int64_2 &b, const 
   return detail::sign_of(acx * bcy - acy * bcx);
 }
 
-template <int Bits = 26>
-int orient3d(const int64_3 &a, const int64_3 &b, const int64_3 &c, const int64_3 &d)
+namespace detail {
+template <int Bits> Int128 orient3d_det(const int64_3 &a, const int64_3 &b, const int64_3 &c, const int64_3 &d)
 {
   static_assert(3 * Bits + 7 <= 127, "orient3d: Bits too large for Int128");
   static_assert(2 * Bits + 3 <= 63, "orient3d: 2x2 minors must fit int64");
-  detail::check_range<Bits>(a);
-  detail::check_range<Bits>(b);
-  detail::check_range<Bits>(c);
-  detail::check_range<Bits>(d);
+  check_range<Bits>(a);
+  check_range<Bits>(b);
+  check_range<Bits>(c);
+  check_range<Bits>(d);
   const int64_t adx = a[0] - d[0], ady = a[1] - d[1], adz = a[2] - d[2];
   const int64_t bdx = b[0] - d[0], bdy = b[1] - d[1], bdz = b[2] - d[2];
   const int64_t cdx = c[0] - d[0], cdy = c[1] - d[1], cdz = c[2] - d[2];
   /* Shewchuk's orient3d = adz*(bdx*cdy - cdx*bdy) + bdz*(cdx*ady - adx*cdy)
    *                     + cdz*(adx*bdy - bdx*ady) */
-  const Int128 det = mul_wide(adz, bdx * cdy - cdx * bdy) + mul_wide(bdz, cdx * ady - adx * cdy) +
-                     mul_wide(cdz, adx * bdy - bdx * ady);
-  return det.sign();
+  return mul_wide(adz, bdx * cdy - cdx * bdy) + mul_wide(bdz, cdx * ady - adx * cdy) +
+         mul_wide(cdz, adx * bdy - bdx * ady);
+}
+} // namespace detail
+
+template <int Bits = 26>
+int orient3d(const int64_3 &a, const int64_3 &b, const int64_3 &c, const int64_3 &d)
+{
+  return detail::orient3d_det<Bits>(a, b, c, d).sign();
+}
+
+/** orient3d_value on the lattice: the exact determinant, converted with a
+ * relative error of at most 3 epsilon. */
+template <int Bits = 26>
+double orient3d_value(const int64_3 &a, const int64_3 &b, const int64_3 &c, const int64_3 &d)
+{
+  return detail::orient3d_det<Bits>(a, b, c, d).to_double();
 }
 
 template <int Bits = 26>

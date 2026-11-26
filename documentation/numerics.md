@@ -8,7 +8,7 @@ any thread count.
 | Header | Namespace | What |
 |---|---|---|
 | `math/wideint.h` | `litestl::math` | `Int128`, `Int256` (`WideInt<N>`) |
-| `math/predicates.h` | `litestl::math::pred` | `orient2d`, `orient3d`, `incircle`, `insphere` |
+| `math/predicates.h` | `litestl::math::pred` | `orient2d`, `orient3d`, `incircle`, `insphere`, `orient3d_value` |
 | `util/hash128.h` | `litestl::hash` | `Hash128`, `SipHash128`, `Hasher128`, canonical encoders |
 | `util/rng.h` | `litestl::rng` | `philox4x32`, `Stream` |
 | `util/task.h` | `litestl::task` | `parallel_for_chunks`, `parallel_reduce`, `parallel_exclusive_scan`, `ScopedBandCount` |
@@ -64,6 +64,30 @@ Simplicity, for `double`, `float` and `int64<Bits>`:
 - **Tests.** `test_predicates_sos` checks it against a formal-polynomial oracle of
   big-integer cofactors.
 
+**`orient3d_value(a, b, c, d)`** returns orient3d's determinant itself, for `double`,
+`float` and `int64<Bits>`:
+- **Accuracy.** The relative error is below `orient3d_value_rel` = 2⁻⁴⁵ (2⁸ ε). So the
+  sign is `orient3d`'s, and the value is 0 exactly when the determinant is. Quotients
+  of such values stay accurate, for example where a segment crosses a plane.
+- **Stages** (`double`), each returning once its absolute error bound is at most
+  255 ε |det|:
+  - A: `orient3d`'s static filter;
+  - B, C: `orient3d`'s adaptive stages;
+  - T: the differences were exact, so stage B's expansion is exact;
+  - D: Shewchuk's `orient3dexact`.
+
+  An exact expansion is compressed (Shewchuk's `compress`), so its largest component
+  is within one ulp of it.
+- **Argument order matters for speed.** The filter is relative to products of
+  differences from `d`, so `d` should be the point closest to the others: a vertex of
+  a small triangle, not a far point. With a small triangle, a far point and angles of
+  2⁻³ or more, the filter decides 99.9 % of calls with a triangle vertex last, and 11 %
+  with the far point last.
+- **`int64`** computes the exact `Int128` determinant and converts it, within 3 ε.
+- **Tests.** `test_predicates_value` checks the bound against `tests/bigint_oracle.h`:
+  uniform, nearly coplanar, segment-like down to grazing angles of 2⁻⁶⁰, exactly
+  coplanar, extreme exponents, the lattice form and float. Every stage must run.
+
 ### `double`
 
 - **Algorithm.** Adaptive-precision exact arithmetic, a mechanical port of
@@ -108,7 +132,8 @@ range-checked, aborting on violation, unless `LITESTL_PRED_CHECK_RANGE=0`.
 
 ### Diagnostics
 
-- **Stage counters.** `stage_hits(Predicate, Stage)` counts per stage:
+- **Stage counters.** `stage_hits(Predicate, Stage)` counts per stage
+  (`Predicate::Orient3dValue` for `orient3d_value`):
   - A: static filter;
   - B, C: adaptive stages;
   - T: early exit because the coordinate differences were exact;
@@ -221,8 +246,8 @@ its result can't. litestl offers two reproducible options:
 ## Tests and determinism digest
 
 - **Test files:**
-  - `test_wideint`, `test_predicates`: randomised suites against the independent
-    `tests/bigint_oracle.h`;
+  - `test_wideint`, `test_predicates`, `test_predicates_value`: randomised suites
+    against the independent `tests/bigint_oracle.h`;
   - `test_hash128`, `test_rng`: official vectors and golden values;
   - `test_task`: reduction determinism with a negative control;
   - `test_determinism_digest`: one pinned hash over all of the above.

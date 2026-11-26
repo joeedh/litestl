@@ -563,4 +563,264 @@ double orient3d(const double * pa, const double * pb, const double * pc, const d
   return orient3dadapt(pa, pb, pc, pd, permanent);
 }
 
+/* ---------------- orient3d_value (not in Shewchuk's predicates.c) ----------------
+ *
+ * The determinant with a relative error below 2^8 epsilon. Each stage returns
+ * when its absolute error bound is at most 255 epsilon |det|: the error is then
+ * at most 255 epsilon (|exact| + error), so below 256 epsilon |exact|. The
+ * stages are orient3d's A, B and C with that test in place of the sign test.
+ * The last resort is the exact expansion, compressed so that its largest
+ * component approximates it to within one ulp. */
+
+namespace {
+constexpr double valuerel = 255.0 * epsilon;
+
+/* Shewchuk's compress(): h's largest component, returned last, approximates the
+ * sum of e with an error below its ulp. h may alias e. */
+int compress(int elen, const double *e, double *h)
+{
+  double Q, q;
+  double Qnew;
+  int eindex, hindex;
+  double enow, hnow;
+  int top, bottom;
+
+  bottom = elen - 1;
+  Q = e[bottom];
+  for (eindex = elen - 2; eindex >= 0; eindex--) {
+    enow = e[eindex];
+    Fast_Two_Sum(Q, enow, Qnew, q);
+    if (q != 0) {
+      h[bottom--] = Qnew;
+      Q = q;
+    } else {
+      Q = Qnew;
+    }
+  }
+  top = 0;
+  for (hindex = bottom + 1; hindex < elen; hindex++) {
+    hnow = h[hindex];
+    Fast_Two_Sum(hnow, Q, Qnew, q);
+    if (q != 0) {
+      h[top++] = q;
+    }
+    Q = Qnew;
+  }
+  h[top] = Q;
+  return top + 1;
+}
+
+double compressed_value(int elen, double *e)
+{
+  const int n = compress(elen, e, e);
+  return e[n - 1];
+}
+
+/* Shewchuk's orient3dexact(), returning the compressed value. */
+double orient3dexact_value(const double * pa, const double * pb, const double * pc, const double * pd)
+{
+  double axby1, bxcy1, cxdy1, dxay1, axcy1, bxdy1;
+  double bxay1, cxby1, dxcy1, axdy1, cxay1, dxby1;
+  double axby0, bxcy0, cxdy0, dxay0, axcy0, bxdy0;
+  double bxay0, cxby0, dxcy0, axdy0, cxay0, dxby0;
+  double ab[4], bc[4], cd[4], da[4], ac[4], bd[4];
+  double temp8[8];
+  int templen;
+  double abc[12], bcd[12], cda[12], dab[12];
+  int abclen, bcdlen, cdalen, dablen;
+  double adet[24], bdet[24], cdet[24], ddet[24];
+  int alen, blen, clen, dlen;
+  double abdet[48], cddet[48];
+  int ablen, cdlen;
+  double deter[96];
+  int deterlen;
+  int i;
+
+  Two_Product(pa[0], pb[1], axby1, axby0);
+  Two_Product(pb[0], pa[1], bxay1, bxay0);
+  Two_Two_Diff(axby1, axby0, bxay1, bxay0, ab[3], ab[2], ab[1], ab[0]);
+
+  Two_Product(pb[0], pc[1], bxcy1, bxcy0);
+  Two_Product(pc[0], pb[1], cxby1, cxby0);
+  Two_Two_Diff(bxcy1, bxcy0, cxby1, cxby0, bc[3], bc[2], bc[1], bc[0]);
+
+  Two_Product(pc[0], pd[1], cxdy1, cxdy0);
+  Two_Product(pd[0], pc[1], dxcy1, dxcy0);
+  Two_Two_Diff(cxdy1, cxdy0, dxcy1, dxcy0, cd[3], cd[2], cd[1], cd[0]);
+
+  Two_Product(pd[0], pa[1], dxay1, dxay0);
+  Two_Product(pa[0], pd[1], axdy1, axdy0);
+  Two_Two_Diff(dxay1, dxay0, axdy1, axdy0, da[3], da[2], da[1], da[0]);
+
+  Two_Product(pa[0], pc[1], axcy1, axcy0);
+  Two_Product(pc[0], pa[1], cxay1, cxay0);
+  Two_Two_Diff(axcy1, axcy0, cxay1, cxay0, ac[3], ac[2], ac[1], ac[0]);
+
+  Two_Product(pb[0], pd[1], bxdy1, bxdy0);
+  Two_Product(pd[0], pb[1], dxby1, dxby0);
+  Two_Two_Diff(bxdy1, bxdy0, dxby1, dxby0, bd[3], bd[2], bd[1], bd[0]);
+
+  templen = fast_expansion_sum_zeroelim(4, cd, 4, da, temp8);
+  cdalen = fast_expansion_sum_zeroelim(templen, temp8, 4, ac, cda);
+  templen = fast_expansion_sum_zeroelim(4, da, 4, ab, temp8);
+  dablen = fast_expansion_sum_zeroelim(templen, temp8, 4, bd, dab);
+  for (i = 0; i < 4; i++) {
+    bd[i] = -bd[i];
+    ac[i] = -ac[i];
+  }
+  templen = fast_expansion_sum_zeroelim(4, ab, 4, bc, temp8);
+  abclen = fast_expansion_sum_zeroelim(templen, temp8, 4, ac, abc);
+  templen = fast_expansion_sum_zeroelim(4, bc, 4, cd, temp8);
+  bcdlen = fast_expansion_sum_zeroelim(templen, temp8, 4, bd, bcd);
+
+  alen = scale_expansion_zeroelim(bcdlen, bcd, pa[2], adet);
+  blen = scale_expansion_zeroelim(cdalen, cda, -pb[2], bdet);
+  clen = scale_expansion_zeroelim(dablen, dab, pc[2], cdet);
+  dlen = scale_expansion_zeroelim(abclen, abc, -pd[2], ddet);
+
+  ablen = fast_expansion_sum_zeroelim(alen, adet, blen, bdet, abdet);
+  cdlen = fast_expansion_sum_zeroelim(clen, cdet, dlen, ddet, cddet);
+  deterlen = fast_expansion_sum_zeroelim(ablen, abdet, cdlen, cddet, deter);
+
+  return compressed_value(deterlen, deter);
+}
+
+/* orient3dadapt()'s stages B and C. */
+double orient3d_value_adapt(const double * pa, const double * pb, const double * pc, const double * pd, double permanent)
+{
+  double adx, bdx, cdx, ady, bdy, cdy, adz, bdz, cdz;
+  double det, errbound;
+
+  double bdxcdy1, cdxbdy1, cdxady1, adxcdy1, adxbdy1, bdxady1;
+  double bdxcdy0, cdxbdy0, cdxady0, adxcdy0, adxbdy0, bdxady0;
+  double bc[4], ca[4], ab[4];
+  double bc3, ca3, ab3;
+  double adet[8], bdet[8], cdet[8];
+  int alen, blen, clen;
+  double abdet[16];
+  int ablen;
+  double fin1[192];
+  int finlength;
+
+  double adxtail, bdxtail, cdxtail;
+  double adytail, bdytail, cdytail;
+  double adztail, bdztail, cdztail;
+
+  adx = (double) (pa[0] - pd[0]);
+  bdx = (double) (pb[0] - pd[0]);
+  cdx = (double) (pc[0] - pd[0]);
+  ady = (double) (pa[1] - pd[1]);
+  bdy = (double) (pb[1] - pd[1]);
+  cdy = (double) (pc[1] - pd[1]);
+  adz = (double) (pa[2] - pd[2]);
+  bdz = (double) (pb[2] - pd[2]);
+  cdz = (double) (pc[2] - pd[2]);
+
+  Two_Product(bdx, cdy, bdxcdy1, bdxcdy0);
+  Two_Product(cdx, bdy, cdxbdy1, cdxbdy0);
+  Two_Two_Diff(bdxcdy1, bdxcdy0, cdxbdy1, cdxbdy0, bc3, bc[2], bc[1], bc[0]);
+  bc[3] = bc3;
+  alen = scale_expansion_zeroelim(4, bc, adz, adet);
+
+  Two_Product(cdx, ady, cdxady1, cdxady0);
+  Two_Product(adx, cdy, adxcdy1, adxcdy0);
+  Two_Two_Diff(cdxady1, cdxady0, adxcdy1, adxcdy0, ca3, ca[2], ca[1], ca[0]);
+  ca[3] = ca3;
+  blen = scale_expansion_zeroelim(4, ca, bdz, bdet);
+
+  Two_Product(adx, bdy, adxbdy1, adxbdy0);
+  Two_Product(bdx, ady, bdxady1, bdxady0);
+  Two_Two_Diff(adxbdy1, adxbdy0, bdxady1, bdxady0, ab3, ab[2], ab[1], ab[0]);
+  ab[3] = ab3;
+  clen = scale_expansion_zeroelim(4, ab, cdz, cdet);
+
+  ablen = fast_expansion_sum_zeroelim(alen, adet, blen, bdet, abdet);
+  finlength = fast_expansion_sum_zeroelim(ablen, abdet, clen, cdet, fin1);
+
+  det = estimate(finlength, fin1);
+  errbound = o3derrboundB * permanent;
+  if (errbound <= valuerel * Absolute(det)) {
+    PRED_HIT(Orient3dValue, B);
+    return det;
+  }
+
+  Two_Diff_Tail(pa[0], pd[0], adx, adxtail);
+  Two_Diff_Tail(pb[0], pd[0], bdx, bdxtail);
+  Two_Diff_Tail(pc[0], pd[0], cdx, cdxtail);
+  Two_Diff_Tail(pa[1], pd[1], ady, adytail);
+  Two_Diff_Tail(pb[1], pd[1], bdy, bdytail);
+  Two_Diff_Tail(pc[1], pd[1], cdy, cdytail);
+  Two_Diff_Tail(pa[2], pd[2], adz, adztail);
+  Two_Diff_Tail(pb[2], pd[2], bdz, bdztail);
+  Two_Diff_Tail(pc[2], pd[2], cdz, cdztail);
+
+  if ((adxtail == 0.0) && (bdxtail == 0.0) && (cdxtail == 0.0)
+      && (adytail == 0.0) && (bdytail == 0.0) && (cdytail == 0.0)
+      && (adztail == 0.0) && (bdztail == 0.0) && (cdztail == 0.0)) {
+    /* the differences were exact, so fin1 is the exact determinant */
+    PRED_HIT(Orient3dValue, T);
+    return compressed_value(finlength, fin1);
+  }
+
+  errbound = o3derrboundC * permanent + resulterrbound * Absolute(det);
+  det += (adz * ((bdx * cdytail + cdy * bdxtail)
+                 - (bdy * cdxtail + cdx * bdytail))
+          + adztail * (bdx * cdy - bdy * cdx))
+       + (bdz * ((cdx * adytail + ady * cdxtail)
+                 - (cdy * adxtail + adx * cdytail))
+          + bdztail * (cdx * ady - cdy * adx))
+       + (cdz * ((adx * bdytail + bdy * adxtail)
+                 - (ady * bdxtail + bdx * adytail))
+          + cdztail * (adx * bdy - ady * bdx));
+  if (errbound <= valuerel * Absolute(det)) {
+    PRED_HIT(Orient3dValue, C);
+    return det;
+  }
+  PRED_HIT(Orient3dValue, D);
+  return orient3dexact_value(pa, pb, pc, pd);
+}
+} // namespace
+
+double orient3d_value(const double * pa, const double * pb, const double * pc, const double * pd)
+{
+  double adx, bdx, cdx, ady, bdy, cdy, adz, bdz, cdz;
+  double bdxcdy, cdxbdy, cdxady, adxcdy, adxbdy, bdxady;
+  double det;
+  double permanent, errbound;
+
+  adx = pa[0] - pd[0];
+  bdx = pb[0] - pd[0];
+  cdx = pc[0] - pd[0];
+  ady = pa[1] - pd[1];
+  bdy = pb[1] - pd[1];
+  cdy = pc[1] - pd[1];
+  adz = pa[2] - pd[2];
+  bdz = pb[2] - pd[2];
+  cdz = pc[2] - pd[2];
+
+  bdxcdy = bdx * cdy;
+  cdxbdy = cdx * bdy;
+
+  cdxady = cdx * ady;
+  adxcdy = adx * cdy;
+
+  adxbdy = adx * bdy;
+  bdxady = bdx * ady;
+
+  det = adz * (bdxcdy - cdxbdy)
+      + bdz * (cdxady - adxcdy)
+      + cdz * (adxbdy - bdxady);
+
+  permanent = (Absolute(bdxcdy) + Absolute(cdxbdy)) * Absolute(adz)
+            + (Absolute(cdxady) + Absolute(adxcdy)) * Absolute(bdz)
+            + (Absolute(adxbdy) + Absolute(bdxady)) * Absolute(cdz);
+  errbound = o3derrboundA * permanent;
+  if (errbound <= valuerel * Absolute(det)) {
+    PRED_HIT(Orient3dValue, A);
+    return det;
+  }
+
+  return orient3d_value_adapt(pa, pb, pc, pd, permanent);
+}
+
 } // namespace litestl::math::pred::detail

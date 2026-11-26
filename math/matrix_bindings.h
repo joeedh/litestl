@@ -1,13 +1,30 @@
 #pragma once
 
-/* Bindings for Matrix and Quat. Not in math_bindings.h, which binding.h includes
- * everywhere, because matrix.h brings in Eigen. */
+/* Bindings for Matrix, Quat and ClipDepth. Not in math_bindings.h, which binding.h
+ * includes everywhere, because matrix.h brings in Eigen. */
 
 #include "../binding/binding.h"
+#include "../util/alloc.h"
 #include "./matrix.h"
 #include "./quat.h"
+#include "./transform.h"
 
 namespace litestl::binding {
+
+/** ClipDepth, bound as an enum so a host can bind members and arguments of that type. */
+template <> struct Binder<math::ClipDepth> {
+  static const BindingBase *bind()
+  {
+    static types::Enum *e = nullptr;
+    if (!e) {
+      alloc::PermanentGuard guard;
+      e = new types::Enum("litestl::math::ClipDepth", sizeof(math::ClipDepth));
+      e->addItem("ZeroToOne", math::ClipDepth::ZeroToOne);
+      e->addItem("MinusOneToOne", math::ClipDepth::MinusOneToOne);
+    }
+    return e;
+  }
+};
 
 namespace detail {
 template <typename T> struct MathElements;

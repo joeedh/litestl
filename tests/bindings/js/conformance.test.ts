@@ -12,6 +12,7 @@ import {getBindingBackend, setBindingBackend} from '@litestl/typescript-runtime'
 import {Box} from 'fixture-ts/fixture/Box'
 import {Color} from 'fixture-ts/fixture/Color'
 import * as fx from 'fixture-ts/fixture/functions'
+import {ClipDepth} from 'fixture-ts/litestl/math/ClipDepth'
 import type {Shape} from 'fixture-ts/fixture/Shape'
 import type {ProbeImpl} from 'fixture-ts/fixture/Probe'
 import {Vec2} from 'fixture-ts/fixture/Vec2'
@@ -44,6 +45,9 @@ describe(`binding conformance (${backend.kind})`, () => {
     assert.equal(fx.nextColor(Color.Red), Color.Green)
     assert.equal(fx.nextColor(Color.Blue), Color.Red)
     assert.equal(fx.colorName(Color.Blue), 'blue')
+    assert.equal(ClipDepth.MinusOneToOne, 1)
+    assert.equal(fx.otherClipDepth(ClipDepth.ZeroToOne), ClipDepth.MinusOneToOne)
+    assert.equal(fx.otherClipDepth(ClipDepth.MinusOneToOne), ClipDepth.ZeroToOne)
   })
 
   test('strings', () => {

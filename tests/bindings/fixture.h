@@ -158,6 +158,8 @@ math::mat4d translation(double x, double y, double z);
 math::mat4d concat(const math::mat4d &a, const math::mat4d &b);
 math::quatd halfTurn(int32_t axis);
 math::mat4f narrow(const math::mat4d &m);
+/** A math enum as an argument and a return. */
+math::ClipDepth otherClipDepth(math::ClipDepth d);
 
 int32_t addInts(int32_t a, int32_t b);
 double scaleD(double v, double s);

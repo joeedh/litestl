@@ -1,7 +1,7 @@
 #include "napi_runtime.h"
 
-#include "litestl/binding/generators/typescript.h"
-#include "litestl/util/alloc.h"
+#include "../generators/typescript.h"
+#include "../../util/alloc.h"
 
 #include <algorithm>
 #include <cctype>

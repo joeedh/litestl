@@ -23,15 +23,15 @@
 #include <type_traits>
 #include <utility>
 
-#include "attr/paged_store.h"
-#include "attr/pool_ref.h"
-#include "attr/pool_slots.h"
-#include "io/bytes.h"
-#include "util/function.h"
-#include "util/hash128.h"
-#include "util/memory.h"
-#include "util/string.h"
-#include "util/vector.h"
+#include "paged_store.h"
+#include "pool_ref.h"
+#include "pool_slots.h"
+#include "../io/bytes.h"
+#include "../util/function.h"
+#include "../util/hash128.h"
+#include "../util/memory.h"
+#include "../util/string.h"
+#include "../util/vector.h"
 
 namespace litestl::attr {
 

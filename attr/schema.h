@@ -30,8 +30,8 @@
 #include <tuple>
 #include <type_traits>
 
-#include "attr/group.h"
-#include "util/string.h"
+#include "group.h"
+#include "../util/string.h"
 
 namespace litestl::attr {
 

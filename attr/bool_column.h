@@ -4,7 +4,7 @@
  * is a later memory optimisation; bytes keep parallel page writes race-free
  * and paging identical to every other column. */
 
-#include "attr/column.h"
+#include "column.h"
 
 namespace litestl::attr {
 

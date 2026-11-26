@@ -30,8 +30,8 @@
  *   insphere ~= 2^(5B+10.6)    (B=26: 142 bits -> Int256)
  * Intermediates may wrap harmlessly; only the final value must fit. */
 
-#include "math/vector.h"
-#include "math/wideint.h"
+#include "vector.h"
+#include "wideint.h"
 
 #include <cstdint>
 #include <cstdio>

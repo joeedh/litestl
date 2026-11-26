@@ -1,4 +1,4 @@
-#include "io/binfile.h"
+#include "../io/binfile.h"
 #include "test_util.h"
 
 #include <cstdio>

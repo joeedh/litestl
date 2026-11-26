@@ -1,7 +1,7 @@
 #include "compress.h"
 
-#include "lz4.h"
-#include "lz4hc.h"
+#include "../extern/lz4/lz4.h"
+#include "../extern/lz4/lz4hc.h"
 
 namespace sculptcore::io {
 

@@ -6,11 +6,11 @@
  * N-API addon, so every backend is checked against the same descriptors.
  */
 
-#include "litestl/binding/binding.h"
-#include "litestl/binding/manager.h"
-#include "litestl/math/matrix_bindings.h"
-#include "litestl/util/string.h"
-#include "litestl/util/vector.h"
+#include "../../binding/binding.h"
+#include "../../binding/manager.h"
+#include "../../math/matrix_bindings.h"
+#include "../../util/string.h"
+#include "../../util/vector.h"
 
 #include <cstdint>
 #include <span>

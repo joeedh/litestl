@@ -1,8 +1,8 @@
-#include "litestl/util/rand.h"
-#include "litestl/util/set.h"
-#include "litestl/util/string.h"
-#include "litestl/util/vector.h"
-#include "platform/platform.h"
+#include "../util/rand.h"
+#include "../util/set.h"
+#include "../util/string.h"
+#include "../util/vector.h"
+#include "../platform/platform.h"
 #include "test_util.h"
 #include <cstdio>
 

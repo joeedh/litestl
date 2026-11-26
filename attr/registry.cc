@@ -1,6 +1,6 @@
-#include "attr/registry.h"
-#include "attr/bool_column.h"
-#include "attr/column.h"
+#include "registry.h"
+#include "bool_column.h"
+#include "column.h"
 
 namespace litestl::attr {
 

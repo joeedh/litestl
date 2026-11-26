@@ -1,10 +1,10 @@
 
-#include "litestl/math/vector.h"
+#include "../math/vector.h"
 #include "test_util.h"
 #include <cstdio>
 #include <cstring>
 
-#include "litestl/util/compiler_util.h"
+#include "../util/compiler_util.h"
 #include <type_traits>
 
 /* Attribute columns (litestl::attr) store Vec in pages copied with memcpy. */

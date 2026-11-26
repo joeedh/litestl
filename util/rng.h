@@ -15,9 +15,9 @@
 #include <array>
 #include <cstdint>
 
-#include "math/wideint.h"
-#include "util/hash.h"
-#include "util/hash128.h"
+#include "../math/wideint.h"
+#include "hash.h"
+#include "hash128.h"
 
 namespace litestl::rng {
 

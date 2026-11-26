@@ -1,7 +1,7 @@
-#include "binding/binding.h"
-#include "binding/manager.h"
-#include "math/vector.h"
-#include "util/vector.h"
+#include "../binding/binding.h"
+#include "../binding/manager.h"
+#include "../math/vector.h"
+#include "../util/vector.h"
 
 #include <cstdarg>
 #include <cstdio>

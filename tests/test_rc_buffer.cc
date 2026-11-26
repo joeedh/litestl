@@ -1,6 +1,6 @@
-#include "litestl/math/wideint.h"
-#include "litestl/util/memory.h"
-#include "litestl/util/rc_buffer.h"
+#include "../math/wideint.h"
+#include "../util/memory.h"
+#include "../util/rc_buffer.h"
 
 #include "test_harness.h"
 

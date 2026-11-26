@@ -1,7 +1,7 @@
 /* Descriptor fields used by coredcc's interfaces: Struct::isInterface and typeKey,
  * findMethod, Method::isOptional, Pointer/Reference::isConst, noexcept methods and
  * adaptor methods. */
-#include "binding/binding.h"
+#include "../binding/binding.h"
 #include "test_util.h"
 
 #include <cstring>

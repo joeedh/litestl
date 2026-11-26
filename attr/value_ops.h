@@ -30,8 +30,8 @@
 #include <limits>
 #include <type_traits>
 
-#include "attr/mix.h"
-#include "attr/paged_store.h"
+#include "mix.h"
+#include "paged_store.h"
 
 #if defined(__FAST_MATH__)
 #error "litestl::attr must not be compiled with -ffast-math (deterministic mixing)"

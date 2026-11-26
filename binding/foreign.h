@@ -22,7 +22,7 @@
  */
 
 #include "binding.h"
-#include "util/string.h"
+#include "../util/string.h"
 
 #include <cstdint>
 

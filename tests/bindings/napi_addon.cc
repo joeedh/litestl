@@ -2,7 +2,7 @@
 
 #include "fixture.h"
 
-#include "litestl/binding/napi/napi_runtime.h"
+#include "../../binding/napi/napi_runtime.h"
 
 namespace {
 

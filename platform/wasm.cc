@@ -2,7 +2,7 @@
 #include <string>
 #include <thread>
 
-#include "util/wasm.h"
+#include "../util/wasm.h"
 
 // use std c++ for wasm
 namespace litestl::time {

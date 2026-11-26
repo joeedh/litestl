@@ -1,12 +1,12 @@
-#include "litestl/util/alloc.h"
-#include "litestl/util/rand.h"
-#include "litestl/util/set.h"
-#include "litestl/util/string.h"
-#include "litestl/util/vector.h"
+#include "../util/alloc.h"
+#include "../util/rand.h"
+#include "../util/set.h"
+#include "../util/string.h"
+#include "../util/vector.h"
 #include "test_util.h"
 #include <cstdio>
 
-#include "litestl/util/memory.h"
+#include "../util/memory.h"
 
 test_init;
 

@@ -1,5 +1,5 @@
 #pragma once
-#include "binding/binding_base.h"
+#include "binding_base.h"
 #include "binding_number.h"
 
 namespace litestl::binding::types {

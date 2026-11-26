@@ -1,7 +1,7 @@
 #pragma once
 
-#include "litestl/util/alloc.h"
-#include "litestl/util/string.h"
+#include "../util/alloc.h"
+#include "../util/string.h"
 
 #include <cstdio>
 #include <cstdlib>

@@ -7,8 +7,8 @@
 #include <cstdint>
 #include <string>
 
-#include "math/vector.h"
-#include "util/hash128.h"
+#include "../math/vector.h"
+#include "../util/hash128.h"
 
 namespace litestl::attr {
 

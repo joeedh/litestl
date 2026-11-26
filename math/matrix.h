@@ -1,8 +1,8 @@
 #pragma once
 
-#include "eigen/include/eigen5/Eigen/Core"
-#include "eigen/include/eigen5/Eigen/LU"
-#include "math/vector.h"
+#include "../extern/eigen/include/eigen5/Eigen/Core"
+#include "../extern/eigen/include/eigen5/Eigen/LU"
+#include "vector.h"
 
 #include <cstdio>
 

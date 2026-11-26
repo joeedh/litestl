@@ -4,13 +4,13 @@
 #define LITESTL_WORKERS_COUNT 12
 #endif
 
-#include "platform/cpu.h"
-#include "util/alloc.h"
-#include "util/compiler_util.h"
-#include "util/function.h"
-#include "util/index_range.h"
-#include "util/span.h"
-#include "util/vector.h"
+#include "../platform/cpu.h"
+#include "alloc.h"
+#include "compiler_util.h"
+#include "function.h"
+#include "index_range.h"
+#include "span.h"
+#include "vector.h"
 
 #include <algorithm>
 #include <atomic>

@@ -4,8 +4,8 @@
  */
 
 #include "bindings/fixture.h"
-#include "binding/binding_dispatch.h"
-#include "binding/generators/typescript.h"
+#include "../binding/binding_dispatch.h"
+#include "../binding/generators/typescript.h"
 #include "test_util.h"
 
 #include <cstring>

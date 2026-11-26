@@ -1,9 +1,9 @@
 #pragma once
 
-#include "litestl/binding/binding.h"
-#include "litestl/util/map.h"
-#include "litestl/util/string.h"
-#include "litestl/util/vector.h"
+#include "binding.h"
+#include "../util/map.h"
+#include "../util/string.h"
+#include "../util/vector.h"
 
 #include <algorithm>
 #include <cstdio>

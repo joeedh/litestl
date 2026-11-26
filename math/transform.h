@@ -7,9 +7,9 @@
  * by the transpose; these functions don't use it.)
  */
 
-#include "math/matrix.h"
-#include "math/quat.h"
-#include "math/vector.h"
+#include "matrix.h"
+#include "quat.h"
+#include "vector.h"
 
 #include <algorithm>
 #include <cmath>

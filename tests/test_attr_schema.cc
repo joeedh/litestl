@@ -1,5 +1,5 @@
-#include "litestl/attr/bool_column.h"
-#include "litestl/attr/schema.h"
+#include "../attr/bool_column.h"
+#include "../attr/schema.h"
 
 #include "test_harness.h"
 

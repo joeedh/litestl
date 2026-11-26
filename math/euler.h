@@ -1,7 +1,7 @@
 #pragma once
 
-#include "math/quat.h"
-#include "math/vector.h"
+#include "quat.h"
+#include "vector.h"
 
 #include <cmath>
 #include <cstdint>

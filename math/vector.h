@@ -18,8 +18,8 @@
 #include <type_traits>
 #include <utility>
 
-#include "util/compiler_util.h"
-#include "util/type_tags.h"
+#include "../util/compiler_util.h"
+#include "../util/type_tags.h"
 
 namespace litestl::math {
 template <typename T, int vec_size> class Vec {

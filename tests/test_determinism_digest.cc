@@ -6,11 +6,11 @@
  * the constant in the same commit and say why. LITESTL_PRINT_GOLDENS=1
  * prints the current value. */
 
-#include "litestl/math/predicates.h"
-#include "litestl/math/wideint.h"
-#include "litestl/util/hash128.h"
-#include "litestl/util/rng.h"
-#include "litestl/util/task.h"
+#include "../math/predicates.h"
+#include "../math/wideint.h"
+#include "../util/hash128.h"
+#include "../util/rng.h"
+#include "../util/task.h"
 
 #include "splitmix64.h"
 #include "test_harness.h"

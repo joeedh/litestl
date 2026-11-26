@@ -13,10 +13,10 @@
 
 #include <string_view>
 
-#include "attr/column.h"
-#include "util/function.h"
-#include "util/string.h"
-#include "util/vector.h"
+#include "column.h"
+#include "../util/function.h"
+#include "../util/string.h"
+#include "../util/vector.h"
 
 namespace litestl::attr {
 

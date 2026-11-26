@@ -1,6 +1,6 @@
-#include "litestl/attr/bool_column.h"
-#include "litestl/attr/column.h"
-#include "litestl/attr/registry.h"
+#include "../attr/bool_column.h"
+#include "../attr/column.h"
+#include "../attr/registry.h"
 
 #include "test_harness.h"
 

@@ -441,12 +441,18 @@ math::mat4f narrow(const math::mat4d &m)
   }
   return r;
 }
+math::ClipDepth otherClipDepth(math::ClipDepth d)
+{
+  return d == math::ClipDepth::ZeroToOne ? math::ClipDepth::MinusOneToOne
+                                         : math::ClipDepth::ZeroToOne;
+}
 
 void registerFixture(BindingManager *mgr)
 {
   alloc::PermanentGuard guard;
 
   mgr->add(Bind<Color>());
+  mgr->add(Bind<math::ClipDepth>());
 
   mgr->add(Bind<Vec2>());
   mgr->add(Bind<Shape>());
@@ -475,6 +481,7 @@ void registerFixture(BindingManager *mgr)
   BIND_FUNCTION(mgr, "fixture::concat", concat, MARGS("a", "b"));
   BIND_FUNCTION(mgr, "fixture::halfTurn", halfTurn, MARGS("axis"));
   BIND_FUNCTION(mgr, "fixture::narrow", narrow, MARGS("m"));
+  BIND_FUNCTION(mgr, "fixture::otherClipDepth", otherClipDepth, MARGS("d"));
 
   BIND_FUNCTION(mgr, "fixture::addInts", addInts, MARGS("a", "b"));
   BIND_FUNCTION(mgr, "fixture::scaleD", scaleD, MARGS("v", "s"));
